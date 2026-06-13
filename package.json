@@ -1,0 +1,23 @@
+{
+  "name": "job-watch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudový agent, který denně prohledá volná místa (MPSV + ATS), vyfiltruje pozice vedoucí IT / IT manažer / Solution Architect, ohodnotí přes Anthropic API a pošle nové nálezy na Telegram / e-mail.",
+  "author": "Milan Trnka (maxferit)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:init": "wrangler d1 execute job-watch --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute job-watch --local --file=schema.sql",
+    "seed": "node --max-old-space-size=4096 scripts/seed.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251201.0",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.40.0"
+  }
+}

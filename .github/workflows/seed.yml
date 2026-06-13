@@ -1,0 +1,24 @@
+name: Seed MPSV baseline
+
+# VOLITELNÉ. Jednorázové naplnění historických otevřených pozic do D1 z cloudu
+# (GitHub CI) — nezávisle na lokálním PC. Denní provoz seed NEvyžaduje (přírůstky
+# se dohánějí samy). Spouští se ručně přes "Run workflow".
+# Potřebuje GitHub secret: CLOUDFLARE_API_TOKEN.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run seed # stáhne plný export, vyfiltruje, vygeneruje seed.sql
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 execute job-watch --remote --file=seed.sql

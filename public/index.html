@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JobWatch — Výsledky</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#262b36; --fg:#e8eaed; --mut:#9aa3b2; --acc:#4f9cf9; --good:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; }
+  nav a { color:var(--acc); text-decoration:none; margin-right:14px; }
+  .spacer { flex:1; }
+  button { background:var(--acc); color:#fff; border:0; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:14px; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
+  .filters { display:flex; gap:14px; align-items:center; padding:12px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; color:var(--mut); }
+  .filters input[type=number] { width:70px; background:var(--card); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; }
+  main { padding:16px 20px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-weight:600; font-size:13px; }
+  .score { font-weight:700; }
+  .badge { font-size:11px; padding:2px 6px; border-radius:5px; background:#2a2f3a; color:var(--mut); }
+  .badge.agency { background:#3a2a1a; color:#f0b35b; }
+  .orig { color:var(--good); font-size:13px; }
+  .reason { color:var(--mut); font-size:13px; }
+  a.link { color:var(--acc); text-decoration:none; }
+  .empty { color:var(--mut); padding:40px 0; text-align:center; }
+  #status { color:var(--mut); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔎 JobWatch</h1>
+  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a></nav>
+  <span class="spacer"></span>
+  <span id="status"></span>
+  <button id="run" class="ghost">▶ Spustit teď</button>
+</header>
+
+<div class="filters">
+  <label>Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
+  <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>
+  <button id="refresh" class="ghost">Obnovit</button>
+</div>
+
+<main>
+  <table>
+    <thead><tr>
+      <th>Skóre</th><th>Pozice</th><th>Zaměstnavatel</th><th>Lokalita</th><th>Mzda</th><th>Zdroj</th><th></th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty" class="empty" hidden>Zatím žádné výsledky. Spusť běh tlačítkem „Spustit teď".</div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+function salary(j){ if(!j.salary_from && !j.salary_to) return '—'; return `${j.salary_from??'?'}–${j.salary_to??'?'} Kč`; }
+function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function load(){
+  const min = $('#minScore').value || 0;
+  const ag = $('#agencyOnly').checked ? '1' : '0';
+  $('#status').textContent = 'Načítám…';
+  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}`);
+  const { jobs } = await r.json();
+  const tb = $('#rows'); tb.innerHTML = '';
+  $('#empty').hidden = jobs.length > 0;
+  for(const j of jobs){
+    const tr = document.createElement('tr');
+    const emp = j.real_employer
+      ? `${esc(j.employer)} <span class="badge agency">agentura</span><br><span class="orig">🎯 ${esc(j.real_employer)}</span>`
+      : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
+    tr.innerHTML = `
+      <td class="score">${j.relevance ?? '—'}</td>
+      <td>${esc(j.title)}<div class="reason">${esc(j.reason ?? '')}</div></td>
+      <td>${emp}</td>
+      <td>${esc(j.location ?? '—')}</td>
+      <td>${salary(j)}</td>
+      <td><span class="badge">${esc((j.source||'').split(':')[0])}</span></td>
+      <td>${j.url ? `<a class="link" href="${esc(j.url)}" target="_blank" rel="noopener">otevřít ↗</a>` : ''}</td>`;
+    tb.appendChild(tr);
+  }
+  $('#status').textContent = `${jobs.length} pozic`;
+}
+
+$('#refresh').onclick = load;
+$('#minScore').onchange = load;
+$('#agencyOnly').onchange = load;
+$('#run').onclick = async () => {
+  $('#run').disabled = true; $('#status').textContent = 'Spouštím běh…';
+  await fetch('/api/run', { method:'POST' });
+  $('#status').textContent = 'Běh spuštěn (může chvíli trvat). Obnov za chvíli.';
+  $('#run').disabled = false;
+};
+load();
+</script>
+</body>
+</html>

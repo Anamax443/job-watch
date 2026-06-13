@@ -1,0 +1,25 @@
+name: Deploy
+
+# Deploy Workeru z cloudu (GitHub CI) — nezávisle na lokálním PC.
+# Potřebuje GitHub secret: CLOUDFLARE_API_TOKEN (oprávnění Workers + D1).
+# Pozn.: database_id musí být vyplněné ve wrangler.toml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run typecheck
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy

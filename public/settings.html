@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JobWatch — Nastavení</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#262b36; --fg:#e8eaed; --mut:#9aa3b2; --acc:#4f9cf9; --good:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; }
+  nav a { color:var(--acc); text-decoration:none; margin-right:14px; }
+  main { padding:20px; max-width:720px; }
+  .field { margin-bottom:20px; }
+  label.lbl { display:block; margin-bottom:6px; color:var(--mut); font-size:13px; }
+  input[type=text], input[type=number], input[type=email], textarea {
+    width:100%; background:var(--card); border:1px solid var(--line); color:var(--fg);
+    border-radius:8px; padding:9px 11px; font:inherit;
+  }
+  textarea { min-height:120px; resize:vertical; }
+  .row { display:flex; gap:20px; flex-wrap:wrap; }
+  .row .field { flex:1; min-width:200px; }
+  .check { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .hint { color:var(--mut); font-size:12px; margin-top:4px; }
+  button { background:var(--acc); color:#fff; border:0; padding:10px 18px; border-radius:8px; cursor:pointer; font-size:15px; }
+  #status { margin-left:14px; color:var(--good); font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙️ JobWatch — Nastavení</h1>
+  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a></nav>
+</header>
+
+<main>
+  <div class="field">
+    <label class="lbl" for="keywords">Klíčová slova (pozice) — jedno na řádek</label>
+    <textarea id="keywords" placeholder="vedoucí IT&#10;Head of IT&#10;Solution Architect"></textarea>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label class="lbl" for="czIscoPrefixes">CZ-ISCO prefixy (čárkou)</label>
+      <input id="czIscoPrefixes" type="text" placeholder="133, 25" />
+      <div class="hint">133 = řídící pracovníci ICT. Přidej 25 pro širší záběr.</div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="notifyThreshold">Práh notifikace (0–100)</label>
+      <input id="notifyThreshold" type="number" min="0" max="100" />
+    </div>
+  </div>
+
+  <div class="field">
+    <label class="lbl" for="emailTo">E-mail pro výsledky</label>
+    <input id="emailTo" type="email" placeholder="ty@domena.cz" />
+  </div>
+
+  <div class="field">
+    <label class="lbl" for="telegramChatId">Telegram chat_id</label>
+    <input id="telegramChatId" type="text" placeholder="123456789" />
+    <div class="hint">Bot token je tajný (Worker secret). Tady jen cílový chat.</div>
+  </div>
+
+  <div class="check"><input id="notifyEmail" type="checkbox" /> <label for="notifyEmail">Posílat e-mailem</label></div>
+  <div class="check"><input id="notifyTelegram" type="checkbox" /> <label for="notifyTelegram">Posílat na Telegram</label></div>
+
+  <button id="save">Uložit</button><span id="status"></span>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let current = {};
+
+async function load(){
+  const r = await fetch('/api/settings');
+  current = await r.json();
+  $('#keywords').value = (current.keywords||[]).join('\n');
+  $('#czIscoPrefixes').value = (current.czIscoPrefixes||[]).join(', ');
+  $('#notifyThreshold').value = current.notifyThreshold ?? 70;
+  $('#emailTo').value = current.emailTo ?? '';
+  $('#telegramChatId').value = current.telegramChatId ?? '';
+  $('#notifyEmail').checked = !!current.notifyEmail;
+  $('#notifyTelegram').checked = !!current.notifyTelegram;
+}
+
+$('#save').onclick = async () => {
+  const payload = {
+    keywords: $('#keywords').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    czIscoPrefixes: $('#czIscoPrefixes').value.split(',').map(s=>s.trim()).filter(Boolean),
+    notifyThreshold: parseInt($('#notifyThreshold').value,10)||0,
+    emailTo: $('#emailTo').value.trim(),
+    telegramChatId: $('#telegramChatId').value.trim(),
+    notifyEmail: $('#notifyEmail').checked,
+    notifyTelegram: $('#notifyTelegram').checked,
+  };
+  $('#save').disabled = true;
+  const r = await fetch('/api/settings', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
+  $('#save').disabled = false;
+  $('#status').textContent = r.ok ? '✓ Uloženo' : '✗ Chyba ukládání';
+  setTimeout(()=>{ $('#status').textContent=''; }, 2500);
+};
+load();
+</script>
+</body>
+</html>

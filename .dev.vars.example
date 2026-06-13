@@ -1,0 +1,15 @@
+# Vzor lokálních secrets. Zkopíruj na `.dev.vars` (které je v .gitignore) a vyplň.
+# Na produkci nastav přes: wrangler secret put NAZEV
+
+# Anthropic API (scoring + deanonymizace)
+ANTHROPIC_API_KEY=
+
+# Telegram bot (token je tajný; cílový chat_id se nastavuje v UI / settings)
+TELEGRAM_BOT_TOKEN=
+
+# Microsoft Graph (odesílání e-mailu, client credentials flow)
+GRAPH_TENANT_ID=
+GRAPH_CLIENT_ID=
+GRAPH_CLIENT_SECRET=
+# Odesílací schránka (UPN/e-mail), ze které se posílá sendMail
+GRAPH_MAILBOX=

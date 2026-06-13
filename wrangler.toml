@@ -1,0 +1,29 @@
+name = "job-watch"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Denní běh: 07:00 SEČ / 06:00 UTC. MPSV publikuje přírůstky v pracovní dny.
+[triggers]
+crons = ["0 6 * * *"]
+
+# Statické UI (Výsledky + Nastavení) servírované stejným Workerem.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# /api/* řeší Worker, zbytek padá na statické assety (viz src/index.ts).
+
+# D1 — stav, dedup, výsledky, nastavení.
+# database_id doplň po `wrangler d1 create job-watch`.
+[[d1_databases]]
+binding = "DB"
+database_name = "job-watch"
+database_id = "TODO"
+
+# Necitlivé proměnné. Tajné klíče jdou přes `wrangler secret put ...` (viz .dev.vars.example).
+[vars]
+SCORE_MODEL = "claude-haiku-4-5"
+ENRICH_MODEL = "claude-sonnet-4-6"
+# Volitelné: kolik dní zpět maximálně dohánět přírůstky při prvním běhu / po výpadku.
+MAX_INCREMENT_BACKFILL_DAYS = "7"
+# Kolik nových zdrojů (personálek/firem) max. dynamicky proscreenovat za jeden běh (cost control).
+MAX_DISCOVERY_PER_RUN = "5"
