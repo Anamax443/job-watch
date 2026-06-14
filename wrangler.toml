@@ -10,7 +10,9 @@ crons = ["0 6 * * *"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
-# /api/* řeší Worker, zbytek padá na statické assety (viz src/index.ts).
+# Worker běží jako první i pro statiku → bezpečnostní hlavičky (secure()) se přidají i k HTML.
+run_worker_first = true
+# /api/* řeší Worker, zbytek obslouží env.ASSETS.fetch (viz src/index.ts).
 
 # D1 — stav, dedup, výsledky, nastavení.
 # database_id doplň po `wrangler d1 create job-watch`.
