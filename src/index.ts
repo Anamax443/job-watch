@@ -128,6 +128,7 @@ function sanitizeSettings(input: any): Partial<Settings> {
   if (typeof input.notifyEmail === 'boolean') out.notifyEmail = input.notifyEmail;
   if (typeof input.notifyTelegram === 'boolean') out.notifyTelegram = input.notifyTelegram;
   if (typeof input.notifySlack === 'boolean') out.notifySlack = input.notifySlack;
+  if (typeof input.profile === 'string') out.profile = input.profile;
   return out;
 }
 
@@ -179,8 +180,14 @@ async function route(
     if (p === '/api/jobs' && request.method === 'GET') return await handleJobs(env, url);
     if (p === '/api/settings' && request.method === 'GET') return json(await loadSettings(env));
     if (p === '/api/settings' && request.method === 'POST') {
-      const body = await request.json().catch(() => ({}));
-      return json(await saveSettings(env, sanitizeSettings(body)));
+      const body: any = await request.json().catch(() => ({}));
+      const before = await loadSettings(env);
+      const saved = await saveSettings(env, sanitizeSettings(body));
+      // změna profilu znehodnotí stará skóre → příští běh přeskóruje proti novému profilu
+      if (typeof body?.profile === 'string' && body.profile.trim() !== (before.profile ?? '').trim()) {
+        await env.DB.prepare('UPDATE seen_jobs SET relevance = NULL').run();
+      }
+      return json(saved);
     }
     if (p === '/api/sources' && request.method === 'GET') {
       const rows = await env.DB.prepare(

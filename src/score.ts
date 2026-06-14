@@ -15,7 +15,7 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const SYSTEM =
+const DEFAULT_SYSTEM =
   'Jsi recruiter screener. Hodnotíš, jak moc inzerát odpovídá profilu VEDOUCÍ IT / ' +
   'IT manažer / Head of IT / IT ředitel / CIO / Solution Architect / IT architekt — tedy ' +
   'řídící nebo seniorní architektonické IT role. Odliš „vedoucí IT oddělení" (vysoká relevance) ' +
@@ -26,7 +26,19 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-export async function scoreJob(env: Env, job: JobPosting): Promise<ScoreResult> {
+function buildSystem(profile: string): string {
+  const p = (profile ?? '').trim();
+  if (!p) return DEFAULT_SYSTEM;
+  return (
+    'Jsi recruiter screener. Hodnotíš, jak moc pracovní inzerát sedí na KONKRÉTNÍ profil tohoto ' +
+    'kandidáta (zkušenosti, seniorita, zaměření, lokalita, preference):\n\n' +
+    p.slice(0, 6000) +
+    '\n\nVrať relevance 0–100 = míra shody pozice s TÍMTO profilem (ne obecně), ' +
+    'seniority lead|senior|other, reason = krátké zdůvodnění česky vůči profilu. Pouze JSON dle schématu.'
+  );
+}
+
+export async function scoreJob(env: Env, job: JobPosting, profile = ''): Promise<ScoreResult> {
   const user = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
@@ -44,7 +56,7 @@ export async function scoreJob(env: Env, job: JobPosting): Promise<ScoreResult> 
     const resp = await messagesCreate(env, {
       model: env.SCORE_MODEL,
       max_tokens: 300,
-      system: SYSTEM,
+      system: buildSystem(profile),
       messages: [{ role: 'user', content: user }],
       output_config: { format: { type: 'json_schema', schema: SCHEMA } },
     });

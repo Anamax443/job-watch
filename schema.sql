@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
   duplicate_of       TEXT,               -- id jiného záznamu, je-li tento duplikát
   fingerprint        TEXT,               -- otisk věty (detekce opakování v čase / napříč zdroji)
   seen_count         INTEGER DEFAULT 1,  -- kolikrát se inzerát objevil (1 = poprvé, >1 = opakovaný)
+  date_posted        TEXT,               -- datum vložení inzerátu u zdroje (stáří)
   notified_at        TEXT,               -- kdy odešla notifikace (NULL = ještě ne)
   first_seen         TEXT DEFAULT (datetime('now')),
   last_seen          TEXT DEFAULT (datetime('now'))

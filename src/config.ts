@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyEmail: true,
   notifyTelegram: true,
   notifySlack: false,
+  profile: '',
 };
 
 // --- ATS watchlist -------------------------------------------------------

@@ -141,7 +141,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         continue;
       }
 
-      const score = await scoreJob(env, job);
+      const score = await scoreJob(env, job, settings.profile);
       stats.scored++;
       const relevant = score.relevance >= settings.notifyThreshold;
 
@@ -206,7 +206,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       await Promise.all(
         batch.map(async (job) => {
           try {
-            const sc = await scoreJob(env, job);
+            const sc = await scoreJob(env, job, settings.profile);
             await updateScore(env, job.id, sc);
           } catch (e) {
             run.log(`⚠️ skóre ${job.id}: ${e}`);

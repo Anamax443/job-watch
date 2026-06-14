@@ -49,6 +49,7 @@ export interface Settings {
   notifyEmail: boolean;
   notifyTelegram: boolean;
   notifySlack: boolean;
+  profile?: string; // CV / o mně — AI porovnává pozice proti tomuto profilu
 }
 
 export interface Env {

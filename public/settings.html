@@ -37,6 +37,12 @@
 
 <main>
   <div class="field">
+    <label class="lbl" for="profile">🧑 Můj profil — AI podle něj hodnotí shodu pozic</label>
+    <textarea id="profile" style="min-height:160px" placeholder="Vlož svoje CV / shrnutí, odkazy na profesní stránky (LinkedIn…), text o tobě: zkušenosti, seniorita, zaměření, preferovaná lokalita…"></textarea>
+    <div class="hint">Čím konkrétnější, tím přesnější skóre (porovnává pozice přímo proti tobě). Když je prázdné, hodnotí se obecně „vedoucí IT". Po vyplnění dej „Spustit teď" pro přeskórování.</div>
+  </div>
+
+  <div class="field">
     <label class="lbl" for="keywords">Klíčová slova (pozice) — jedno na řádek</label>
     <textarea id="keywords" placeholder="vedoucí IT&#10;Head of IT&#10;Solution Architect"></textarea>
     <div class="hint">Názvy pozic, které hledáme. Inzerát projde dál, když některé slovo/frázi najde v názvu nebo popisu. Jedno na řádek.</div>
@@ -90,6 +96,7 @@ let current = {};
 async function load(){
   const r = await fetch('/api/settings');
   current = await r.json();
+  $('#profile').value = current.profile ?? '';
   $('#keywords').value = (current.keywords||[]).join('\n');
   $('#czIscoPrefixes').value = (current.czIscoPrefixes||[]).join(', ');
   $('#notifyThreshold').value = current.notifyThreshold ?? 70;
@@ -102,6 +109,7 @@ async function load(){
 
 $('#save').onclick = async () => {
   const payload = {
+    profile: $('#profile').value,
     keywords: $('#keywords').value.split('\n').map(s=>s.trim()).filter(Boolean),
     czIscoPrefixes: $('#czIscoPrefixes').value.split(',').map(s=>s.trim()).filter(Boolean),
     notifyThreshold: parseInt($('#notifyThreshold').value,10)||0,
