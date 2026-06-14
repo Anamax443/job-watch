@@ -6,10 +6,7 @@ import { norm, truncate } from '../util';
 // Inzeráty mohou být kdekoliv → Sonnet + web_search/web_fetch hledá obecně (jako Google),
 // vyhodnotí výsledky a vrátí reálné aktuální pozice. Ty pak jdou do stejné pipeline.
 
-const TOOLS = [
-  { type: 'web_search_20260209', name: 'web_search' },
-  { type: 'web_fetch_20260209', name: 'web_fetch' },
-];
+const TOOLS = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }];
 
 interface WebHit {
   title?: string;
@@ -25,13 +22,14 @@ export async function fetchWeb(env: Env, settings: Settings): Promise<JobPosting
   const region = settings.regionPriority ? ` Priorita region: ${settings.regionPriority}.` : '';
 
   const system =
-    'Jsi vyhledávač pracovních inzerátů. Pomocí web_search a web_fetch najdi AKTUÁLNÍ veřejné ' +
-    'inzeráty práce v ČR odpovídající profilu řídící / seniorní architektonické IT role. ' +
-    'Hledej OBECNĚ kdekoliv na webu (jako Google) — jobboardy, agregátory, firemní kariérní ' +
-    'stránky, LinkedIn, oborové weby… nespoléhej na předem daný seznam. Vyhodnoť výsledky a ' +
-    'vrať jen reálné, momentálně otevřené pozice (ne staré/zrušené, ne duplicity). ' +
+    'Jsi rychlý vyhledávač pracovních inzerátů. Udělej 2–4 CÍLENÁ web_search vyhledávání ' +
+    '(různé formulace profilu + lokalita) a přímo z VÝSLEDKŮ HLEDÁNÍ (titulky, úryvky, URL) vytěž ' +
+    'reálné, momentálně otevřené inzeráty v ČR odpovídající profilu řídící/seniorní IT role. ' +
+    'Hledej obecně kdekoliv (jobboardy, agregátory, firemní kariérní stránky, LinkedIn). ' +
+    'Nestahuj celé stránky — stačí výsledky hledání, buď rychlý. ' +
     'Vrať POUZE jeden JSON objekt: {"jobs":[{"title":string,"employer":string,"location":string,' +
-    '"url":string,"description":string,"source":string}]} — source = doména zdroje. Max 25 položek.';
+    '"url":string,"description":string,"source":string}]} — url = přímý odkaz na inzerát, ' +
+    'source = doména. Max 20 položek, bez duplicit.';
 
   const user = `Profil (klíčová slova): ${kw}.${region} Najdi co nejvíc relevantních aktuálních inzerátů kdekoliv na internetu.`;
 
@@ -42,17 +40,17 @@ export async function fetchWeb(env: Env, settings: Settings): Promise<JobPosting
   try {
     let resp = await messagesCreate(env, {
       model: env.ENRICH_MODEL,
-      max_tokens: 4000,
+      max_tokens: 3000,
       system,
       tools: TOOLS,
       messages,
     });
     let guard = 0;
-    while (resp?.stop_reason === 'pause_turn' && guard++ < 8) {
+    while (resp?.stop_reason === 'pause_turn' && guard++ < 6) {
       messages.push({ role: 'assistant', content: resp.content });
       resp = await messagesCreate(env, {
         model: env.ENRICH_MODEL,
-        max_tokens: 4000,
+        max_tokens: 3000,
         system,
         tools: TOOLS,
         messages,

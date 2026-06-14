@@ -3,6 +3,7 @@ import { runPipeline } from './pipeline';
 import { notify, checkTelegram, checkGraph, type NotifyJob } from './notify';
 import { checkAnthropic } from './anthropic';
 import { loadSettings, saveSettings } from './config';
+import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -67,6 +68,7 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
 
 // Kontrola spojení: DB + živé ověření Anthropic / Telegram / MS Graph + stav Slacku.
 async function handleHealth(env: Env): Promise<Response> {
+  env = await resolveEnv(env);
   let db = false;
   try {
     await env.DB.prepare('SELECT 1').first();
@@ -94,6 +96,7 @@ async function handleHealth(env: Env): Promise<Response> {
 
 // Odešle testovací notifikaci do zapnutých kanálů (ověření spojení).
 async function handleTestNotify(env: Env): Promise<Response> {
+  env = await resolveEnv(env);
   const s = await loadSettings(env);
   const testJob: NotifyJob = {
     id: 'test',
@@ -152,6 +155,26 @@ async function route(
   const p = url.pathname;
   try {
     if (p === '/.well-known/security.txt') return securityTxt();
+
+    // Citlivé akce vyžadují přihlášení přes Cloudflare Access (header s e-mailem).
+    const sensitive = ['/api/keys', '/api/run', '/api/run/stop', '/api/test-notify'];
+    if (sensitive.includes(p) || (p === '/api/settings' && request.method === 'POST')) {
+      if (!request.headers.get('Cf-Access-Authenticated-User-Email')) {
+        return json({ error: 'Vyžaduje přihlášení (Cloudflare Access).' }, 403);
+      }
+    }
+
+    if (p === '/api/keys' && request.method === 'GET') return json(await secretStatus(env));
+    if (p === '/api/keys' && request.method === 'POST') {
+      const body: any = await request.json().catch(() => ({}));
+      const name = String(body?.name ?? '');
+      const value = String(body?.value ?? '');
+      if (!(SECRET_KEYS as readonly string[]).includes(name)) return json({ error: 'neznámý klíč' }, 400);
+      if (!value) return json({ error: 'prázdná hodnota' }, 400);
+      await setSecret(env, name as (typeof SECRET_KEYS)[number], value);
+      return json({ ok: true });
+    }
+
     if (p === '/api/jobs' && request.method === 'GET') return await handleJobs(env, url);
     if (p === '/api/settings' && request.method === 'GET') return json(await loadSettings(env));
     if (p === '/api/settings' && request.method === 'POST') {

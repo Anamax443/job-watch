@@ -137,6 +137,41 @@ export async function bumpSeen(env: Env, id: string): Promise<void> {
     .run();
 }
 
+/** Dávka dosud neohodnocených (seedovaných) pozic ke skórování. */
+export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[]> {
+  const rows = await env.DB.prepare(
+    `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to, url, description, is_agency
+     FROM seen_jobs WHERE relevance IS NULL AND duplicate_of IS NULL LIMIT ?`,
+  )
+    .bind(limit)
+    .all<{
+      id: string; source: string; title: string; employer: string; employer_ico: string | null;
+      location: string | null; cz_isco: string | null; salary_from: number | null;
+      salary_to: number | null; url: string | null; description: string | null; is_agency: number;
+    }>();
+  return (rows.results ?? []).map((r) => ({
+    id: r.id,
+    source: r.source,
+    title: r.title ?? '',
+    employer: r.employer ?? '',
+    employerIco: r.employer_ico ?? undefined,
+    location: r.location ?? undefined,
+    czIsco: r.cz_isco ?? undefined,
+    salaryFrom: r.salary_from ?? undefined,
+    salaryTo: r.salary_to ?? undefined,
+    url: r.url ?? undefined,
+    description: r.description ?? undefined,
+    isAgency: !!r.is_agency,
+  }));
+}
+
+/** Zapíše jen skóre (doskórování fronty — bez změny ostatních polí / notifikace). */
+export async function updateScore(env: Env, id: string, score: ScoreResult): Promise<void> {
+  await env.DB.prepare('UPDATE seen_jobs SET relevance = ?2, seniority = ?3, reason = ?4 WHERE id = ?1')
+    .bind(id, score.relevance, score.seniority, score.reason)
+    .run();
+}
+
 // --- Dynamicky objevené zdroje (sources) --------------------------------
 
 export async function sourceKnown(

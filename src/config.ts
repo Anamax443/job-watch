@@ -10,7 +10,6 @@ export const DEFAULT_SETTINGS: Settings = {
     'IT manager',
     'Head of IT',
     'IT ředitel',
-    'CIO',
     'vedoucí oddělení IT',
     'Solution Architect',
     'IT lead',

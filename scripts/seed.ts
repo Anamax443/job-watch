@@ -15,7 +15,7 @@ const FULL_EXPORT = 'https://data.mpsv.cz/od/soubory/volna-mista/volna-mista.jso
 const CZ_ISCO_PREFIXES = ['133'];
 const KEYWORDS = [
   'vedoucí it', 'vedoucí informatiky', 'it manažer', 'it manager', 'head of it',
-  'it ředitel', 'cio', 'vedoucí oddělení it', 'solution architect', 'it lead',
+  'it ředitel', 'vedoucí oddělení it', 'solution architect', 'it lead',
   'it architekt', 'vedoucí vývoje',
 ];
 const AGENCY_PATTERNS = [
@@ -105,6 +105,14 @@ function keep(r: Row): boolean {
   return KEYWORDS.some((k) => hay.includes(k));
 }
 
+function keepReason(r: Row): string {
+  const digits = (r.cz_isco?.match(/\d+/g) ?? []).join('');
+  if (digits && CZ_ISCO_PREFIXES.some((p) => digits.startsWith(p))) return 'isco:' + digits;
+  const hay = norm(`${r.title} ${r.description ?? ''}`);
+  const kw = KEYWORDS.find((k) => hay.includes(k));
+  return kw ? 'kw:' + kw : 'none';
+}
+
 function sql(v: unknown): string {
   if (v == null || v === '') return 'NULL';
   if (typeof v === 'number') return String(v);
@@ -115,36 +123,48 @@ async function main() {
   console.log('Stahuji plný export…', FULL_EXPORT);
   const res = await fetch(FULL_EXPORT);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const gz = Buffer.from(await res.arrayBuffer());
-  console.log(`Staženo ${(gz.length / 1e6).toFixed(1)} MB gz, rozbaluji…`);
-  const data = JSON.parse(gunzipSync(gz).toString('utf8'));
+  const buf = Buffer.from(await res.arrayBuffer());
+  console.log(`Staženo ${(buf.length / 1e6).toFixed(1)} MB`);
+  let jsonText: string;
+  if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+    console.log('gzip → rozbaluji…');
+    jsonText = gunzipSync(buf).toString('utf8');
+  } else {
+    console.log('už rozbaleno (Content-Encoding) → parsuji přímo…');
+    jsonText = buf.toString('utf8');
+  }
+  const data = JSON.parse(jsonText);
   const items = extractItems(data);
   console.log(`Záznamů celkem: ${items.length}`);
 
   const rows: Row[] = [];
+  const samples: any[] = [];
+  const suspicious: any[] = [];
   for (const rec of items) {
     const r = map(rec);
-    if (r && keep(r)) rows.push(r);
+    if (r && keep(r)) {
+      rows.push(r);
+      if (samples.length < 2) samples.push(rec);
+      const t = norm(r.title);
+      if (suspicious.length < 4 && /traktor|kuchar|operator|brusic|svarec|socialn|zednic/.test(t)) {
+        suspicious.push({ title: r.title, cz_isco: r.cz_isco, matched: keepReason(r), raw_misto: rec?.mistoVykonuPrace, raw_url: rec?.urlAdresa, raw_dates: { vlozeni: rec?.datumVlozeni, zmeny: rec?.datumZmeny }, id: rec?.id, ref: rec?.referencniCislo });
+      }
+    }
   }
-  console.log(`Po filtru (vedoucí IT): ${rows.length}`);
+  writeFileSync('sample.json', JSON.stringify({ samples, suspicious }, null, 2), 'utf8');
+  console.log(`Po filtru (vedoucí IT): ${rows.length} (vzorek → sample.json)`);
 
   const cols =
     'id, source, hash, dedup_key, title, employer, employer_ico, location, cz_isco, salary_from, salary_to, url, description, is_agency, notified_at, first_seen, last_seen';
-  const lines: string[] = ['PRAGMA foreign_keys=OFF;', 'BEGIN TRANSACTION;'];
-  for (let i = 0; i < rows.length; i += 100) {
-    const batch = rows.slice(i, i + 100);
-    const values = batch
-      .map(
-        (r) =>
-          `(${sql(r.id)},${sql(r.source)},${sql(r.hash)},${sql(r.dedup_key)},${sql(r.title)},` +
-          `${sql(r.employer)},${sql(r.employer_ico)},${sql(r.location)},${sql(r.cz_isco)},` +
-          `${sql(r.salary_from)},${sql(r.salary_to)},${sql(r.url)},${sql(r.description)},${r.is_agency},` +
-          `datetime('now'),datetime('now'),datetime('now'))`,
-      )
-      .join(',\n');
-    lines.push(`INSERT OR IGNORE INTO seen_jobs (${cols}) VALUES\n${values};`);
+  const lines: string[] = []; // jeden INSERT na řádek (D1 limit na velikost statementu)
+  for (const r of rows) {
+    const v =
+      `(${sql(r.id)},${sql(r.source)},${sql(r.hash)},${sql(r.dedup_key)},${sql(r.title)},` +
+      `${sql(r.employer)},${sql(r.employer_ico)},${sql(r.location)},${sql(r.cz_isco)},` +
+      `${sql(r.salary_from)},${sql(r.salary_to)},${sql(r.url)},${sql(r.description)},${r.is_agency},` +
+      `datetime('now'),datetime('now'),datetime('now'))`;
+    lines.push(`INSERT OR IGNORE INTO seen_jobs (${cols}) VALUES ${v};`);
   }
-  lines.push('COMMIT;');
 
   writeFileSync('seed.sql', lines.join('\n'), 'utf8');
   console.log(`Hotovo → seed.sql (${rows.length} řádků).`);
