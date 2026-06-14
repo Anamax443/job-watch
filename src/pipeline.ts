@@ -1,7 +1,8 @@
-import type { Env } from './types';
+import type { Env, JobPosting } from './types';
 import { loadSettings } from './config';
 import { fetchMpsv } from './sources/mpsv';
 import { fetchAts } from './sources/ats';
+import { fetchWeb } from './sources/web';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies';
 import { prefilter } from './prefilter';
 import { scoreJob } from './score';
@@ -39,19 +40,27 @@ export async function runPipeline(env: Env): Promise<RunStats> {
   };
 
   // 1) fetch ze všech zdrojů (selhání jednoho neshodí celek).
-  //    ATS cíle se čtou z D1 `sources` (dynamicky objevené v minulých bězích).
-  const [mpsv, ats] = await Promise.all([
+  //    MPSV (celý trh) + ATS z D1 (dynamicky objevené) + OTEVŘENÉ hledání napříč webem.
+  const [mpsv, ats, web] = await Promise.all([
     fetchMpsv(env).catch((e) => {
       console.warn('MPSV fetch:', e);
-      return [];
+      return [] as JobPosting[];
     }),
     fetchAts(env).catch((e) => {
       console.warn('ATS fetch:', e);
-      return [];
+      return [] as JobPosting[];
+    }),
+    (env.WEB_SEARCH === 'false'
+      ? Promise.resolve([] as JobPosting[])
+      : fetchWeb(env, settings)
+    ).catch((e) => {
+      console.warn('Web fetch:', e);
+      return [] as JobPosting[];
     }),
   ]);
-  const jobs = [...mpsv, ...ats];
+  const jobs = [...mpsv, ...ats, ...web];
   stats.fetched = jobs.length;
+  console.log(`Zdroje: MPSV ${mpsv.length}, ATS ${ats.length}, web ${web.length}`);
 
   // 2) klasifikace agentur (IČO z registru + fallback dle názvu)
   const icoSet = await loadAgencyIcos(env);

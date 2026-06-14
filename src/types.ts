@@ -63,4 +63,7 @@ export interface Env {
   ENRICH_MODEL: string;
   MAX_INCREMENT_BACKFILL_DAYS?: string;
   MAX_DISCOVERY_PER_RUN?: string;
+  WEB_SEARCH?: string;
+  GIT_COMMIT?: string;
+  BUILT_AT?: string;
 }

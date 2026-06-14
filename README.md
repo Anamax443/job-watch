@@ -15,7 +15,7 @@ inzerátů se pokusí dohledat **původce** a pošle nové nálezy na **Telegram
 
 ```
 Cloudflare Worker "job-watch"  (+ statické UI, + D1, + cron)
- ├─ Cron 07:00 → fetch (MPSV + ATS z D1) → prefilter → dedup → score
+ ├─ Cron 07:00 → fetch (MPSV + ATS z D1 + celý web) → prefilter → dedup → score
  │               → enrich (deanonymizace) → notify → discover (screening zdrojů)
  ├─ Web:
  │    GET  /              → Výsledky (dashboard)
@@ -38,6 +38,7 @@ D1:
 |---|---|
 | `mpsv.ts` | denní přírůstky ÚP ČR / MPSV (celý trh, bez bot ochrany) |
 | `ats.ts` | veřejná JSON API ATS systémů (Recruitee, Greenhouse, Lever, Ashby, SmartRecruiters); **cíle se čtou z D1 `sources`** — dynamicky objevené, žádné statické adresy |
+| `web.ts` | **otevřené hledání podle role napříč celým webem** (Sonnet + web search) — inzeráty můžou být kdekoliv, nespoléhá na pevný seznam (`WEB_SEARCH=false` vypne) |
 | `agencies.ts` | registr agentur práce → klasifikace `is_agency` napříč zdroji |
 
 **Dynamický screening (`src/discover.ts`):** pro nově viděnou personálku/firmu agent

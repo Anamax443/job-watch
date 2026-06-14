@@ -62,3 +62,15 @@ CREATE TABLE IF NOT EXISTS sources (
 CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status);
 CREATE INDEX IF NOT EXISTS idx_sources_ico    ON sources(ico);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sources_ico ON sources(ico) WHERE ico IS NOT NULL;
+
+-- Záznam každého běhu (cron i ruční) — aby bylo v UI vidět, co agent reálně dělá.
+CREATE TABLE IF NOT EXISTS runs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at  TEXT DEFAULT (datetime('now')),
+  finished_at TEXT,
+  trigger     TEXT,          -- 'cron' | 'manual'
+  ok          INTEGER DEFAULT 0,
+  stats       TEXT,          -- JSON RunStats
+  log         TEXT           -- řádky logu (oddělené \n)
+);
+CREATE INDEX IF NOT EXISTS idx_runs_id ON runs(id);

@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JobWatch — Jak to funguje</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="88">🔎</text></svg>'>
+
+<style>
+  :root{
+    --bg:#0c0f15; --panel:#141925; --panel2:#1b2233; --line:#2a3346; --fg:#e9edf5;
+    --mut:#8b97ad; --acc:#4f9cf9; --good:#3ecf8e; --warn:#f0b35b; --bad:#ef6b73; --mag:#b483f0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(1200px 700px at 70% -10%, #16203a 0%, var(--bg) 55%);
+    color:var(--fg); font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; overflow:hidden}
+  header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line)}
+  header h1{font-size:17px;margin:0;letter-spacing:.2px}
+  header .sub{color:var(--mut);font-size:13px}
+  nav{margin-left:auto;display:flex;gap:8px;align-items:center}
+  nav a,button{font:inherit;font-size:13px;text-decoration:none;color:var(--fg);
+    background:var(--panel2);border:1px solid var(--line);padding:7px 12px;border-radius:9px;cursor:pointer}
+  nav a:hover,button:hover{border-color:var(--acc)}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+
+  .wrap{height:calc(100% - 58px);display:grid;grid-template-rows:1fr auto}
+  .stage{position:relative;overflow:hidden}
+  .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    opacity:0;transform:translateY(14px) scale(.99);transition:opacity .5s, transform .5s;pointer-events:none;padding:24px}
+  .scene.active{opacity:1;transform:none}
+  .scene .inner{width:min(1100px,94vw)}
+  .scene h2{font-size:22px;margin:0 0 4px}
+  .scene .lead{color:var(--mut);margin:0 0 22px;max-width:760px}
+
+  /* generic flow */
+  .row{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap}
+  .node{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:150px}
+  .node .t{font-weight:700;font-size:14px;display:flex;gap:8px;align-items:center}
+  .node .d{color:var(--mut);font-size:12.5px;margin-top:4px}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--mut);margin:3px 4px 0 0}
+  .pill.on{color:var(--good);border-color:#27543f;background:#13241d}
+  .pill.ag{color:var(--warn);border-color:#4a3a1f;background:#241c10}
+
+  .arrow{align-self:center;color:var(--mut);font-size:22px}
+
+  /* job cards */
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;min-width:160px}
+  .card .ti{font-weight:600}
+  .card .em{color:var(--mut);font-size:11.5px}
+  .card.drop{animation:drop .8s forwards}
+  .card.pass{border-color:#27543f;box-shadow:0 0 0 1px #27543f inset}
+  @keyframes drop{to{opacity:0;transform:translateY(26px) rotate(-4deg);filter:grayscale(1)}}
+
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+  /* counters */
+  .big{font-size:40px;font-weight:800}
+  .muted{color:var(--mut)}
+
+  /* score gauge */
+  .gauge{--p:0;width:120px;height:120px;border-radius:50%;
+    background:conic-gradient(var(--good) calc(var(--p)*1%), #222b3d 0);
+    display:grid;place-items:center;position:relative}
+  .gauge::after{content:"";position:absolute;inset:12px;background:var(--panel);border-radius:50%}
+  .gauge .v{position:relative;font-weight:800;font-size:26px}
+  .scene.active .gauge{animation:fill 1.4s ease forwards}
+  @keyframes fill{from{--p:0}to{--p:var(--target)}}
+
+  /* search scan */
+  .web{position:relative;height:150px;border:1px dashed var(--line);border-radius:14px;overflow:hidden;background:#0e1422}
+  .web .hit{position:absolute;padding:5px 9px;border-radius:8px;font-size:11.5px;background:var(--panel2);border:1px solid var(--line)}
+  .web .hit.first{border-color:var(--good);color:var(--good)}
+  .scan{position:absolute;top:0;left:-30%;width:30%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(180,131,240,.25),transparent)}
+  .scene.active .scan{animation:scan 2.2s linear infinite}
+  @keyframes scan{to{left:110%}}
+
+  .reveal{opacity:0}
+  .scene.active .reveal{animation:pop .5s ease forwards}
+  .scene.active .reveal.d1{animation-delay:.5s}
+  .scene.active .reveal.d2{animation-delay:1s}
+  .scene.active .reveal.d3{animation-delay:1.5s}
+  .scene.active .reveal.d4{animation-delay:2s}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .flow-in.active .card,.scene.active .stagger{animation:slidein .5s both}
+  .scene.active .s1{animation-delay:.1s}.scene.active .s2{animation-delay:.25s}
+  .scene.active .s3{animation-delay:.4s}.scene.active .s4{animation-delay:.55s}
+  @keyframes slidein{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+
+  .merge .card{transition:transform .9s ease, opacity .9s}
+  .scene.active .merge .m1{transform:translateX(70px)}
+  .scene.active .merge .m2{transform:translateX(-70px);opacity:0}
+
+  .send{display:flex;gap:26px;margin-top:8px}
+  .chan{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:12px 16px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--mut)}
+  .scene.active .chan .dot{animation:blink 1s ease infinite}
+  .chan.tg .dot{background:#3aa0e0}.chan.em .dot{background:var(--warn)}
+  @keyframes blink{50%{box-shadow:0 0 0 6px rgba(79,156,249,.18)}}
+
+  .loop{display:flex;align-items:center;gap:12px;color:var(--mag);font-weight:600}
+
+  /* controls */
+  .ctl{display:flex;align-items:center;gap:14px;padding:12px 22px;border-top:1px solid var(--line);background:rgba(10,13,20,.6)}
+  .narr{flex:1}
+  .narr .step{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.12em}
+  .narr .txt{font-size:14.5px}
+  .dots{display:flex;gap:7px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer;transition:.3s}
+  .dots i.on{background:var(--acc);transform:scale(1.25)}
+  .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--acc);width:0}
+  .meta{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:12.5px;white-space:nowrap}
+  .meta .live{width:8px;height:8px;border-radius:50%;background:var(--good);animation:pulse 1.2s infinite}
+  .meta code{color:var(--fg);background:var(--panel2);border:1px solid var(--line);padding:1px 6px;border-radius:6px}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(62,207,142,.5)}50%{opacity:.6;box-shadow:0 0 0 5px rgba(62,207,142,0)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔎 JobWatch <span class="sub">— jak to funguje</span></h1>
+  <nav>
+    <a href="/">Výsledky</a>
+    <a href="/settings">Nastavení</a>
+    <a href="https://github.com/Anamax443/job-watch#readme" target="_blank" rel="noopener">Dokumentace ↗</a>
+    <button id="playpause" class="primary">⏸ Pauza</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="stage" id="stage">
+
+    <!-- 0 OVERVIEW -->
+    <section class="scene" data-step="Přehled" data-narr="Každý den ráno robot v cloudu projde trh práce a najde ti pozice vedoucího IT — bez tvého zásahu.">
+      <div class="inner" style="text-align:center">
+        <h2>Co JobWatch dělá</h2>
+        <p class="lead" style="margin:0 auto 26px">Cloudový agent (Cloudflare). Každé ráno <b>v 07:00</b> sám prohledá zdroje volných míst,
+          vybere pozice <b>vedoucí&nbsp;IT / IT manažer / Solution&nbsp;Architect</b>, ohodnotí je AI,
+          u agentur dohledá skutečného zaměstnavatele a pošle ti nové nálezy.</p>
+        <div class="row" style="justify-content:center">
+          <div class="node stagger s1"><div class="t">🌐 Zdroje</div><div class="d">kde hledá</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s2"><div class="t">🧹 Filtr + AI</div><div class="d">co je relevantní</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s3"><div class="t">🎯 Původce</div><div class="d">kdo za tím je</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s4"><div class="t">🔔 Notifikace</div><div class="d">Telegram / e-mail</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1 SOURCES -->
+    <section class="scene flow-in" data-step="1 — Kde hledá" data-narr="Hledá tam, kde jsou data spolehlivá: oficiální evidence ÚP/MPSV (celá ČR) a kariérní systémy firem. Žádný křehký scraping.">
+      <div class="inner">
+        <h2>1 · Kde hledá <span class="muted" style="font-size:14px">— zdroje</span></h2>
+        <p class="lead">Jádro je <b>MPSV / ÚP ČR</b> — oficiální evidence <i>všech</i> ohlášených volných míst.
+          K tomu <b>kariérní systémy firem (ATS)</b> a hlavně <b>otevřené hledání napříč celým webem</b> —
+          inzeráty můžou být kdekoliv, takže se nespoléháme na pevný seznam.</p>
+        <div class="row">
+          <div class="node stagger s1"><div class="t">🏛️ MPSV / ÚP ČR</div><div class="d">otevřená data, celá ČR, denní přírůstky</div>
+            <span class="pill on">bez bot-ochrany</span></div>
+          <div class="node stagger s2"><div class="t">🧩 ATS firem</div><div class="d">veřejné JSON API</div>
+            <span class="pill">Recruitee</span><span class="pill">Greenhouse</span><span class="pill">Lever</span><span class="pill">Ashby</span></div>
+          <div class="node stagger s3"><div class="t">🕵️ Personálky</div><div class="d">dynamicky objevené (uloženo v DB)</div>
+            <span class="pill ag">agentura</span></div>
+          <div class="node stagger s4"><div class="t">🌍 Celý web</div><div class="d">obecné hledání jako Google — inzeráty můžou být <b>kdekoliv</b></div>
+            <span class="pill on">AI vyhodnotí</span></div>
+          <div class="arrow">→</div>
+          <div class="node" style="align-self:center"><div class="big" id="srcCount">1 248</div><div class="d">nových inzerátů dnes</div></div>
+        </div>
+        <p class="lead" style="margin-top:18px;color:var(--mag)">ⓘ Aggregátory typu jobs.cz / 123pracovat: stejnou pozici (např. VARNET „Vedoucí IT", Brno)
+          obvykle zachytíme přes MPSV — firma ji hlásí i úřadu.</p>
+      </div>
+    </section>
+
+    <!-- 2 PREFILTER -->
+    <section class="scene" data-step="2 — Hrubý filtr" data-narr="Levný filtr odstraní balast: nechá projít jen pozice s kódem CZ-ISCO 133 (řídící IT) nebo klíčovými slovy v názvu.">
+      <div class="inner">
+        <h2>2 · Hrubý filtr <span class="muted" style="font-size:14px">— CZ-ISCO + klíčová slova</span></h2>
+        <p class="lead">Z 1 248 inzerátů projde dál jen hrstka — kód <b>CZ-ISCO 133</b> (řídící pracovníci ICT)
+          nebo klíčová slova (<i>vedoucí IT, Head of IT, Solution Architect…</i>).</p>
+        <div class="grid">
+          <div class="card pass stagger s1"><div class="ti">Vedoucí IT</div><div class="em">VARNET a.s. · Brno</div></div>
+          <div class="card drop"><div class="ti">IT Helpdesk junior</div><div class="em">…</div></div>
+          <div class="card drop"><div class="ti">Skladník</div><div class="em">…</div></div>
+          <div class="card pass stagger s2"><div class="ti">Head of IT</div><div class="em">…</div></div>
+          <div class="card drop"><div class="ti">Účetní</div><div class="em">…</div></div>
+          <div class="card pass stagger s3"><div class="ti">Solution Architect</div><div class="em">…</div></div>
+          <div class="card drop"><div class="ti">Řidič</div><div class="em">…</div></div>
+          <div class="card drop"><div class="ti">PHP vývojář</div><div class="em">…</div></div>
+        </div>
+        <p class="lead" style="margin-top:18px"><b>1 248</b> <span class="muted">→</span> <b style="color:var(--good)">7 kandidátů</b></p>
+      </div>
+    </section>
+
+    <!-- 3 DEDUP -->
+    <section class="scene" data-step="3 — Sloučení duplicit" data-narr="Stejná pozice se objeví na víc místech zároveň. Sloučíme ji, ať tě neotravuje dvakrát.">
+      <div class="inner">
+        <h2>3 · Sloučení duplicit <span class="muted" style="font-size:14px">— napříč zdroji</span></h2>
+        <p class="lead">Tatáž role přijde z MPSV i z ATS firmy. Podle zaměstnavatele + názvu + lokality ji spojíme do jedné.</p>
+        <div class="row merge" style="align-items:center">
+          <div class="card m1"><div class="ti">Vedoucí IT</div><div class="em">zdroj: MPSV</div></div>
+          <div class="card m2"><div class="ti">Vedoucí IT</div><div class="em">zdroj: ATS firmy</div></div>
+          <div class="arrow reveal d3">→</div>
+          <div class="card pass reveal d3"><div class="ti">Vedoucí IT</div><div class="em">1× záznam</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 SCORING -->
+    <section class="scene" data-step="4 — AI hodnocení" data-narr="Levný model (Haiku) dá každému kandidátovi skóre 0–100 a krátké zdůvodnění. Pod prahem se nenotifikuje.">
+      <div class="inner">
+        <h2>4 · AI hodnocení <span class="muted" style="font-size:14px">— claude-haiku-4-5</span></h2>
+        <p class="lead">Model posoudí, jak moc pozice sedí na profil řídící IT role. Vrací <b>skóre + důvod</b>.</p>
+        <div class="row" style="align-items:center;gap:30px">
+          <div class="gauge" style="--target:86"><div class="v">86</div></div>
+          <div>
+            <div class="card pass reveal d1" style="min-width:280px"><div class="ti">Vedoucí IT — VARNET a.s.</div>
+              <div class="em">„Řízení IT strategie, vedení týmu, rozpočet, ERP — jasná manažerská role."</div></div>
+            <div class="card drop reveal d2" style="min-width:280px;margin-top:10px"><div class="ti">IT Helpdesk junior — 18/100</div>
+              <div class="em">pod prahem → zahozeno</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 DEANON -->
+    <section class="scene" data-step="5 — Kdo za tím je" data-narr="U agenturních inzerátů vezme charakteristické věty a prohledá web. Shoda na firemní stránce prozradí skutečného zaměstnavatele.">
+      <div class="inner">
+        <h2>5 · Deanonymizace <span class="muted" style="font-size:14px">— claude-sonnet-4-6 + web search</span></h2>
+        <p class="lead">Agentura skrývá klienta („<i>náš klient, významná společnost…</i>"). Vezmeme distinktivní věty,
+          prohledáme internet a <b>preferujeme first-party stránky firmy</b> — ty prozradí původce.</p>
+        <div class="row" style="gap:18px;align-items:stretch">
+          <div class="card ag" style="min-width:230px;border-color:#4a3a1f">
+            <div class="ti">⭐ 84 · IT manažer</div>
+            <div class="em">„náš klient ze skupiny…" — <b style="color:var(--warn)">agentura</b></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="web" style="flex:1;min-width:260px">
+            <div class="scan"></div>
+            <div class="hit" style="top:14px;left:18px">jobs.cz · inzerát</div>
+            <div class="hit" style="top:58px;left:120px">linkedin.com</div>
+            <div class="hit first reveal d3" style="top:96px;left:40px">✓ varnet.cz/kariera — doslovná shoda</div>
+          </div>
+          <div class="arrow reveal d4">→</div>
+          <div class="card pass reveal d4" style="align-self:center;min-width:190px">
+            <div class="ti" style="color:var(--good)">🎯 Původce</div><div class="em">VARNET a.s. (ELKOV)</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 NOTIFY -->
+    <section class="scene" data-step="6 — Notifikace" data-narr="Nové relevantní nálezy ti pošle na Telegram a/nebo e-mail — s titulem, firmou, mzdou, skóre a odkazem.">
+      <div class="inner">
+        <h2>6 · Notifikace <span class="muted" style="font-size:14px">— Telegram + e-mail</span></h2>
+        <p class="lead">Jen <b>nové</b> pozice nad prahem. Každý kanál se dá vypnout v Nastavení.</p>
+        <div class="row" style="gap:18px;align-items:center">
+          <div class="card pass" style="min-width:300px">
+            <div class="ti">🔔 Vedoucí IT — VARNET a.s.</div>
+            <div class="em">📍 Brno · ⭐ 86/100 · 🎯 původce dohledán · 🔗 odkaz</div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="send">
+            <div class="chan tg"><span class="dot"></span> Telegram</div>
+            <div class="chan em"><span class="dot"></span> E-mail</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 LEARN -->
+    <section class="scene" data-step="7 — Učí se zdroje" data-narr="Pro nově viděné personálky a odhalené firmy si robot najde, kde inzerují, a uloží to. Příště je čte rovnou — žádné statické seznamy.">
+      <div class="inner">
+        <h2>7 · Dynamický screening <span class="muted" style="font-size:14px">— buduje znalost v čase</span></h2>
+        <p class="lead">Žádné ručně udržované adresy. Pro novou personálku/firmu agent <b>najde, kde inzeruje</b>,
+          rozpozná systém a uloží do databáze. Příště ji čte automaticky.</p>
+        <div class="row" style="align-items:center;gap:14px">
+          <div class="node stagger s1"><div class="t">🆕 Nová personálka</div><div class="d">(z dnešních dat)</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s2"><div class="t">🔍 web search</div><div class="d">kde zveřejňuje nabídky?</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s3"><div class="t">🧩 rozpozná ATS</div><div class="d">Recruitee / Greenhouse…</div></div>
+          <div class="arrow">→</div>
+          <div class="node stagger s4"><div class="t">💾 uloží do DB</div><div class="d">tabulka <code>sources</code></div></div>
+          <div class="loop reveal d4">↻ příště rovnou</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 LOOP -->
+    <section class="scene" data-step="Dokola" data-narr="A celé se to opakuje každý den automaticky v cloudu — bez tvého PC, bez tvého zásahu.">
+      <div class="inner" style="text-align:center">
+        <h2>Každý den znovu — sám</h2>
+        <p class="lead" style="margin:0 auto 22px">Běží v Cloudflare (Worker + cron + databáze). Tvůj počítač u toho být nemusí.</p>
+        <div class="loop" style="justify-content:center;font-size:18px">
+          🌐 zdroje&nbsp; → &nbsp;🧹 filtr&nbsp; → &nbsp;🧠 skóre&nbsp; → &nbsp;🎯 původce&nbsp; → &nbsp;🔔 notifikace&nbsp; → &nbsp;📚 učení&nbsp; ↻
+        </div>
+        <p class="lead" style="margin:22px auto 0">⏰ <b>denně 07:00</b> · výsledky na dashboardu, nové nálezy na Telegram/e-mail.</p>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="ctl">
+    <div class="narr">
+      <div class="step" id="step">Přehled</div>
+      <div class="txt" id="narr">…</div>
+    </div>
+    <div class="dots" id="dots"></div>
+    <div class="meta"><span class="live"></span><span id="clock">--:--:--</span> · <span id="ver">…</span></div>
+    <div class="bar" id="bar"></div>
+  </div>
+</div>
+
+<script>
+const scenes = [...document.querySelectorAll('.scene')];
+const durations = [4200, 6000, 5200, 4600, 5200, 6400, 5200, 5600, 4600];
+const stepEl = document.getElementById('step');
+const narrEl = document.getElementById('narr');
+const dotsEl = document.getElementById('dots');
+const bar = document.getElementById('bar');
+const pp = document.getElementById('playpause');
+
+scenes.forEach((_, i) => {
+  const d = document.createElement('i');
+  d.onclick = () => go(i, true);
+  dotsEl.appendChild(d);
+});
+const dots = [...dotsEl.children];
+
+let cur = -1, timer = null, barAnim = null, playing = true;
+
+function go(i, fromClick){
+  cur = (i + scenes.length) % scenes.length;
+  scenes.forEach((s, k) => s.classList.toggle('active', k === cur));
+  dots.forEach((d, k) => d.classList.toggle('on', k === cur));
+  const s = scenes[cur];
+  stepEl.textContent = s.dataset.step || '';
+  narrEl.textContent = s.dataset.narr || '';
+  // progress bar
+  if (barAnim) barAnim.cancel();
+  bar.style.width = '0';
+  if (playing){
+    barAnim = bar.animate([{width:'0%'},{width:'100%'}], {duration:durations[cur], easing:'linear'});
+  }
+  clearTimeout(timer);
+  if (playing) timer = setTimeout(() => go(cur + 1), durations[cur]);
+  if (fromClick && !playing){ bar.style.width='0'; }
+}
+
+pp.onclick = () => {
+  playing = !playing;
+  pp.textContent = playing ? '⏸ Pauza' : '▶ Přehrát';
+  if (playing) go(cur); else { clearTimeout(timer); if (barAnim) barAnim.pause(); }
+};
+
+// živé hodinky — důkaz, že stránka neběží zamrzlá
+const clockEl = document.getElementById('clock');
+(function ck(){ clockEl.textContent = new Date().toLocaleTimeString('cs-CZ'); setTimeout(ck, 1000); })();
+// verze (commit) — z /api/version když je nasazeno, jinak lokální náhled
+const verEl = document.getElementById('ver');
+fetch('/api/version').then(r => r.ok ? r.json() : Promise.reject()).then(v => {
+  if (v && v.commit) verEl.innerHTML = 'verze <code>' + v.commit + '</code>' + (v.builtAt ? ' · ' + v.builtAt : '');
+}).catch(() => { verEl.textContent = 'lokální náhled'; });
+
+go(0);
+</script>
+</body>
+</html>

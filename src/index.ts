@@ -75,6 +75,9 @@ export default {
         ).all();
         return json({ sources: rows.results ?? [] });
       }
+      if (p === '/api/version' && request.method === 'GET') {
+        return json({ commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null });
+      }
       if (p === '/api/run' && request.method === 'POST') {
         ctx.waitUntil(runPipeline(env));
         return json({ started: true });

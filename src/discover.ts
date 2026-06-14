@@ -18,15 +18,17 @@ const TOOLS = [
 ];
 
 const SYSTEM =
-  'Zjisti, kde daná firma/agentura v ČR zveřejňuje pracovní nabídky. Pomocí web_search a ' +
-  'web_fetch najdi (1) oficiální kariérní stránku a (2) pokud existuje, veřejné API jejich ' +
-  'náborového systému (ATS). Rozpoznej platformu podle URL: Recruitee (*.recruitee.com), ' +
+  'Zjisti, kde daná firma/agentura v ČR zveřejňuje pracovní nabídky. Hledej OBECNĚ na webu ' +
+  '(jako Google) a vyhodnoť, co se zobrazí: oficiální kariérní stránku, veřejné API náborového ' +
+  'systému (ATS) i jobboard/agregátor, kde má aktivní inzeráty. ' +
+  'Když narazíš na ATS, rozpoznej platformu podle URL: Recruitee (*.recruitee.com), ' +
   'Greenhouse (boards.greenhouse.io/{slug}), Lever (jobs.lever.co/{slug}), Ashby ' +
-  '(jobs.ashbyhq.com/{slug}), SmartRecruiters (jobs.smartrecruiters.com/{slug}). ' +
-  'Ověř, že stránka skutečně patří danému subjektu (sídlo/IČO/ČR). ' +
+  '(jobs.ashbyhq.com/{slug}), SmartRecruiters (jobs.smartrecruiters.com/{slug}); jinak platform="unknown" ' +
+  'a vrať aspoň careersUrl (nejlepší veřejně čitelný zdroj nabídek daného subjektu). ' +
+  'Ověř, že zdroj skutečně patří danému subjektu (sídlo/IČO/ČR). ' +
   'Vrať POUZE jeden JSON objekt: {"careersUrl":string|null,"atsUrl":string|null,' +
   '"platform":"recruitee|greenhouse|lever|ashby|smartrecruiters|unknown","slug":string|null,' +
-  '"confidence":0-100}. Když nic spolehlivého nenajdeš, platform="unknown".';
+  '"confidence":0-100}.';
 
 interface Resolved {
   careersUrl?: string | null;

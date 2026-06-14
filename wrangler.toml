@@ -27,3 +27,5 @@ ENRICH_MODEL = "claude-sonnet-4-6"
 MAX_INCREMENT_BACKFILL_DAYS = "7"
 # Kolik nových zdrojů (personálek/firem) max. dynamicky proscreenovat za jeden běh (cost control).
 MAX_DISCOVERY_PER_RUN = "5"
+# Otevřené hledání inzerátů napříč celým webem (Sonnet + web search). "false" = vypnout.
+WEB_SEARCH = "true"
