@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JobWatch — Dokumentace</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="88">🔎</text></svg>'>
+<style>
+  :root{--bg:#0c0f15;--panel:#141925;--panel2:#1b2233;--line:#2a3346;--fg:#e9edf5;--mut:#8b97ad;--acc:#4f9cf9;--good:#3ecf8e;--warn:#f0b35b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.65 system-ui,Segoe UI,Roboto,sans-serif}
+  header{position:sticky;top:0;display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:rgba(12,15,21,.92);backdrop-filter:blur(6px);z-index:10}
+  header h1{font-size:17px;margin:0}
+  nav{margin-left:auto;display:flex;gap:14px;flex-wrap:wrap}
+  nav a{color:var(--acc);text-decoration:none;font-size:14px}
+  nav a:hover{text-decoration:underline}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 22px 80px}
+  h2{font-size:21px;margin:34px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+  h2:first-of-type{border-top:0;padding-top:0}
+  h3{font-size:16px;margin:20px 0 6px;color:var(--fg)}
+  p,li{color:#d4dae6}
+  code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:.5px 6px;font-size:13px;color:#e9edf5}
+  pre{background:#0b1018;border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow:auto}
+  pre code{background:0;border:0;padding:0;font:12.5px/1.6 ui-monospace,Consolas,monospace;color:#cdd6e6}
+  table{width:100%;border-collapse:collapse;margin:8px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top}
+  th{color:var(--mut)}
+  .lead{color:var(--mut)}
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:8px 0 10px}
+  .toc a{color:var(--acc);text-decoration:none}
+  .note{background:#13241d;border:1px solid #27543f;border-radius:10px;padding:10px 14px;color:#bfe8d4}
+  .warn{background:#241c10;border:1px solid #4a3a1f;border-radius:10px;padding:10px 14px;color:#f0d6a8}
+  .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 JobWatch — Dokumentace</h1>
+  <nav>
+    <a href="/">Výsledky</a>
+    <a href="/settings">Nastavení</a>
+    <a href="/how">Jak to funguje</a>
+    <a href="/docs">Dokumentace</a>
+  </nav>
+</header>
+
+<div class="wrap">
+
+  <p class="lead">Cloudový agent (Cloudflare Worker), který každý den prohledá zdroje volných míst,
+  vybere pozice <b>vedoucí IT / IT manažer / Solution Architect</b>, ohodnotí je AI, u agenturních
+  inzerátů dohledá skutečného zaměstnavatele a pošle nové nálezy na Telegram / e-mail / Slack.</p>
+
+  <div class="toc">
+    <b>Obsah:</b>
+    <a href="#co">Co to dělá</a> ·
+    <a href="#zdroje">Zdroje</a> ·
+    <a href="#pipeline">Pipeline</a> ·
+    <a href="#kanaly">Notifikace</a> ·
+    <a href="#stranky">Stránky</a> ·
+    <a href="#nastaveni">Nastavení</a> ·
+    <a href="#provoz">Provoz</a> ·
+    <a href="#secrets">Klíče</a> ·
+    <a href="#faq">FAQ</a>
+  </div>
+
+  <h2 id="co">Co to dělá</h2>
+  <p>Každé ráno <b>v 07:00</b> (cron) běží v cloudu pipeline: stáhne nové inzeráty z více zdrojů,
+  levně je předfiltruje, AI je ohodnotí, sloučí duplicity, u agentur dohledá původce a relevantní
+  nové pozice ti pošle. Vizuální průvodce je na stránce <a href="/how">Jak to funguje</a>.</p>
+
+  <h2 id="zdroje">Zdroje — kde hledá</h2>
+  <table>
+    <tr><th>Zdroj</th><th>Popis</th></tr>
+    <tr><td><b>MPSV / ÚP ČR</b></td><td>oficiální otevřená data — <i>všechna</i> ohlášená volná místa v ČR, denní přírůstky, bez bot-ochrany. Jádro.</td></tr>
+    <tr><td><b>ATS firem</b></td><td>veřejná JSON API náborových systémů (Recruitee, Greenhouse, Lever, Ashby, SmartRecruiters). Cíle se <b>dynamicky objevují</b> a ukládají do DB — žádný statický seznam.</td></tr>
+    <tr><td><b>Celý web</b></td><td><b>otevřené hledání podle role napříč internetem</b> (AI + web search). Inzeráty můžou být kdekoliv, takže se nespoléhá na pevný seznam portálů.</td></tr>
+    <tr><td><b>Personálky</b></td><td>klasifikace agentur (registr agentur práce + heuristika) → spustí deanonymizaci původce.</td></tr>
+  </table>
+  <p class="lead">Co přesně se v daném běhu prohledalo a kolik se stáhlo, uvidíš v <b>stavovém okně</b> na dashboardu.</p>
+
+  <h2 id="pipeline">Pipeline</h2>
+  <pre><code>fetch (MPSV + ATS + web)
+  → prefilter (CZ-ISCO 133 + klíčová slova)
+  → dedup (sloučení duplicit napříč zdroji)
+  → score (AI 0–100 + zdůvodnění)
+  → enrich (u agentur: dohledání původce přes web)
+  → notify (Telegram / e-mail / Slack)
+  → discover (naučení nových zdrojů pro příště)</code></pre>
+
+  <h2 id="kanaly">Notifikace</h2>
+  <table>
+    <tr><th>Kanál</th><th>Stav</th><th>Jak</th></tr>
+    <tr><td>Telegram</td><td><span class="pill">aktivní</span></td><td>bot token (secret) + chat_id (Nastavení)</td></tr>
+    <tr><td>E-mail</td><td><span class="pill">aktivní</span></td><td>Microsoft Graph (client credentials)</td></tr>
+    <tr><td>Slack</td><td><span class="pill">aktivní</span></td><td>Incoming Webhook URL jako secret <code>SLACK_WEBHOOK_URL</code> + přepínač v Nastavení</td></tr>
+    <tr><td>Signal / WhatsApp</td><td><span class="pill">zatím ne</span></td><td>Signal potřebuje signal-cli most; WhatsApp onboarding (Meta/Twilio)</td></tr>
+  </table>
+  <p>Každý kanál se dá vypnout v <a href="/settings">Nastavení</a>. Zpráva obsahuje titul, zaměstnavatele
+  (+ původce u agentur), lokalitu, mzdu, skóre + důvod a odkaz.</p>
+
+  <h2 id="stranky">Stránky aplikace</h2>
+  <ul>
+    <li><a href="/">Výsledky</a> — dashboard s nálezy, filtry a <b>stavovým oknem běhu</b> (živý log + spinner).</li>
+    <li><a href="/settings">Nastavení</a> — co hledat (klíčová slova, prahy), kam posílat, které kanály.</li>
+    <li><a href="/how">Jak to funguje</a> — animovaný průvodce.</li>
+    <li><a href="/docs">Dokumentace</a> — tato stránka.</li>
+  </ul>
+  <p class="lead">API: <code>/api/jobs</code>, <code>/api/sources</code>, <code>/api/runs</code>,
+  <code>/api/settings</code>, <code>/api/version</code>, <code>POST /api/run</code>.</p>
+
+  <h2 id="nastaveni">Nastavení</h2>
+  <p>Veškerá konfigurace (klíčová slova, CZ-ISCO prefixy, práh notifikace, cílový e-mail, Telegram
+  chat_id, zapnuté kanály) se edituje v UI na <a href="/settings">/settings</a> a ukládá se do databáze.
+  Cron ji čte při každém běhu — co naklikáš, hned platí. Citlivé klíče (API klíč, tokeny, Slack webhook)
+  se nastavují jako <b>secrets</b>, ne v UI.</p>
+
+  <h2 id="provoz">Provoz — nezávislé na PC</h2>
+  <p>Celý běh jede v <b>Cloudflare</b> (Worker + cron + databáze D1) — lokální počítač se k provozu
+  nepoužívá. Stav, naučené zdroje i nastavení žijí v cloudu. Deploy lze řídit i z GitHub Actions.</p>
+
+  <h2 id="secrets">Klíče (secrets)</h2>
+  <pre><code>wrangler secret put ANTHROPIC_API_KEY     # nutné pro AI (scoring, web, deanonymizace)
+wrangler secret put TELEGRAM_BOT_TOKEN    # Telegram
+wrangler secret put GRAPH_TENANT_ID       # e-mail (MS Graph)
+wrangler secret put GRAPH_CLIENT_ID
+wrangler secret put GRAPH_CLIENT_SECRET
+wrangler secret put GRAPH_MAILBOX
+wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack</code></pre>
+  <div class="warn">⚠️ Bez <code>ANTHROPIC_API_KEY</code> AI část (web-hledání, scoring, deanonymizace)
+  nic nevrátí a skóre bude 0. MPSV jede i bez klíče.</div>
+
+  <h2 id="faq">FAQ</h2>
+  <h3>Proč je dashboard prázdný?</h3>
+  <p>Buď ještě neproběhl běh (klikni „▶ Spustit teď"), nebo není nastavený API klíč.</p>
+  <h3>Jak poznám, že to něco dělá?</h3>
+  <p>Stavové okno na dashboardu ukazuje živý log běhu; v patičce tikají hodinky a je tam číslo nasazené verze.</p>
+  <h3>Ochrana přístupu</h3>
+  <p>UI je zatím veřejné. Přihlášení jen pro tebe lze zapnout přes Cloudflare Access (Zero Trust) —
+  je to konfigurace, beze změny kódu.</p>
+
+</div>
+<script src="footer.js"></script>
+</body>
+</html>
