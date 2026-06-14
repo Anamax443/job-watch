@@ -73,7 +73,7 @@
     <tr><th>Zdroj</th><th>Popis</th></tr>
     <tr><td><b>MPSV / ÚP ČR</b></td><td>oficiální otevřená data — <i>všechna</i> ohlášená volná místa v ČR, denní přírůstky, bez bot-ochrany. Jádro.</td></tr>
     <tr><td><b>ATS firem</b></td><td>veřejná JSON API náborových systémů (Recruitee, Greenhouse, Lever, Ashby, SmartRecruiters). Cíle se <b>dynamicky objevují</b> a ukládají do DB — žádný statický seznam.</td></tr>
-    <tr><td><b>Celý web</b></td><td><b>otevřené hledání podle role napříč internetem</b> (AI + web search). Inzeráty můžou být kdekoliv, takže se nespoléhá na pevný seznam portálů.</td></tr>
+    <tr><td><b>Web (Adzuna)</b></td><td><b>konkrétní inzeráty z webu přes Adzuna Job API</b> (firma, lokalita, mzda, přímý odkaz). Paralelní dotazy podle profilu a regionu. Vyžaduje klíče ADZUNA_APP_ID/KEY.</td></tr>
     <tr><td><b>Personálky</b></td><td>klasifikace agentur (registr agentur práce + heuristika) → spustí deanonymizaci původce.</td></tr>
   </table>
   <p class="lead">Co přesně se v daném běhu prohledalo a kolik se stáhlo, uvidíš v <b>stavovém okně</b> na dashboardu.</p>
@@ -135,8 +135,13 @@ wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack</code></pre>
   <h3>Jak poznám, že to něco dělá?</h3>
   <p>Stavové okno na dashboardu ukazuje živý log běhu; v patičce tikají hodinky a je tam číslo nasazené verze.</p>
   <h3>Ochrana přístupu</h3>
-  <p>UI je zatím veřejné. Přihlášení jen pro tebe lze zapnout přes Cloudflare Access (Zero Trust) —
-  je to konfigurace, beze změny kódu.</p>
+  <p>UI běží na <b>jobwatch.maxferit.cz</b> za <b>Cloudflare Access</b> — přihlášení jednorázovým
+  PINem na povolený e-mail. Citlivé akce (klíče, spuštění běhu, uložení nastavení) vyžadují
+  ověřenou identitu z Accessu.</p>
+
+  <h3>Personalizace — Můj profil</h3>
+  <p>V Nastavení vlož svoje CV / text o sobě. AI pak hodnotí každou pozici podle shody
+  s tvým profilem (ne obecně). Změna profilu spustí přeskórování při dalším běhu.</p>
 
 </div>
 <script src="footer.js"></script>

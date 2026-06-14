@@ -1,13 +1,14 @@
 # JobWatch — monitor volných míst pro vedoucí IT
 
-Cloudový agent (Cloudflare Worker), který každý den prohledá oficiální i firemní
-zdroje volných míst, vyfiltruje pozice typu **vedoucí IT / IT manažer / Solution
-Architect**, nechá je ohodnotit přes **Anthropic API**, u anonymních agenturních
-inzerátů se pokusí dohledat **původce** a pošle nové nálezy na **Telegram / e-mail**.
+Cloudový agent (Cloudflare Worker), který každý den prohledá zdroje volných míst,
+vybere pozice typu **vedoucí IT / IT manažer / Solution Architect**, nechá je AI
+**ohodnotit podle TVÉHO profilu** (CV / o mně z Nastavení), u agenturních inzerátů
+dohledá **původce** a pošle nové nálezy na **Telegram / e-mail / Slack**.
 
-- **Stack:** Cloudflare Worker + Cron + D1 + Anthropic API + statické UI
+- **Stack:** Cloudflare Worker + Cron + D1 + Anthropic API + statické UI (za Cloudflare Access)
+- **Zdroje:** MPSV (celý trh ČR) · **Adzuna Job API** (konkrétní inzeráty z webu) · ATS firem
 - **Modely:** `claude-haiku-4-5` (scoring) · `claude-sonnet-4-6` (deanonymizace)
-- **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
+- **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
 
 ---
 
@@ -15,17 +16,14 @@ inzerátů se pokusí dohledat **původce** a pošle nové nálezy na **Telegram
 
 ```
 Cloudflare Worker "job-watch"  (+ statické UI, + D1, + cron)
- ├─ Cron 07:00 → fetch (MPSV + ATS z D1 + celý web) → prefilter → dedup → score
- │               → enrich (deanonymizace) → notify → discover (screening zdrojů)
- ├─ Web:
- │    GET  /              → Výsledky (dashboard)
- │    GET  /settings      → Nastavení
- │    GET  /api/jobs      → výsledky (JSON)
- │    GET  /api/sources   → dynamicky naučené zdroje (JSON)
- │    GET  /api/settings  → načti nastavení
- │    POST /api/settings  → ulož nastavení
- │    POST /api/run       → ruční spuštění běhu (test)
- └─ (ochrana přístupu: zatím vypnutá — viz níže)
+ ├─ Cron 07:00 → fetch (MPSV + ATS z D1 + Adzuna) → prefilter → dedup → score
+ │               → enrich (deanonymizace) → notify → discover → doskórování fronty
+ ├─ Web (za Cloudflare Access na jobwatch.maxferit.cz):
+ │    GET  /              → Výsledky (dashboard, stavové okno běhu)
+ │    GET  /settings      → Nastavení (profil, prahy, kanály, klíče)
+ │    GET  /api/jobs|sources|runs|health|version  → data (JSON)
+ │    POST /api/settings|run|run/stop|keys|test-notify  → akce (vyžadují Access)
+ └─ Cloudflare Access: přihlášení e-mailem (jen povolený e-mail)
 D1:
  ├─ seen_jobs   → výsledky napříč zdroji
  ├─ sources     → dynamicky objevené zdroje (personálky/firmy + kde inzerují)
@@ -38,7 +36,7 @@ D1:
 |---|---|
 | `mpsv.ts` | denní přírůstky ÚP ČR / MPSV (celý trh, bez bot ochrany) |
 | `ats.ts` | veřejná JSON API ATS systémů (Recruitee, Greenhouse, Lever, Ashby, SmartRecruiters); **cíle se čtou z D1 `sources`** — dynamicky objevené, žádné statické adresy |
-| `web.ts` | **otevřené hledání podle role napříč celým webem** (Sonnet + web search) — inzeráty můžou být kdekoliv, nespoléhá na pevný seznam (`WEB_SEARCH=false` vypne) |
+| `web.ts` | **konkrétní inzeráty z webu přes Adzuna Job API** (firma, lokalita, mzda, přímý odkaz) — paralelní dotazy podle profilu/regionu; vyžaduje `ADZUNA_APP_ID`+`ADZUNA_APP_KEY` (`WEB_SEARCH=false` vypne) |
 | `agencies.ts` | registr agentur práce → klasifikace `is_agency` napříč zdroji |
 
 **Dynamický screening (`src/discover.ts`):** pro nově viděnou personálku/firmu agent
@@ -48,9 +46,14 @@ na běh). ATS adaptér pak tyto zdroje čte. Přehled: `GET /api/sources`.
 
 ### Pipeline (`src/`)
 
-`prefilter.ts` (CZ-ISCO + klíčová slova) → `store.ts` (cross-source dedup) →
-`score.ts` (haiku, structured outputs) → `enrich.ts` (Sonnet 4.6 + web_search/
-web_fetch — deanonymizace původce) → `notify.ts` (Telegram + MS Graph).
+`prefilter.ts` (CZ-ISCO + klíčová slova; web obchází, je předfiltrovaný) → `store.ts`
+(cross-source dedup + **otisk věty / opakování v čase**) → `score.ts` (haiku, structured
+outputs — **hodnotí shodu proti profilu z Nastavení**) → `enrich.ts` (Sonnet 4.6 —
+deanonymizace původce) → `notify.ts` (Telegram + e-mail/MS Graph + **Slack**).
+`pipeline.ts` navíc: časové limity zdrojů + celkový strop, doskórování fronty, stav běhu do `runs`.
+
+**Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
+(ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
 
 ---
 
@@ -84,6 +87,9 @@ wrangler secret put GRAPH_CLIENT_ID
 wrangler secret put GRAPH_CLIENT_SECRET
 wrangler secret put GRAPH_MAILBOX
 wrangler secret put SLACK_WEBHOOK_URL   # volitelné — Slack Incoming Webhook
+wrangler secret put ADZUNA_APP_ID       # web zdroj (konkrétní inzeráty) — developer.adzuna.com
+wrangler secret put ADZUNA_APP_KEY
+# Klíče lze nově spravovat i přes UI (Nastavení → Klíče a přístupy), uloží se do D1.
 
 # 3) Lokální běh
 npm run dev                           # UI na http://localhost:8787
@@ -106,11 +112,15 @@ prahy, zapnuté kanály) se edituje v UI na `/settings` — ukládá se do D1, c
 
 ---
 
-## Ochrana přístupu
+## Ochrana přístupu — Cloudflare Access (AKTIVNÍ)
 
-UI je **zatím bez přihlášení**. Zapnutí je jen konfigurace (žádná změna kódu):
-v Cloudflare Zero Trust → Access přidej aplikaci na doménu Workeru a politiku
-povolující jen tvůj e-mail. Doporučeno před ostrým provozem.
+UI běží na vlastní doméně **`jobwatch.maxferit.cz`** chráněné **Cloudflare Access**
+(Zero Trust) — politika „Allow → Emails → povolený e-mail", přihlášení jednorázovým PINem.
+*(Pozn.: Access nelze dát na `*.workers.dev` — proto custom doména.)*
+
+Citlivé endpointy (`/api/keys`, `/api/run`, `/api/run/stop`, `/api/test-notify`,
+`POST /api/settings`) navíc v kódu vyžadují hlavičku `Cf-Access-Authenticated-User-Email`,
+takže fungují jen přes přihlášený Access (ne přímo přes workers.dev).
 
 ---
 

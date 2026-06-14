@@ -3,6 +3,7 @@ node_modules/
 dist/
 .dev.vars
 seed.sql
+sample.json
 *.log
 .DS_Store
 Thumbs.db
