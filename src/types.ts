@@ -61,6 +61,7 @@ export interface Env {
   GRAPH_CLIENT_SECRET: string;
   GRAPH_MAILBOX: string;
   SLACK_WEBHOOK_URL?: string;
+  SERPER_API_KEY?: string;
   SCORE_MODEL: string;
   ENRICH_MODEL: string;
   MAX_INCREMENT_BACKFILL_DAYS?: string;

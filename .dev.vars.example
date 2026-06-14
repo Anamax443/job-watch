@@ -16,3 +16,6 @@ GRAPH_MAILBOX=
 
 # Slack Incoming Webhook URL (volitelné; zapni v Nastavení přepínačem „Posílat na Slack")
 SLACK_WEBHOOK_URL=
+
+# Serper.dev API klíč (Google hledání pro otevřený web zdroj; zdarma na serper.dev)
+SERPER_API_KEY=

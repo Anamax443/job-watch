@@ -106,7 +106,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       .then(async (r) => { run.log(`📥 MPSV: ${r.length}`); await run.flush(stats); return r; });
     const atsP = timed('ATS', fetchAts(env).catch((e) => { run.log(`⚠️ ATS: ${e}`); return [] as JobPosting[]; }), 20000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 ATS: ${r.length}`); await run.flush(stats); return r; });
-    const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings)).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 14000, [] as JobPosting[], run)
+    const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings)).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 25000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 Web: ${r.length}`); await run.flush(stats); return r; });
     const [mpsv, ats, web] = await Promise.all([mpsvP, atsP, webP]);
     const jobs = [...mpsv, ...ats, ...web];

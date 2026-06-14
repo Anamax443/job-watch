@@ -1,9 +1,10 @@
 import type { Env, Settings } from './types';
 import { runPipeline } from './pipeline';
 import { notify, checkTelegram, checkGraph, type NotifyJob } from './notify';
-import { checkAnthropic } from './anthropic';
+import { checkAnthropic, messagesCreate, allText } from './anthropic';
 import { loadSettings, saveSettings } from './config';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets';
+import { fetchWeb } from './sources/web';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -198,6 +199,17 @@ async function route(
       return json({ runs: rows.results ?? [] });
     }
     if (p === '/api/health' && request.method === 'GET') return await handleHealth(env);
+    if (p === '/api/test-web' && request.method === 'GET') {
+      const renv = await resolveEnv(env);
+      const s = await loadSettings(renv);
+      const t0 = Date.now();
+      try {
+        const jobs = await fetchWeb(renv, s);
+        return json({ ms: Date.now() - t0, count: jobs.length, sample: jobs.slice(0, 8) });
+      } catch (e: any) {
+        return json({ ms: Date.now() - t0, error: String(e?.message ?? e) }, 200);
+      }
+    }
     if (p === '/api/test-notify' && request.method === 'POST') return await handleTestNotify(env);
     if (p === '/api/run' && request.method === 'POST') {
       ctx.waitUntil(runPipeline(env, 'manual'));
