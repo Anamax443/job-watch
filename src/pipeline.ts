@@ -67,6 +67,18 @@ class RunLog {
   }
 }
 
+// Časový limit na zdroj — zaručí, že běh se vždy dokončí (Worker má limit).
+function timed<T>(label: string, p: Promise<T>, ms: number, fallback: T, run: RunLog): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const to = new Promise<T>((res) => {
+    timer = setTimeout(() => {
+      run.log(`⏱️ ${label}: vypršel limit ${Math.round(ms / 1000)} s — přeskakuji`);
+      res(fallback);
+    }, ms);
+  });
+  return Promise.race([p, to]).finally(() => clearTimeout(timer));
+}
+
 export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual'): Promise<RunStats> {
   const settings = await loadSettings(env);
   const stats: RunStats = {
@@ -81,29 +93,20 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   await run.start();
 
   try {
-    // 1) fetch — MPSV (celý trh) + ATS z D1 + OTEVŘENÉ hledání napříč webem
-    run.log('🔎 Hledám ve zdrojích: MPSV (celá ČR), ATS firem, celý web…');
+    // 1) fetch — MPSV + ATS z D1 + OTEVŘENÉ hledání napříč webem.
+    //    Každý zdroj má limit a loguje se hned jak doběhne → běh se vždy dokončí.
+    run.log('🔎 Spouštím zdroje: MPSV (celá ČR), ATS firem, celý web…');
     await run.flush(stats);
-    const [mpsv, ats, web] = await Promise.all([
-      fetchMpsv(env).catch((e) => {
-        run.log(`⚠️ MPSV: ${e}`);
-        return [] as JobPosting[];
-      }),
-      fetchAts(env).catch((e) => {
-        run.log(`⚠️ ATS: ${e}`);
-        return [] as JobPosting[];
-      }),
-      (env.WEB_SEARCH === 'false'
-        ? Promise.resolve([] as JobPosting[])
-        : fetchWeb(env, settings)
-      ).catch((e) => {
-        run.log(`⚠️ Web: ${e}`);
-        return [] as JobPosting[];
-      }),
-    ]);
+    const mpsvP = timed('MPSV', fetchMpsv(env).catch((e) => { run.log(`⚠️ MPSV: ${e}`); return [] as JobPosting[]; }), 20000, [] as JobPosting[], run)
+      .then(async (r) => { run.log(`📥 MPSV: ${r.length}`); await run.flush(stats); return r; });
+    const atsP = timed('ATS', fetchAts(env).catch((e) => { run.log(`⚠️ ATS: ${e}`); return [] as JobPosting[]; }), 20000, [] as JobPosting[], run)
+      .then(async (r) => { run.log(`📥 ATS: ${r.length}`); await run.flush(stats); return r; });
+    const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings)).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 28000, [] as JobPosting[], run)
+      .then(async (r) => { run.log(`📥 Web: ${r.length}`); await run.flush(stats); return r; });
+    const [mpsv, ats, web] = await Promise.all([mpsvP, atsP, webP]);
     const jobs = [...mpsv, ...ats, ...web];
     stats.fetched = jobs.length;
-    run.log(`📥 Staženo: MPSV ${mpsv.length} · ATS ${ats.length} · web ${web.length} → celkem ${jobs.length}`);
+    run.log(`✔ Zdroje hotové → celkem ${jobs.length}`);
 
     // 2) klasifikace agentur
     const icoSet = await loadAgencyIcos(env);
@@ -116,10 +119,15 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     run.log(`🧹 Po prefilteru: ${candidates.length} kandidátů (práh skóre ${settings.notifyThreshold})`);
     await run.flush(stats);
 
-    // 4) zpracování
+    // 4) zpracování (s časovým limitem, ať se běh vždy dokončí)
     const companyCandidates: SourceCandidate[] = [];
+    const deadline = Date.now() + 45000;
     let i = 0;
     for (const job of candidates) {
+      if (Date.now() > deadline) {
+        run.log(`⏱️ Časový limit běhu — zpracováno ${stats.scored}, zbytek doženu příště.`);
+        break;
+      }
       const id = job.id;
       const hash = await contentHash(job);
       const fp = await fingerprintHash(job);

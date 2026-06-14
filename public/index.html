@@ -51,6 +51,7 @@
   <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
   <span class="spacer"></span>
   <span id="status"></span>
+  <button id="stop" class="ghost" style="display:none">⏹ Zastavit</button>
   <button id="run" class="ghost">▶ Spustit teď</button>
 </header>
 
@@ -119,20 +120,27 @@ function fmtStats(s){
     return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}`;
   }catch(e){ return ''; }
 }
+function runStale(latest){
+  if(!latest || latest.finished_at) return false;
+  try{ const t=new Date(latest.started_at.replace(' ','T')+'Z').getTime(); return (Date.now()-t)>150000; }catch(e){ return false; }
+}
 async function loadRuns(){
   let runs=[];
   try{ const r=await fetch('/api/runs'); runs=(await r.json()).runs||[]; }catch(e){ return null; }
   const latest=runs[0];
-  if(!latest) return null;
+  if(!latest){ $('#stop').style.display='none'; return null; }
   $('#runbox').classList.add('show');
-  const running=!latest.finished_at;
+  const stale=runStale(latest);
+  const running=!latest.finished_at && !stale;
   $('#runhead').classList.toggle('running', running);
-  $('#runst').className='st '+(running?'run':(latest.ok?'ok':'err'));
-  const state=running?'⏳ probíhá…':(latest.ok?'✅ hotovo':'⚠️ skončeno');
+  $('#runst').className='st '+(running?'run':(latest.finished_at&&latest.ok?'ok':'err'));
+  const state=running?'⏳ probíhá…':(!latest.finished_at?'⚠️ neodpovídá (limit) — klikni „Zastavit"':(latest.ok?'✅ hotovo':'⚠️ skončeno'));
   $('#runmeta').textContent=`${state} · ${latest.trigger} · ${latest.started_at}${latest.finished_at?' → '+latest.finished_at:''} · ${fmtStats(latest.stats)}`;
   const log=$('#runlog'); const atBottom=log.scrollTop+log.clientHeight>=log.scrollHeight-24;
   log.textContent=latest.log||'';
   if(atBottom) log.scrollTop=log.scrollHeight;
+  $('#stop').style.display = latest.finished_at ? 'none' : '';
+  latest._stale=stale;
   return latest;
 }
 $('#run').onclick = async () => {
@@ -142,11 +150,17 @@ $('#run').onclick = async () => {
   let tries=0;
   const iv=setInterval(async () => {
     const latest=await loadRuns(); tries++;
-    if((latest && latest.finished_at) || tries>80){
+    if((latest && (latest.finished_at || latest._stale)) || tries>120){
       clearInterval(iv); $('#run').disabled=false; $('#status').textContent='';
       load();
     }
   }, 1500);
+};
+$('#stop').onclick = async () => {
+  $('#stop').disabled=true; $('#status').textContent='Zastavuji…';
+  try{ await fetch('/api/run/stop',{method:'POST'}); }catch(e){}
+  $('#stop').disabled=false; $('#status').textContent='';
+  await loadRuns(); load();
 };
 load();
 loadRuns();

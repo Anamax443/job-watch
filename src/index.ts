@@ -180,6 +180,13 @@ async function route(
       ctx.waitUntil(runPipeline(env, 'manual'));
       return json({ started: true });
     }
+    if (p === '/api/run/stop' && request.method === 'POST') {
+      await env.DB.prepare(
+        "UPDATE runs SET finished_at = datetime('now'), ok = 0, " +
+          "log = COALESCE(log,'') || char(10) || '⏹ zastaveno uživatelem' WHERE finished_at IS NULL",
+      ).run();
+      return json({ stopped: true });
+    }
     // vše ostatní → statické UI (public/)
     return env.ASSETS.fetch(request);
   } catch (e: any) {
