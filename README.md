@@ -83,6 +83,7 @@ wrangler secret put GRAPH_TENANT_ID
 wrangler secret put GRAPH_CLIENT_ID
 wrangler secret put GRAPH_CLIENT_SECRET
 wrangler secret put GRAPH_MAILBOX
+wrangler secret put SLACK_WEBHOOK_URL   # volitelné — Slack Incoming Webhook
 
 # 3) Lokální běh
 npm run dev                           # UI na http://localhost:8787

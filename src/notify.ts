@@ -42,6 +42,21 @@ async function sendTelegram(env: Env, chatId: string, text: string): Promise<boo
   }
 }
 
+async function sendSlack(webhookUrl: string, text: string): Promise<boolean> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) console.warn(`Slack: HTTP ${res.status} ${await res.text()}`);
+    return res.ok;
+  } catch (e) {
+    console.warn('Slack:', e);
+    return false;
+  }
+}
+
 async function graphToken(env: Env): Promise<string | null> {
   try {
     const body = new URLSearchParams({
@@ -97,13 +112,16 @@ export async function notify(
   env: Env,
   settings: Settings,
   job: NotifyJob,
-): Promise<{ telegram: boolean; email: boolean }> {
+): Promise<{ telegram: boolean; email: boolean; slack: boolean }> {
   const text = buildText(job);
   let telegram = false;
   let email = false;
+  let slack = false;
   if (settings.notifyTelegram && settings.telegramChatId)
     telegram = await sendTelegram(env, settings.telegramChatId, text);
   if (settings.notifyEmail && settings.emailTo)
     email = await sendEmail(env, settings.emailTo, `JobWatch: ${job.title}`, text);
-  return { telegram, email };
+  if (settings.notifySlack && env.SLACK_WEBHOOK_URL)
+    slack = await sendSlack(env.SLACK_WEBHOOK_URL, text);
+  return { telegram, email, slack };
 }

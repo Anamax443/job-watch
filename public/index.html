@@ -30,6 +30,18 @@
   a.link { color:var(--acc); text-decoration:none; }
   .empty { color:var(--mut); padding:40px 0; text-align:center; }
   #status { color:var(--mut); font-size:13px; }
+  .runbox{margin:0 20px;border:1px solid var(--line);border-radius:10px;background:#0b1018;overflow:hidden;display:none}
+  .runbox.show{display:block}
+  .runhead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
+  .runhead .st{width:9px;height:9px;border-radius:50%;background:var(--mut);flex:none}
+  .runhead .st.run{background:var(--acc);animation:bl 1s infinite}
+  .runhead .st.ok{background:var(--good)} .runhead .st.err{background:#ef6b73}
+  @keyframes bl{50%{opacity:.35}}
+  .runhead .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp .8s linear infinite;display:none;margin-left:auto;flex:none}
+  .runhead.running .spin{display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .runlog{margin:0;padding:10px 12px;max-height:230px;overflow:auto;font:12px/1.55 ui-monospace,Consolas,monospace;color:#cdd6e6;white-space:pre-wrap}
+  .runmeta{color:var(--mut);font-size:12px}
 </style>
 </head>
 <body>
@@ -46,6 +58,15 @@
   <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>
   <button id="refresh" class="ghost">Obnovit</button>
 </div>
+
+<section class="runbox" id="runbox">
+  <div class="runhead" id="runhead">
+    <span class="st" id="runst"></span><b>Stav běhu</b>
+    <span class="runmeta" id="runmeta"></span>
+    <span class="spin"></span>
+  </div>
+  <pre class="runlog" id="runlog"></pre>
+</section>
 
 <main>
   <table>
@@ -91,13 +112,43 @@ async function load(){
 $('#refresh').onclick = load;
 $('#minScore').onchange = load;
 $('#agencyOnly').onchange = load;
+function fmtStats(s){
+  if(!s) return '';
+  try{ const o=typeof s==='string'?JSON.parse(s):s;
+    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}`;
+  }catch(e){ return ''; }
+}
+async function loadRuns(){
+  let runs=[];
+  try{ const r=await fetch('/api/runs'); runs=(await r.json()).runs||[]; }catch(e){ return null; }
+  const latest=runs[0];
+  if(!latest) return null;
+  $('#runbox').classList.add('show');
+  const running=!latest.finished_at;
+  $('#runhead').classList.toggle('running', running);
+  $('#runst').className='st '+(running?'run':(latest.ok?'ok':'err'));
+  const state=running?'⏳ probíhá…':(latest.ok?'✅ hotovo':'⚠️ skončeno');
+  $('#runmeta').textContent=`${state} · ${latest.trigger} · ${latest.started_at}${latest.finished_at?' → '+latest.finished_at:''} · ${fmtStats(latest.stats)}`;
+  const log=$('#runlog'); const atBottom=log.scrollTop+log.clientHeight>=log.scrollHeight-24;
+  log.textContent=latest.log||'';
+  if(atBottom) log.scrollTop=log.scrollHeight;
+  return latest;
+}
 $('#run').onclick = async () => {
-  $('#run').disabled = true; $('#status').textContent = 'Spouštím běh…';
+  $('#run').disabled = true; $('#status').textContent = 'Spouštím…';
   await fetch('/api/run', { method:'POST' });
-  $('#status').textContent = 'Běh spuštěn (může chvíli trvat). Obnov za chvíli.';
-  $('#run').disabled = false;
+  loadRuns();
+  let tries=0;
+  const iv=setInterval(async () => {
+    const latest=await loadRuns(); tries++;
+    if((latest && latest.finished_at) || tries>80){
+      clearInterval(iv); $('#run').disabled=false; $('#status').textContent='';
+      load();
+    }
+  }, 1500);
 };
 load();
+loadRuns();
 </script>
 <script src="footer.js"></script>
 </body>

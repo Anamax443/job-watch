@@ -66,6 +66,8 @@
 
   <div class="check"><input id="notifyEmail" type="checkbox" /> <label for="notifyEmail">Posílat e-mailem</label></div>
   <div class="check"><input id="notifyTelegram" type="checkbox" /> <label for="notifyTelegram">Posílat na Telegram</label></div>
+  <div class="check"><input id="notifySlack" type="checkbox" /> <label for="notifySlack">Posílat na Slack</label></div>
+  <div class="hint" style="margin:-6px 0 16px">Slack webhook URL je tajný — nastav přes <code>wrangler secret put SLACK_WEBHOOK_URL</code> (ne tady v UI).</div>
 
   <button id="save">Uložit</button><span id="status"></span>
 </main>
@@ -84,6 +86,7 @@ async function load(){
   $('#telegramChatId').value = current.telegramChatId ?? '';
   $('#notifyEmail').checked = !!current.notifyEmail;
   $('#notifyTelegram').checked = !!current.notifyTelegram;
+  $('#notifySlack').checked = !!current.notifySlack;
 }
 
 $('#save').onclick = async () => {
@@ -95,6 +98,7 @@ $('#save').onclick = async () => {
     telegramChatId: $('#telegramChatId').value.trim(),
     notifyEmail: $('#notifyEmail').checked,
     notifyTelegram: $('#notifyTelegram').checked,
+    notifySlack: $('#notifySlack').checked,
   };
   $('#save').disabled = true;
   const r = await fetch('/api/settings', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });

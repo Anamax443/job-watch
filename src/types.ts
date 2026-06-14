@@ -48,6 +48,7 @@ export interface Settings {
   telegramChatId?: string;
   notifyEmail: boolean;
   notifyTelegram: boolean;
+  notifySlack: boolean;
 }
 
 export interface Env {
@@ -59,6 +60,7 @@ export interface Env {
   GRAPH_CLIENT_ID: string;
   GRAPH_CLIENT_SECRET: string;
   GRAPH_MAILBOX: string;
+  SLACK_WEBHOOK_URL?: string;
   SCORE_MODEL: string;
   ENRICH_MODEL: string;
   MAX_INCREMENT_BACKFILL_DAYS?: string;

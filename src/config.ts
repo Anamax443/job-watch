@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   telegramChatId: '',
   notifyEmail: true,
   notifyTelegram: true,
+  notifySlack: false,
 };
 
 // --- ATS watchlist -------------------------------------------------------

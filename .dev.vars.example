@@ -13,3 +13,6 @@ GRAPH_CLIENT_ID=
 GRAPH_CLIENT_SECRET=
 # Odesílací schránka (UPN/e-mail), ze které se posílá sendMail
 GRAPH_MAILBOX=
+
+# Slack Incoming Webhook URL (volitelné; zapni v Nastavení přepínačem „Posílat na Slack")
+SLACK_WEBHOOK_URL=

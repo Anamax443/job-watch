@@ -49,13 +49,14 @@ function sanitizeSettings(input: any): Partial<Settings> {
   if (typeof input.telegramChatId === 'string') out.telegramChatId = input.telegramChatId.trim();
   if (typeof input.notifyEmail === 'boolean') out.notifyEmail = input.notifyEmail;
   if (typeof input.notifyTelegram === 'boolean') out.notifyTelegram = input.notifyTelegram;
+  if (typeof input.notifySlack === 'boolean') out.notifySlack = input.notifySlack;
   return out;
 }
 
 export default {
   // Denní cron — viz [triggers] ve wrangler.toml.
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runPipeline(env));
+    ctx.waitUntil(runPipeline(env, 'cron'));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -78,8 +79,14 @@ export default {
       if (p === '/api/version' && request.method === 'GET') {
         return json({ commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null });
       }
+      if (p === '/api/runs' && request.method === 'GET') {
+        const rows = await env.DB.prepare(
+          'SELECT id, started_at, finished_at, trigger, ok, stats, log FROM runs ORDER BY id DESC LIMIT 12',
+        ).all();
+        return json({ runs: rows.results ?? [] });
+      }
       if (p === '/api/run' && request.method === 'POST') {
-        ctx.waitUntil(runPipeline(env));
+        ctx.waitUntil(runPipeline(env, 'manual'));
         return json({ started: true });
       }
       // vše ostatní → statické UI (public/)
