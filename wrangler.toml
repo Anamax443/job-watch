@@ -17,7 +17,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "job-watch"
-database_id = "TODO"
+database_id = "09fc72b1-9595-4a8f-9cba-e1b463138cf7"
 
 # Necitlivé proměnné. Tajné klíče jdou přes `wrangler secret put ...` (viz .dev.vars.example).
 [vars]
