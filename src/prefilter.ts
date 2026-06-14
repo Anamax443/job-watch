@@ -21,6 +21,10 @@ function keywordMatch(job: JobPosting, keywords: string[]): boolean {
 
 export function prefilter(jobs: JobPosting[], settings: Settings): JobPosting[] {
   return jobs.filter(
-    (j) => iscoMatch(j.czIsco, settings.czIscoPrefixes) || keywordMatch(j, settings.keywords),
+    (j) =>
+      // web výsledky už předfiltroval Google (cílený dotaz) → rovnou na AI
+      j.source.startsWith('web:') ||
+      iscoMatch(j.czIsco, settings.czIscoPrefixes) ||
+      keywordMatch(j, settings.keywords),
   );
 }
