@@ -30,7 +30,7 @@ function secure(resp: Response): Response {
 
 function securityTxt(): Response {
   const body = [
-    'Contact: mailto:mtrnka@axima.cz',
+    'Contact: mailto:bass443@gmail.com',
     'Expires: 2027-06-14T00:00:00.000Z',
     'Preferred-Languages: cs, en',
     '',
