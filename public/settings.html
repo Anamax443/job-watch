@@ -39,6 +39,7 @@
   <div class="field">
     <label class="lbl" for="keywords">Klíčová slova (pozice) — jedno na řádek</label>
     <textarea id="keywords" placeholder="vedoucí IT&#10;Head of IT&#10;Solution Architect"></textarea>
+    <div class="hint">Názvy pozic, které hledáme. Inzerát projde dál, když některé slovo/frázi najde v názvu nebo popisu. Jedno na řádek.</div>
   </div>
 
   <div class="row">
@@ -50,12 +51,14 @@
     <div class="field">
       <label class="lbl" for="notifyThreshold">Práh notifikace (0–100)</label>
       <input id="notifyThreshold" type="number" min="0" max="100" />
+      <div class="hint">Od jakého skóre tě upozornit. AI dá každé pozici známku <b>0–100</b>, jak moc sedí na profil vedoucího IT. Např. <b>70</b> = pošle jen pozice se skóre 70 a víc. Nižší číslo = víc (i méně přesných) nálezů, vyšší = jen ty nejlepší.</div>
     </div>
   </div>
 
   <div class="field">
     <label class="lbl" for="emailTo">E-mail pro výsledky</label>
     <input id="emailTo" type="email" placeholder="ty@domena.cz" />
+    <div class="hint">Adresa, kam dorazí nové nálezy (když je zapnuté „Posílat e-mailem").</div>
   </div>
 
   <div class="field">
@@ -72,6 +75,12 @@
   <button id="save">Uložit</button>
   <button id="test" style="background:transparent;border:1px solid var(--line);color:var(--fg);margin-left:8px">Odeslat test</button>
   <span id="status"></span>
+
+  <div class="field" style="margin-top:26px;border-top:1px solid var(--line);padding-top:18px">
+    <label class="lbl">🔌 Kontrola spojení (dostupnost API a kanálů)</label>
+    <button id="check" style="background:transparent;border:1px solid var(--line);color:var(--fg)">Zkontrolovat dostupnost</button>
+    <div id="checkres" style="margin-top:12px;font-size:13.5px;line-height:2"></div>
+  </div>
 </main>
 
 <script>
@@ -117,6 +126,26 @@ $('#test').onclick = async () => {
     $('#status').textContent = 'Test → Telegram '+(d.telegram?'✓':'–')+' · E-mail '+(d.email?'✓':'–')+' · Slack '+(d.slack?'✓':'–');
   } catch(e){ $('#status').textContent = '✗ chyba testu'; }
   $('#test').disabled = false;
+};
+
+$('#check').onclick = async () => {
+  $('#checkres').textContent = 'Kontroluji…';
+  try {
+    const h = await (await fetch('/api/health')).json();
+    const dot = (c) => `<span style="color:${c}">●</span>`;
+    const line = (label, ok, extra) => {
+      const c = ok===true ? '#3ecf8e' : (ok===false ? '#ef6b73' : '#8b97ad');
+      const t = ok===true ? '✓ dostupné' : (ok===false ? '✗ nedostupné' : '– nenastaveno');
+      return `<div>${dot(c)} ${label}: ${t}${extra||''}</div>`;
+    };
+    const a = h.anthropic||{}, tg = h.telegram||{}, g = h.graph||{}, sl = h.slack||{};
+    $('#checkres').innerHTML =
+      line('Databáze', h.db) +
+      line('Anthropic (API klíč)', a.configured ? a.ok : null, (a.configured && a.ok===false && a.status) ? ` (HTTP ${a.status})` : '') +
+      line('Telegram (bot token)', tg.configured ? tg.ok : null) +
+      line('E-mail (MS Graph)', g.configured ? g.ok : null) +
+      `<div>${dot(sl.configured?'#3ecf8e':'#8b97ad')} Slack: ${sl.configured?'nastaven (ověř tlačítkem „Odeslat test")':'– nenastaveno'}</div>`;
+  } catch(e) { $('#checkres').textContent = '✗ kontrola selhala'; }
 };
 load();
 </script>

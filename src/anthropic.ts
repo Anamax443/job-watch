@@ -54,6 +54,21 @@ export function allText(resp: any): string {
     .join('\n');
 }
 
+/** Živá kontrola spojení na Anthropic (GET /v1/models — zdarma, ověří platnost klíče). */
+export async function checkAnthropic(
+  env: Env,
+): Promise<{ configured: boolean; ok: boolean | null; status: number }> {
+  if (!env.ANTHROPIC_API_KEY) return { configured: false, ok: null, status: 0 };
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    });
+    return { configured: true, ok: r.ok, status: r.status };
+  } catch {
+    return { configured: true, ok: false, status: 0 };
+  }
+}
+
 /** Vytáhne poslední {...} JSON objekt z textu (fallback parser). */
 export function extractJson<T = any>(text: string): T | null {
   const start = text.lastIndexOf('{');

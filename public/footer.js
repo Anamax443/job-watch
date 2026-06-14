@@ -38,15 +38,15 @@
       .then(function (h) {
         var a = h.anthropic || {};
         var col = !a.configured ? '#8b97ad' : (a.ok ? '#3ecf8e' : '#ef6b73');
-        var alab = !a.configured ? 'klíč nenastaven' : (a.ok ? 'OK' : 'CHYBA (' + a.status + ')');
+        function st(x) { return !x || !x.configured ? '–' : (x.ok === true ? '✓' : (x.ok === false ? '✗' : '?')); }
         health.innerHTML = 'API <span style="color:' + col + '">●</span>';
         health.title =
-          'DB: ' + (h.db ? 'OK' : 'CHYBA') +
-          '  ·  Anthropic: ' + alab +
-          '  ·  Telegram: ' + (h.channels && h.channels.telegram ? 'on' : 'off') +
-          '  ·  E-mail: ' + (h.channels && h.channels.email ? 'on' : 'off') +
-          '  ·  Slack: ' + (h.channels && h.channels.slack ? 'on' : 'off') +
-          '  (klikni pro re-check)';
+          'DB ' + (h.db ? 'OK' : 'CHYBA') +
+          ' · Anthropic ' + (!a.configured ? '–' : (a.ok ? '✓' : '✗' + (a.status ? ' ' + a.status : ''))) +
+          ' · Telegram ' + st(h.telegram) +
+          ' · E-mail ' + st(h.graph) +
+          ' · Slack ' + (h.slack && h.slack.configured ? 'nastaven' : '–') +
+          '   (klikni pro re-check)';
       })
       .catch(function () {
         health.innerHTML = 'API <span style="color:#ef6b73">●</span>';

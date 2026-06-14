@@ -108,6 +108,27 @@ async function sendEmail(env: Env, to: string, subject: string, text: string): P
   }
 }
 
+/** Živá kontrola Telegram bota (getMe — ověří platnost tokenu). */
+export async function checkTelegram(
+  env: Env,
+): Promise<{ configured: boolean; ok: boolean | null; status: number }> {
+  if (!env.TELEGRAM_BOT_TOKEN) return { configured: false, ok: null, status: 0 };
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getMe`);
+    return { configured: true, ok: r.ok, status: r.status };
+  } catch {
+    return { configured: true, ok: false, status: 0 };
+  }
+}
+
+/** Živá kontrola MS Graph (získání tokenu — ověří client credentials, nic neodesílá). */
+export async function checkGraph(env: Env): Promise<{ configured: boolean; ok: boolean | null }> {
+  const configured = !!(env.GRAPH_TENANT_ID && env.GRAPH_CLIENT_ID && env.GRAPH_CLIENT_SECRET);
+  if (!configured) return { configured: false, ok: null };
+  const token = await graphToken(env);
+  return { configured: true, ok: !!token };
+}
+
 export async function notify(
   env: Env,
   settings: Settings,
