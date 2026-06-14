@@ -14,6 +14,8 @@ export const SECRET_KEYS = [
   'GRAPH_CLIENT_SECRET',
   'GRAPH_MAILBOX',
   'SERPER_API_KEY',
+  'ADZUNA_APP_ID',
+  'ADZUNA_APP_KEY',
 ] as const;
 export type SecretKey = (typeof SECRET_KEYS)[number];
 

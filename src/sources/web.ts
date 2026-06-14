@@ -1,83 +1,90 @@
 import type { Env, JobPosting, Settings } from '../types';
-import { norm, truncate } from '../util';
+import { num, truncate } from '../util';
 
-// Otevřené hledání „jako na Googlu" přes Serper.dev (Google Search API).
-// Rychlé (~1–2 s/dotaz), paralelně. Vrací reálné Google výsledky (titul, odkaz, úryvek);
-// odkaz = přímý proklik. Relevanci pak posoudí AI skórování v pipeline.
-// Vyžaduje secret SERPER_API_KEY (zdarma na serper.dev). Bez něj se přeskočí.
+// Otevřený web zdroj přes Adzuna Job API (https://developer.adzuna.com) — vrací KONKRÉTNÍ
+// jednotlivé inzeráty jako data (firma, lokalita, mzda, přímý odkaz), ne seznamy.
+// Paralelní dotazy. Vyžaduje secrety ADZUNA_APP_ID + ADZUNA_APP_KEY (free). Bez nich se přeskočí.
 
-interface Organic {
-  title?: string;
-  link?: string;
-  snippet?: string;
-}
-
-function buildQueries(settings: Settings): string[] {
-  const region =
-    settings.regionPriority && settings.regionPriority.trim() ? settings.regionPriority : 'Česko';
+function buildQueries(settings: Settings): Array<{ what: string; where: string }> {
+  const where =
+    settings.regionPriority && settings.regionPriority.trim() ? settings.regionPriority.trim() : '';
   const kw = settings.keywords.filter(Boolean);
   const pick = (i: number, fb: string) => kw[i] ?? fb;
   return [
-    `${pick(0, 'vedoucí IT')} práce nabídka ${region}`,
-    `${pick(1, 'Head of IT')} pracovní nabídka Česko`,
-    `${pick(2, 'IT manažer')} práce ${region}`,
+    { what: pick(0, 'vedoucí IT'), where },
+    { what: pick(1, 'Head of IT'), where: '' },
+    { what: pick(2, 'IT manažer'), where },
   ];
 }
 
-async function serperSearch(key: string, q: string): Promise<Organic[]> {
+async function adzunaSearch(
+  id: string,
+  key: string,
+  what: string,
+  where: string,
+): Promise<any[]> {
+  const params = new URLSearchParams({
+    app_id: id,
+    app_key: key,
+    results_per_page: '20',
+    what,
+    'content-type': 'application/json',
+  });
+  if (where) params.set('where', where);
   try {
-    const res = await fetch('https://google.serper.dev/search', {
-      method: 'POST',
-      headers: { 'X-API-KEY': key, 'content-type': 'application/json' },
-      body: JSON.stringify({ q, gl: 'cz', hl: 'cs', num: 10 }),
-    });
+    const res = await fetch(`https://api.adzuna.com/v1/api/jobs/cz/search/1?${params.toString()}`);
     if (!res.ok) {
-      console.warn(`Serper ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      console.warn(`Adzuna ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return [];
     }
     const data: any = await res.json();
-    return (data?.organic ?? []) as Organic[];
+    return data?.results ?? [];
   } catch (e) {
-    console.warn('Serper:', e);
+    console.warn('Adzuna:', e);
     return [];
   }
 }
 
+const strip = (s: unknown) =>
+  String(s ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export async function fetchWeb(env: Env, settings: Settings): Promise<JobPosting[]> {
-  const key = (env as unknown as Record<string, string>).SERPER_API_KEY;
-  if (!key) {
-    console.warn('Web: SERPER_API_KEY nenastaven — přeskakuji');
+  const e = env as unknown as Record<string, string>;
+  const id = e.ADZUNA_APP_ID;
+  const key = e.ADZUNA_APP_KEY;
+  if (!id || !key) {
+    console.warn('Web: ADZUNA_APP_ID/KEY nenastaveny — přeskakuji');
     return [];
   }
 
   const queries = buildQueries(settings);
-  const results = await Promise.all(queries.map((q) => serperSearch(key, q)));
+  const results = await Promise.all(queries.map((q) => adzunaSearch(id, key, q.what, q.where)));
 
   const seen = new Set<string>();
   const out: JobPosting[] = [];
   for (const r of results.flat()) {
-    if (!r.title || !r.link) continue;
-    let host = '';
-    try {
-      host = new URL(r.link).hostname.replace(/^www\./, '');
-    } catch {
-      continue;
-    }
-    const key2 = norm(r.title) + '|' + host;
-    if (seen.has(key2)) continue;
-    seen.add(key2);
-    // employer = část titulu za pomlčkou/svislítkem, jinak doména
-    const emp = (r.title.split(/[-–|]/)[1] ?? '').trim();
+    const rid = r?.id ?? r?.redirect_url;
+    if (!rid || !r?.title) continue;
+    const skey = String(rid);
+    if (seen.has(skey)) continue;
+    seen.add(skey);
     out.push({
-      id: `web:${host}:${norm(r.title)}`.slice(0, 180),
-      source: `web:${host}`,
-      title: r.title.split(/[-–|]/)[0].trim() || r.title.trim(),
-      employer: emp || host,
-      url: r.link,
-      description: truncate(r.snippet, 1000),
+      id: `web:adzuna:${skey}`.slice(0, 180),
+      source: 'web:adzuna',
+      title: strip(r.title) || 'inzerát',
+      employer: r.company?.display_name ?? 'web',
+      location: r.location?.display_name,
+      salaryFrom: num(r.salary_min),
+      salaryTo: num(r.salary_max),
+      url: r.redirect_url,
+      description: truncate(strip(r.description), 2000),
+      datePosted: r.created,
       isAgency: false,
     });
   }
-  console.log(`Web (Serper): ${out.length} výsledků z ${queries.length} dotazů`);
+  console.log(`Web (Adzuna): ${out.length} konkrétních inzerátů z ${queries.length} dotazů`);
   return out;
 }

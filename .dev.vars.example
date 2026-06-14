@@ -17,5 +17,9 @@ GRAPH_MAILBOX=
 # Slack Incoming Webhook URL (volitelné; zapni v Nastavení přepínačem „Posílat na Slack")
 SLACK_WEBHOOK_URL=
 
-# Serper.dev API klíč (Google hledání pro otevřený web zdroj; zdarma na serper.dev)
+# Adzuna Job API (konkrétní inzeráty pro web zdroj; zdarma na developer.adzuna.com)
+ADZUNA_APP_ID=
+ADZUNA_APP_KEY=
+
+# Serper.dev (alternativa – Google seznamy; už se nepoužívá pro web zdroj)
 SERPER_API_KEY=
