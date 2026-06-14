@@ -16,6 +16,24 @@ export function contentHash(j: JobPosting): Promise<string> {
   );
 }
 
+/** Otisk inzerátu = hash nejdelších/nejdistinktivnějších vět (stabilní napříč zdroji i časem). */
+export function fingerprintText(j: JobPosting): string | null {
+  const desc = (j.description ?? '').trim();
+  if (desc.length < 60) return null;
+  const sentences = desc
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 60);
+  if (!sentences.length) return null;
+  const top = sentences.sort((a, b) => b.length - a.length).slice(0, 2).map(norm);
+  return top.join(' | ');
+}
+
+export function fingerprintHash(j: JobPosting): Promise<string | null> {
+  const t = fingerprintText(j);
+  return t ? sha256hex(t) : Promise.resolve(null);
+}
+
 export interface ExistingRow {
   hash: string;
   notified_at: string | null;
@@ -37,15 +55,18 @@ export async function touchSeen(env: Env, id: string): Promise<void> {
 export async function findDuplicate(
   env: Env,
   dk: string,
+  fp: string | null,
   excludeId: string,
 ): Promise<{ id: string; notified_at: string | null } | null> {
   return await env.DB.prepare(
     `SELECT id, notified_at FROM seen_jobs
-     WHERE dedup_key = ? AND id != ? AND duplicate_of IS NULL
-     ORDER BY (notified_at IS NOT NULL) DESC, first_seen ASC
+     WHERE id != ?1 AND duplicate_of IS NULL
+       AND ((?3 IS NOT NULL AND fingerprint = ?3) OR dedup_key = ?2)
+     ORDER BY (fingerprint IS NOT NULL AND fingerprint = ?3) DESC,
+              (notified_at IS NOT NULL) DESC, first_seen ASC
      LIMIT 1`,
   )
-    .bind(dk, excludeId)
+    .bind(excludeId, dk, fp)
     .first<{ id: string; notified_at: string | null }>();
 }
 
@@ -53,6 +74,7 @@ export interface SaveInput {
   job: JobPosting;
   hash: string;
   dedupKey: string;
+  fingerprint?: string | null;
   score?: ScoreResult;
   enrich?: EnrichResult | null;
   duplicateOf?: string | null;
@@ -64,14 +86,14 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
     `INSERT INTO seen_jobs
        (id, source, hash, dedup_key, title, employer, employer_ico, location, region, cz_isco,
         salary_from, salary_to, url, description, is_agency, relevance, seniority, reason,
-        real_employer, real_employer_url, duplicate_of, first_seen, last_seen)
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,
+        real_employer, real_employer_url, duplicate_of, fingerprint, first_seen, last_seen)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,
              datetime('now'), datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        hash=?3, dedup_key=?4, title=?5, employer=?6, employer_ico=?7, location=?8, region=?9, cz_isco=?10,
        salary_from=?11, salary_to=?12, url=?13, description=?14, is_agency=?15,
        relevance=?16, seniority=?17, reason=?18, real_employer=?19, real_employer_url=?20,
-       duplicate_of=?21, last_seen=datetime('now')`,
+       duplicate_of=?21, fingerprint=?22, last_seen=datetime('now')`,
   )
     .bind(
       j.id,
@@ -95,12 +117,22 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
       x.enrich?.realEmployer ?? null,
       x.enrich?.realEmployerUrl ?? null,
       x.duplicateOf ?? null,
+      x.fingerprint ?? null,
     )
     .run();
 }
 
 export async function setNotified(env: Env, id: string): Promise<void> {
   await env.DB.prepare("UPDATE seen_jobs SET notified_at = datetime('now') WHERE id = ?")
+    .bind(id)
+    .run();
+}
+
+/** Inzerát se objevil znovu (opakování v čase) → zvýší počítadlo na originálu. */
+export async function bumpSeen(env: Env, id: string): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE seen_jobs SET seen_count = seen_count + 1, last_seen = datetime('now') WHERE id = ?",
+  )
     .bind(id)
     .run();
 }

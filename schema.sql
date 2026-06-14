@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
   real_employer      TEXT,               -- odmaskovaný původce (u agentur)
   real_employer_url  TEXT,               -- first-party stránka původce
   duplicate_of       TEXT,               -- id jiného záznamu, je-li tento duplikát
+  fingerprint        TEXT,               -- otisk věty (detekce opakování v čase / napříč zdroji)
+  seen_count         INTEGER DEFAULT 1,  -- kolikrát se inzerát objevil (1 = poprvé, >1 = opakovaný)
   notified_at        TEXT,               -- kdy odešla notifikace (NULL = ještě ne)
   first_seen         TEXT DEFAULT (datetime('now')),
   last_seen          TEXT DEFAULT (datetime('now'))
@@ -34,6 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_seen_relevance ON seen_jobs(relevance);
 CREATE INDEX IF NOT EXISTS idx_seen_dedup     ON seen_jobs(dedup_key);
 CREATE INDEX IF NOT EXISTS idx_seen_agency    ON seen_jobs(is_agency);
 CREATE INDEX IF NOT EXISTS idx_seen_first     ON seen_jobs(first_seen);
+CREATE INDEX IF NOT EXISTS idx_seen_fp        ON seen_jobs(fingerprint);
 
 -- Key-value úložiště: editovatelné nastavení (JSON pod 'settings') + kurzory běhu.
 CREATE TABLE IF NOT EXISTS meta (

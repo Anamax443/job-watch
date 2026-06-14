@@ -25,6 +25,7 @@
   .score { font-weight:700; }
   .badge { font-size:11px; padding:2px 6px; border-radius:5px; background:#2a2f3a; color:var(--mut); }
   .badge.agency { background:#3a2a1a; color:#f0b35b; }
+  .badge.rep { background:#16263a; color:#7fb6f0; }
   .orig { color:var(--good); font-size:13px; }
   .reason { color:var(--mut); font-size:13px; }
   a.link { color:var(--acc); text-decoration:none; }
@@ -98,7 +99,7 @@ async function load(){
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
       <td class="score">${j.relevance ?? '—'}</td>
-      <td>${esc(j.title)}<div class="reason">${esc(j.reason ?? '')}</div></td>
+      <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div></td>
       <td>${emp}</td>
       <td>${esc(j.location ?? '—')}</td>
       <td>${salary(j)}</td>

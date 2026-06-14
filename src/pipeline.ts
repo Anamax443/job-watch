@@ -11,12 +11,14 @@ import { discoverSources, type SourceCandidate } from './discover';
 import { notify } from './notify';
 import {
   contentHash,
+  fingerprintHash,
   dedupKey,
   loadExisting,
   touchSeen,
   findDuplicate,
   saveJob,
   setNotified,
+  bumpSeen,
 } from './store';
 
 export interface RunStats {
@@ -120,6 +122,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     for (const job of candidates) {
       const id = job.id;
       const hash = await contentHash(job);
+      const fp = await fingerprintHash(job);
       const existing = await loadExisting(env, id);
       if (existing && existing.hash === hash) {
         await touchSeen(env, id);
@@ -140,9 +143,13 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       }
 
       const dk = dedupKey(job);
-      const dup = await findDuplicate(env, dk, id);
+      const dup = await findDuplicate(env, dk, fp, id);
       const duplicateOf = dup?.id ?? null;
-      await saveJob(env, { job, hash, dedupKey: dk, score, enrich, duplicateOf });
+      await saveJob(env, { job, hash, dedupKey: dk, fingerprint: fp, score, enrich, duplicateOf });
+      if (duplicateOf) {
+        await bumpSeen(env, duplicateOf);
+        run.log(`  ↻ opakuje se: ${job.title} — ${job.employer}`);
+      }
 
       if (relevant && !duplicateOf && !existing?.notified_at) {
         const r = await notify(env, settings, {
