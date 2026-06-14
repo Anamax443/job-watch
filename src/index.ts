@@ -1,5 +1,6 @@
 import type { Env, Settings } from './types';
 import { runPipeline } from './pipeline';
+import { notify, type NotifyJob } from './notify';
 import { loadSettings, saveSettings } from './config';
 
 function json(data: unknown, status = 200): Response {
@@ -61,6 +62,61 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
     .bind(...binds)
     .all();
   return json({ jobs: rows.results ?? [] });
+}
+
+// Kontrola spojení: DB + živé ověření Anthropic (GET /v1/models — zdarma) + stav kanálů.
+async function handleHealth(env: Env): Promise<Response> {
+  let db = false;
+  try {
+    await env.DB.prepare('SELECT 1').first();
+    db = true;
+  } catch {
+    /* db nedostupná */
+  }
+
+  const anthropic: { configured: boolean; ok: boolean | null; status: number } = {
+    configured: !!env.ANTHROPIC_API_KEY,
+    ok: null,
+    status: 0,
+  };
+  if (env.ANTHROPIC_API_KEY) {
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+        headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      });
+      anthropic.ok = r.ok;
+      anthropic.status = r.status;
+    } catch {
+      anthropic.ok = false;
+    }
+  }
+
+  const s = await loadSettings(env);
+  const channels = {
+    telegram: !!env.TELEGRAM_BOT_TOKEN && !!s.telegramChatId && s.notifyTelegram,
+    email: !!env.GRAPH_CLIENT_ID && !!s.emailTo && s.notifyEmail,
+    slack: !!env.SLACK_WEBHOOK_URL && s.notifySlack,
+  };
+
+  return json({ ok: db && anthropic.ok === true, db, anthropic, channels });
+}
+
+// Odešle testovací notifikaci do zapnutých kanálů (ověření spojení).
+async function handleTestNotify(env: Env): Promise<Response> {
+  const s = await loadSettings(env);
+  const testJob: NotifyJob = {
+    id: 'test',
+    source: 'test',
+    title: 'JobWatch — testovací notifikace',
+    employer: '(test)',
+    location: '—',
+    url: 'https://job-watch.bass443.workers.dev',
+    isAgency: false,
+    relevance: 100,
+    reason: 'Ověření kanálů nastavených v JobWatch.',
+  };
+  const r = await notify(env, s, testJob);
+  return json({ ok: r.telegram || r.email || r.slack, ...r });
 }
 
 function sanitizeSettings(input: any): Partial<Settings> {
@@ -127,6 +183,8 @@ async function route(
       ).all();
       return json({ runs: rows.results ?? [] });
     }
+    if (p === '/api/health' && request.method === 'GET') return await handleHealth(env);
+    if (p === '/api/test-notify' && request.method === 'POST') return await handleTestNotify(env);
     if (p === '/api/run' && request.method === 'POST') {
       ctx.waitUntil(runPipeline(env, 'manual'));
       return json({ started: true });

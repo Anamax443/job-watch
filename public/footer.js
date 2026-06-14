@@ -12,7 +12,7 @@
 
   var bar = document.createElement('div');
   bar.id = 'jw-footer';
-  bar.innerHTML = '<span id="jw-live"></span><span id="jw-clock">--:--:--</span> · <span id="jw-ver">…</span>';
+  bar.innerHTML = '<span id="jw-live"></span><span id="jw-clock">--:--:--</span> · <span id="jw-ver">…</span> · <span id="jw-health" title="kontrola spojení…">API …</span>';
   document.body.appendChild(bar);
 
   var clock = document.getElementById('jw-clock');
@@ -28,4 +28,32 @@
       if (v && v.commit) ver.innerHTML = 'verze <code>' + v.commit + '</code>' + (v.builtAt ? ' · ' + v.builtAt : '');
     })
     .catch(function () { ver.textContent = 'lokální náhled'; });
+
+  // Kontrola API spojení (DB + Anthropic + kanály) — klikni pro re-check
+  var health = document.getElementById('jw-health');
+  function checkHealth() {
+    health.innerHTML = 'API …';
+    fetch('/api/health')
+      .then(function (r) { return r.json(); })
+      .then(function (h) {
+        var a = h.anthropic || {};
+        var col = !a.configured ? '#8b97ad' : (a.ok ? '#3ecf8e' : '#ef6b73');
+        var alab = !a.configured ? 'klíč nenastaven' : (a.ok ? 'OK' : 'CHYBA (' + a.status + ')');
+        health.innerHTML = 'API <span style="color:' + col + '">●</span>';
+        health.title =
+          'DB: ' + (h.db ? 'OK' : 'CHYBA') +
+          '  ·  Anthropic: ' + alab +
+          '  ·  Telegram: ' + (h.channels && h.channels.telegram ? 'on' : 'off') +
+          '  ·  E-mail: ' + (h.channels && h.channels.email ? 'on' : 'off') +
+          '  ·  Slack: ' + (h.channels && h.channels.slack ? 'on' : 'off') +
+          '  (klikni pro re-check)';
+      })
+      .catch(function () {
+        health.innerHTML = 'API <span style="color:#ef6b73">●</span>';
+        health.title = 'spojení selhalo';
+      });
+  }
+  health.style.cursor = 'pointer';
+  health.onclick = checkHealth;
+  checkHealth();
 })();

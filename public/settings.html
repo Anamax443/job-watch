@@ -69,7 +69,9 @@
   <div class="check"><input id="notifySlack" type="checkbox" /> <label for="notifySlack">Posílat na Slack</label></div>
   <div class="hint" style="margin:-6px 0 16px">Slack webhook URL je tajný — nastav přes <code>wrangler secret put SLACK_WEBHOOK_URL</code> (ne tady v UI).</div>
 
-  <button id="save">Uložit</button><span id="status"></span>
+  <button id="save">Uložit</button>
+  <button id="test" style="background:transparent;border:1px solid var(--line);color:var(--fg);margin-left:8px">Odeslat test</button>
+  <span id="status"></span>
 </main>
 
 <script>
@@ -105,6 +107,16 @@ $('#save').onclick = async () => {
   $('#save').disabled = false;
   $('#status').textContent = r.ok ? '✓ Uloženo' : '✗ Chyba ukládání';
   setTimeout(()=>{ $('#status').textContent=''; }, 2500);
+};
+
+$('#test').onclick = async () => {
+  $('#test').disabled = true; $('#status').textContent = 'Posílám test…';
+  try {
+    const r = await fetch('/api/test-notify', { method:'POST' });
+    const d = await r.json();
+    $('#status').textContent = 'Test → Telegram '+(d.telegram?'✓':'–')+' · E-mail '+(d.email?'✓':'–')+' · Slack '+(d.slack?'✓':'–');
+  } catch(e){ $('#status').textContent = '✗ chyba testu'; }
+  $('#test').disabled = false;
 };
 load();
 </script>
