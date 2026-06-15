@@ -186,11 +186,19 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
           realEmployer: enrich?.realEmployer,
           realEmployerUrl: enrich?.realEmployerUrl,
         });
-        if (r.telegram || r.email || r.slack) {
+        // Zaloguj KAŽDÝ pokus i s výsledkem per kanál (✓/✗) → viditelné v Konzoli,
+        // ať je poznat i neúspěch (dřív se logoval jen úspěch).
+        const ch: string[] = [];
+        if (settings.notifySlack) ch.push(`Slack ${r.slack ? '✓' : '✗'}`);
+        if (settings.notifyEmail) ch.push(`E-mail ${r.email ? '✓' : '✗'}`);
+        if (settings.notifyTelegram) ch.push(`Telegram ${r.telegram ? '✓' : '✗'}`);
+        const okAny = r.telegram || r.email || r.slack;
+        if (okAny) {
           await setNotified(env, id);
           stats.notified++;
-          run.log(`  🔔 ${score.relevance} | ${job.title} — ${job.employer}`);
         }
+        const tail = ch.length ? ch.join(' · ') : 'žádný kanál zapnutý';
+        run.log(`  🔔 ${score.relevance} | ${job.title} — ${job.employer} → ${tail}${okAny ? '' : ' ⚠️ neodesláno'}`);
       }
     };
     for (let b = 0; b < candidates.length; b += BATCH) {
