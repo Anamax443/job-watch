@@ -26,11 +26,20 @@ function stripTags(s: string): string {
     .trim();
 }
 
-/** Dotazy na listovku: top klíčová slova z Nastavení (jinak rozumný default). */
+/**
+ * Dotazy na listovku: top klíčová slova z Nastavení (jinak rozumný default),
+ * filtrované na region z Nastavení (regionPriority → locality[label]+radius),
+ * takže se hledá tam, kde má — ne po celé ČR.
+ */
 function buildListingUrls(settings: Settings): string[] {
   const kw = settings.keywords.filter(Boolean).slice(0, 4);
   const terms = kw.length ? kw : ['vedoucí IT', 'IT manažer', 'Head of IT'];
-  return terms.map((t) => `https://www.jobs.cz/prace/?q[]=${encodeURIComponent(t)}`);
+  const region = settings.regionPriority?.trim();
+  // jobs.cz: locality[label] geokóduje i název kraje/města; radius v km.
+  const loc = region
+    ? `&locality[label]=${encodeURIComponent(region)}&locality[radius]=30`
+    : '';
+  return terms.map((t) => `https://www.jobs.cz/prace/?q[]=${encodeURIComponent(t)}${loc}`);
 }
 
 /** Vytáhne mzdové rozpětí z textu typu "80 000 – 100 000 Kč" / "od 60 000 Kč". */
