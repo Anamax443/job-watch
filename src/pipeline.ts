@@ -136,21 +136,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     run.log(`🧹 Po prefilteru: ${candidates.length} kandidátů (práh skóre ${settings.notifyThreshold})`);
     await run.flush(stats);
 
-    // 4) zpracování (s časovým limitem, ať se běh vždy dokončí)
+    // 4) zpracování — v PARALELNÍCH dávkách (sekvenčně stihlo jen ~11/běh a běh
+    //    se nestihl dokončit). Každý kandidát je nezávislý; deadline mezi dávkami.
     const companyCandidates: SourceCandidate[] = [];
-    let i = 0;
-    for (const job of candidates) {
-      if (Date.now() > deadline) {
-        run.log(`⏱️ Časový limit běhu — zpracováno ${stats.scored}, zbytek doženu příště.`);
-        break;
-      }
+    const BATCH = 6;
+    const processJob = async (job: JobPosting): Promise<void> => {
       const id = job.id;
       const hash = await contentHash(job);
       const fp = await fingerprintHash(job);
       const existing = await loadExisting(env, id);
       if (existing && existing.hash === hash) {
         await touchSeen(env, id);
-        continue;
+        return;
       }
 
       const score = await scoreJob(env, job, settings.profile);
@@ -189,7 +186,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
           run.log(`  🔔 ${score.relevance} | ${job.title} — ${job.employer}`);
         }
       }
-      if (++i % 5 === 0) await run.flush(stats);
+    };
+    for (let b = 0; b < candidates.length; b += BATCH) {
+      if (Date.now() > deadline) {
+        run.log(`⏱️ Časový limit běhu — zpracováno ${stats.scored}, zbytek doženu příště.`);
+        break;
+      }
+      await Promise.all(
+        candidates.slice(b, b + BATCH).map((job) =>
+          processJob(job).catch((e) => run.log(`⚠️ ${job.id}: ${e}`)),
+        ),
+      );
+      await run.flush(stats);
     }
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
@@ -204,11 +212,17 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       seenAg.add(key);
       agencyCandidates.push({ name: j.employer, ico: j.employerIco, kind: 'agency' });
     }
+    // Discovery jede přes LLM web_search (pomalé) → jen když zbývá čas v rozpočtu,
+    // jinak by ujelo přes limit a zabilo běh před dokončením (finished_at zůstalo null).
     const limit = parseInt(env.MAX_DISCOVERY_PER_RUN ?? '5', 10) || 5;
     const toDiscover = [...agencyCandidates, ...companyCandidates];
-    if (toDiscover.length) run.log(`🌐 Screening nových zdrojů (max ${limit})…`);
-    stats.discovered = await discoverSources(env, toDiscover, limit);
-    if (stats.discovered) run.log(`💾 Nové zdroje uložené: ${stats.discovered}`);
+    if (Date.now() >= deadline) {
+      if (toDiscover.length) run.log('🌐 Screening zdrojů přeskočen (došel čas) — příště.');
+    } else {
+      if (toDiscover.length) run.log(`🌐 Screening nových zdrojů (max ${limit})…`);
+      stats.discovered = await discoverSources(env, toDiscover, limit);
+      if (stats.discovered) run.log(`💾 Nové zdroje uložené: ${stats.discovered}`);
+    }
 
     // 6) doskórování fronty (seedované/nezhodnocené) — v rámci času, bez notifikací
     let backlog = 0;
