@@ -25,7 +25,11 @@
   fetch('/api/version')
     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function (v) {
-      if (v && v.commit) ver.innerHTML = 'verze <code>' + v.commit + '</code>' + (v.builtAt ? ' · ' + v.builtAt : '');
+      if (v && v.commit) {
+        // commit bývá plný 40znakový SHA (z CI) → zkrať na krátký hash; "dev" nech být
+        var short = /^[0-9a-f]{12,}$/i.test(v.commit) ? v.commit.slice(0, 7) : v.commit;
+        ver.innerHTML = 'verze <code>' + short + '</code>' + (v.builtAt ? ' · ' + v.builtAt : '');
+      }
     })
     .catch(function () { ver.textContent = 'lokální náhled'; });
 

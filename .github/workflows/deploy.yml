@@ -27,4 +27,5 @@ jobs:
           # Účet má víc memberships → bez explicitního ID by wrangler v CI mohl
           # padnout na výběru účtu. Account ID není citlivé.
           accountId: a37a36270aa2db7382f62912ba5a0130
-          command: deploy
+          # Vstříkni commit + čas buildu, ať patička ukazuje reálnou verzi (ne "dev").
+          command: deploy --var GIT_COMMIT:${{ github.sha }} --var BUILT_AT:${{ github.event.head_commit.timestamp }}
