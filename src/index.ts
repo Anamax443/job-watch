@@ -19,7 +19,8 @@ function secure(resp: Response): Response {
   h.set(
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
-      "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; " +
+      "base-uri 'none'; form-action 'self'; upgrade-insecure-requests",
   );
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('X-Frame-Options', 'DENY');
