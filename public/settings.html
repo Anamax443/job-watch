@@ -48,6 +48,12 @@
     <div class="hint">Názvy pozic, které hledáme. Inzerát projde dál, když některé slovo/frázi najde v názvu nebo popisu. Jedno na řádek.</div>
   </div>
 
+  <div class="field">
+    <label class="lbl" for="regionPriority">📍 Lokalita / region — kde hledat</label>
+    <input id="regionPriority" type="text" placeholder="Jihomoravský kraj / Brno" />
+    <div class="hint">Region, ve kterém se hledá (filtr na portálech, např. jobs.cz). Třeba „Jihomoravský kraj" nebo „Brno". Prázdné = celá ČR.</div>
+  </div>
+
   <div class="row">
     <div class="field">
       <label class="lbl" for="czIscoPrefixes">CZ-ISCO prefixy (čárkou)</label>
@@ -98,6 +104,7 @@ async function load(){
   current = await r.json();
   $('#profile').value = current.profile ?? '';
   $('#keywords').value = (current.keywords||[]).join('\n');
+  $('#regionPriority').value = current.regionPriority ?? '';
   $('#czIscoPrefixes').value = (current.czIscoPrefixes||[]).join(', ');
   $('#notifyThreshold').value = current.notifyThreshold ?? 70;
   $('#emailTo').value = current.emailTo ?? '';
@@ -111,6 +118,7 @@ $('#save').onclick = async () => {
   const payload = {
     profile: $('#profile').value,
     keywords: $('#keywords').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    regionPriority: $('#regionPriority').value.trim(),
     czIscoPrefixes: $('#czIscoPrefixes').value.split(',').map(s=>s.trim()).filter(Boolean),
     notifyThreshold: parseInt($('#notifyThreshold').value,10)||0,
     emailTo: $('#emailTo').value.trim(),
