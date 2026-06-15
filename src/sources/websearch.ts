@@ -39,6 +39,27 @@ function parseJsonObject<T = any>(text: string): T | null {
   }
 }
 
+// Zjevné seznamy / výsledkové stránky / stránkování / kategorie — NE konkrétní inzerát.
+// (Sem padaly staré odpadní záznamy: tip-prace .../page-13, indeed q-…nabidky-prace.html,
+// pracezarohem /nabidky/…, careerjet /prace-…)
+function isListingUrl(url: string): boolean {
+  const u = url.toLowerCase();
+  let path = u;
+  let query = '';
+  try {
+    const parsed = new URL(u);
+    path = parsed.pathname;
+    query = parsed.search;
+  } catch {
+    /* ber celou URL jako path */
+  }
+  return (
+    /\/(hledat|hledani|search|nabidky-prace|nabidky|jobs|prace-|q-)/i.test(path) ||
+    /\/(page|strana|str)[-/]?\d+/i.test(path) || // stránkování
+    /[?&](page|strana|q|query|search)=/i.test(query)
+  );
+}
+
 function buildSystem(): string {
   return (
     'Jsi vyhledávač pracovních inzerátů. Pomocí web_search (jako Google) a web_fetch najdi ' +
@@ -105,8 +126,9 @@ export async function fetchWebSearch(env: Env, settings: Settings): Promise<JobP
   for (const r of raw) {
     const url = typeof r?.url === 'string' ? r.url.trim() : '';
     if (!url || !r?.title) continue;
-    // jen reálné detaily inzerátů; vyhoď zjevné seznamy/stránkování
-    if (/\/(hledat|search|nabidky-prace|jobs)\b/i.test(url) && !/\/rpd\//i.test(url)) continue;
+    // jen reálné detaily inzerátů; vyhoď zjevné seznamy/výsledky/stránkování
+    // (jobs.cz /rpd/ je vždy detail → nikdy nefiltrovat).
+    if (!/\/rpd\//i.test(url) && isListingUrl(url)) continue;
     const skey = url.toLowerCase();
     if (seen.has(skey)) continue;
     seen.add(skey);
