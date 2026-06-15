@@ -5,6 +5,7 @@ import { fetchMpsv } from './sources/mpsv';
 import { fetchAts } from './sources/ats';
 import { fetchWeb } from './sources/web';
 import { fetchJobsCz } from './sources/jobscz';
+import { fetchPraceCz } from './sources/pracecz';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies';
 import { prefilter } from './prefilter';
 import { scoreJob } from './score';
@@ -112,8 +113,11 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // Deterministický fetch (bez LLM) → rychlý, fit do rozpočtu běhu (waitUntil).
     const jobsczP = timed('jobs.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchJobsCz(env, settings)).catch((e) => { run.log(`⚠️ jobs.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 jobs.cz: ${r.length}`); await run.flush(stats); return r; });
-    const [mpsv, ats, web, jobscz] = await Promise.all([mpsvP, atsP, webP, jobsczP]);
-    const jobs = [...mpsv, ...ats, ...web, ...jobscz];
+    // prace.cz (LMC) — volné hledání → projde prefilterem (šum se odřízne), dedup řeší překryv s jobs.cz.
+    const pracesczP = timed('prace.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchPraceCz(env, settings)).catch((e) => { run.log(`⚠️ prace.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
+      .then(async (r) => { run.log(`📥 prace.cz: ${r.length}`); await run.flush(stats); return r; });
+    const [mpsv, ats, web, jobscz, pracecz] = await Promise.all([mpsvP, atsP, webP, jobsczP, pracesczP]);
+    const jobs = [...mpsv, ...ats, ...web, ...jobscz, ...pracecz];
     stats.fetched = jobs.length;
     run.log(`✔ Zdroje hotové → celkem ${jobs.length}`);
     // Strop na zpracování (scoring/notify/backlog) — počítá se až teď, aby ho delší
