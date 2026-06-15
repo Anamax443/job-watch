@@ -28,6 +28,12 @@
     overflow:auto;
   }
   .term .err { color:var(--bad); }
+  .notifs { display:flex; flex-direction:column; gap:6px; }
+  .nrow { display:flex; gap:10px; align-items:baseline; padding:8px 10px; background:var(--card); border:1px solid var(--line); border-radius:8px; font-size:13px; flex-wrap:wrap; }
+  .nrow .when { color:var(--mut); font-family:Consolas,monospace; font-size:12px; white-space:nowrap; }
+  .nrow .sc { color:var(--good); font-weight:600; }
+  .nrow a { color:var(--acc); text-decoration:none; }
+  .nrow .emp { color:var(--mut); }
 </style>
 </head>
 <body>
@@ -45,6 +51,9 @@
   </div>
   <div class="meta" id="meta"></div>
   <pre class="term" id="term">Načítám…</pre>
+
+  <h2 style="font-size:15px;margin:22px 0 8px">📨 Odeslané notifikace <span class="pill" id="notifcount"></span></h2>
+  <div class="notifs" id="notifs">Načítám…</div>
 </main>
 
 <script>
@@ -98,6 +107,23 @@ function render(){
   if(running && atBottom) term.scrollTop = term.scrollHeight;
 }
 
+function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function loadNotifs(){
+  let list = [];
+  try{ list = (await (await fetch('/api/notifications')).json()).notifications || []; }
+  catch(e){ $('#notifs').textContent = '✗ nepodařilo se načíst /api/notifications'; return; }
+  $('#notifcount').textContent = list.length ? `(${list.length})` : '';
+  if(!list.length){ $('#notifs').textContent = 'Zatím nic neodesláno.'; return; }
+  $('#notifs').innerHTML = list.map((n) => {
+    const loc = n.location ? ` · ${esc(n.location)}` : '';
+    const link = n.url ? ` · <a href="${esc(n.url)}" target="_blank" rel="noopener">otevřít ↗</a>` : '';
+    return `<div class="nrow"><span class="when">🔔 ${esc(n.notified_at)}</span>`
+      + `<span class="sc">${n.relevance ?? '—'}</span>`
+      + `<span>${esc(n.title)} <span class="emp">— ${esc(n.employer)}${loc}</span> <span class="pill">[${esc((n.source||'').split(':')[0])}]</span>${link}</span></div>`;
+  }).join('');
+}
+
 async function load(){
   try{
     const res = await fetch('/api/runs');
@@ -105,6 +131,7 @@ async function load(){
   }catch(e){ $('#term').textContent = '✗ nepodařilo se načíst /api/runs'; return; }
   fillSelector();
   render();
+  loadNotifs();
 }
 
 $('#runsel').onchange = (e) => {

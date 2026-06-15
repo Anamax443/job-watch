@@ -205,6 +205,13 @@ async function route(
       ).all();
       return json({ runs: rows.results ?? [] });
     }
+    if (p === '/api/notifications' && request.method === 'GET') {
+      const rows = await env.DB.prepare(
+        `SELECT id, title, employer, location, relevance, source, url, notified_at
+         FROM seen_jobs WHERE notified_at IS NOT NULL ORDER BY notified_at DESC LIMIT 100`,
+      ).all();
+      return json({ notifications: rows.results ?? [] });
+    }
     if (p === '/api/health' && request.method === 'GET') return await handleHealth(env);
     if (p === '/api/test-web' && request.method === 'GET') {
       const renv = await resolveEnv(env);

@@ -139,6 +139,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // 4) zpracování — v PARALELNÍCH dávkách (sekvenčně stihlo jen ~11/běh a běh
     //    se nestihl dokončit). Každý kandidát je nezávislý; deadline mezi dávkami.
     const companyCandidates: SourceCandidate[] = [];
+    let unchanged = 0;
     const BATCH = 3;
     const processJob = async (job: JobPosting): Promise<void> => {
       const id = job.id;
@@ -149,6 +150,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       // NULL po resetu) se musí přeskórovat, i když se obsah inzerátu nezměnil.
       if (existing && existing.hash === hash && existing.relevance != null) {
         await touchSeen(env, id);
+        unchanged++;
         return;
       }
 
@@ -206,6 +208,11 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
           const tail = ch.length ? ch.join(' · ') : 'žádný kanál zapnutý';
           run.log(`  🔔 ${head} → ${tail}${okAny ? '' : ' ⚠️ neodesláno'}`);
         }
+      } else {
+        // Zamítnuté (pod prahem) — taky do logu, ať je v Konzoli VEŠKERÁ komunikace.
+        const loc = job.location ? ` (${job.location})` : '';
+        const why = score.reason ? ` — ${score.reason.slice(0, 100)}` : '';
+        run.log(`  ❌ ${score.relevance} | ${job.title} — ${job.employer}${loc} → zamítnuto (pod prahem ${settings.notifyThreshold})${why}`);
       }
     };
     for (let b = 0; b < candidates.length; b += BATCH) {
@@ -220,6 +227,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       );
       await run.flush(stats);
     }
+    if (unchanged) run.log(`⏭ ${unchanged} beze změny — přeskočeno (už ohodnocené, viz historie/Výsledky)`);
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
 
