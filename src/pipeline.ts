@@ -178,27 +178,34 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         run.log(`  ↻ opakuje se: ${job.title} — ${job.employer}`);
       }
 
-      if (relevant && !duplicateOf && !existing?.notified_at) {
-        const r = await notify(env, settings, {
-          ...job,
-          relevance: score.relevance,
-          reason: score.reason,
-          realEmployer: enrich?.realEmployer,
-          realEmployerUrl: enrich?.realEmployerUrl,
-        });
-        // Zaloguj KAŽDÝ pokus i s výsledkem per kanál (✓/✗) → viditelné v Konzoli,
-        // ať je poznat i neúspěch (dřív se logoval jen úspěch).
-        const ch: string[] = [];
-        if (settings.notifySlack) ch.push(`Slack ${r.slack ? '✓' : '✗'}`);
-        if (settings.notifyEmail) ch.push(`E-mail ${r.email ? '✓' : '✗'}`);
-        if (settings.notifyTelegram) ch.push(`Telegram ${r.telegram ? '✓' : '✗'}`);
-        const okAny = r.telegram || r.email || r.slack;
-        if (okAny) {
-          await setNotified(env, id);
-          stats.notified++;
+      // Veškerá notifikační komunikace pro inzeráty nad prahem → vždy zaloguj výsledek
+      // (odesláno ✓/✗ / přeskočeno, protože už odesláno / duplikát), ať je vidět v Konzoli.
+      if (relevant) {
+        const head = `${score.relevance} | ${job.title} — ${job.employer}`;
+        if (duplicateOf) {
+          run.log(`  🔕 ${head} → neodesláno (duplikát již sledovaného inzerátu)`);
+        } else if (existing?.notified_at) {
+          run.log(`  🔕 ${head} → neodesláno (už odesláno ${existing.notified_at})`);
+        } else {
+          const r = await notify(env, settings, {
+            ...job,
+            relevance: score.relevance,
+            reason: score.reason,
+            realEmployer: enrich?.realEmployer,
+            realEmployerUrl: enrich?.realEmployerUrl,
+          });
+          const ch: string[] = [];
+          if (settings.notifySlack) ch.push(`Slack ${r.slack ? '✓' : '✗'}`);
+          if (settings.notifyEmail) ch.push(`E-mail ${r.email ? '✓' : '✗'}`);
+          if (settings.notifyTelegram) ch.push(`Telegram ${r.telegram ? '✓' : '✗'}`);
+          const okAny = r.telegram || r.email || r.slack;
+          if (okAny) {
+            await setNotified(env, id);
+            stats.notified++;
+          }
+          const tail = ch.length ? ch.join(' · ') : 'žádný kanál zapnutý';
+          run.log(`  🔔 ${head} → ${tail}${okAny ? '' : ' ⚠️ neodesláno'}`);
         }
-        const tail = ch.length ? ch.join(' · ') : 'žádný kanál zapnutý';
-        run.log(`  🔔 ${score.relevance} | ${job.title} — ${job.employer} → ${tail}${okAny ? '' : ' ⚠️ neodesláno'}`);
       }
     };
     for (let b = 0; b < candidates.length; b += BATCH) {
