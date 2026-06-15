@@ -34,12 +34,10 @@ function stripTags(s: string): string {
 function buildListingUrls(settings: Settings): string[] {
   const kw = settings.keywords.filter(Boolean).slice(0, 4);
   const terms = kw.length ? kw : ['vedoucí IT', 'IT manažer', 'Head of IT'];
-  const region = settings.regionPriority?.trim();
-  // jobs.cz: locality[label] geokóduje i název kraje/města; radius v km.
-  const loc = region
-    ? `&locality[label]=${encodeURIComponent(region)}&locality[radius]=30`
-    : '';
-  return terms.map((t) => `https://www.jobs.cz/prace/?q[]=${encodeURIComponent(t)}${loc}`);
+  // Region NEfiltrujeme na URL (jobs.cz `locality[label]` v query stejně ignoruje).
+  // Lokalitu posuzuje AI ve scoringu — pozice mimo region drží pod prahem. Stahujeme
+  // širší vzorek, ať nezahodíme remote/hybrid role mimo region. AI má poslední slovo.
+  return terms.map((t) => `https://www.jobs.cz/prace/?q[]=${encodeURIComponent(t)}`);
 }
 
 /** Vytáhne mzdové rozpětí z textu typu "80 000 – 100 000 Kč" / "od 60 000 Kč". */

@@ -26,19 +26,43 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-function buildSystem(profile: string): string {
+/**
+ * Lokalita jako tvrdý faktor: pozice mimo preferovaný region (a ne remote/hybrid s
+ * dojezdem) NESMÍ přes práh — i kdyby jinak seděla skvěle. AI má poslední slovo.
+ */
+function locationClause(region?: string, threshold?: number): string {
+  const r = (region ?? '').trim();
+  if (!r) return '';
+  const t = threshold ?? 70;
+  return (
+    ` LOKALITA JE ZÁSADNÍ KRITÉRIUM: preferovaný region je „${r}". Pokud pozice NENÍ v tomto ` +
+    `regionu a zároveň NENÍ remote/hybridní s reálným dojezdem, MUSÍŠ dát relevance POD ${t} ` +
+    `(klidně 30–50), i kdyby role obsahově seděla perfektně. Pozici v regionu nebo plně remote ` +
+    `lokalitou nepenalizuj. Když lokalita inzerátu chybí, ber to jako neutrální.`
+  );
+}
+
+function buildSystem(profile: string, region?: string, threshold?: number): string {
+  const loc = locationClause(region, threshold);
   const p = (profile ?? '').trim();
-  if (!p) return DEFAULT_SYSTEM;
+  if (!p) return DEFAULT_SYSTEM + loc;
   return (
     'Jsi recruiter screener. Hodnotíš, jak moc pracovní inzerát sedí na KONKRÉTNÍ profil tohoto ' +
     'kandidáta (zkušenosti, seniorita, zaměření, lokalita, preference):\n\n' +
     p.slice(0, 6000) +
     '\n\nVrať relevance 0–100 = míra shody pozice s TÍMTO profilem (ne obecně), ' +
-    'seniority lead|senior|other, reason = krátké zdůvodnění česky vůči profilu. Pouze JSON dle schématu.'
+    'seniority lead|senior|other, reason = krátké zdůvodnění česky vůči profilu.' +
+    loc +
+    ' Pouze JSON dle schématu.'
   );
 }
 
-export async function scoreJob(env: Env, job: JobPosting, profile = ''): Promise<ScoreResult> {
+export async function scoreJob(
+  env: Env,
+  job: JobPosting,
+  profile = '',
+  opts: { region?: string; threshold?: number } = {},
+): Promise<ScoreResult> {
   const user = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
@@ -56,7 +80,7 @@ export async function scoreJob(env: Env, job: JobPosting, profile = ''): Promise
     const resp = await messagesCreate(env, {
       model: env.SCORE_MODEL,
       max_tokens: 300,
-      system: buildSystem(profile),
+      system: buildSystem(profile, opts.region, opts.threshold),
       messages: [{ role: 'user', content: user }],
       output_config: { format: { type: 'json_schema', schema: SCHEMA } },
     });
