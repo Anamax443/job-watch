@@ -37,10 +37,11 @@ export function fingerprintHash(j: JobPosting): Promise<string | null> {
 export interface ExistingRow {
   hash: string;
   notified_at: string | null;
+  relevance: number | null;
 }
 
 export async function loadExisting(env: Env, id: string): Promise<ExistingRow | null> {
-  return await env.DB.prepare('SELECT hash, notified_at FROM seen_jobs WHERE id = ?')
+  return await env.DB.prepare('SELECT hash, notified_at, relevance FROM seen_jobs WHERE id = ?')
     .bind(id)
     .first<ExistingRow>();
 }

@@ -123,7 +123,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // Strop na zpracování (scoring/notify/backlog) — počítá se až teď, aby ho delší
     // fetch (web_search) neukrojil. Drženo nízko, protože manuální běh jede přes
     // ctx.waitUntil s omezeným rozpočtem (delší celkový čas zabíjel celý běh).
-    const deadline = Date.now() + 22000;
+    const deadline = Date.now() + 16000;
 
     // 2) klasifikace agentur
     const icoSet = await loadAgencyIcos(env);
@@ -145,7 +145,9 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       const hash = await contentHash(job);
       const fp = await fingerprintHash(job);
       const existing = await loadExisting(env, id);
-      if (existing && existing.hash === hash) {
+      // Přeskoč jen když je beze změny A UŽ OHODNOCENÝ. Vynulované skóre (relevance
+      // NULL po resetu) se musí přeskórovat, i když se obsah inzerátu nezměnil.
+      if (existing && existing.hash === hash && existing.relevance != null) {
         await touchSeen(env, id);
         return;
       }
