@@ -4,6 +4,7 @@ import { resolveEnv } from './secrets';
 import { fetchMpsv } from './sources/mpsv';
 import { fetchAts } from './sources/ats';
 import { fetchWeb } from './sources/web';
+import { fetchWebSearch } from './sources/websearch';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies';
 import { prefilter } from './prefilter';
 import { scoreJob } from './score';
@@ -97,7 +98,6 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   await run.start();
 
   try {
-    const deadline = Date.now() + 40000; // celkový časový strop běhu (Worker má limit)
     // 1) fetch — MPSV + ATS z D1 + OTEVŘENÉ hledání napříč webem.
     //    Každý zdroj má limit a loguje se hned jak doběhne → běh se vždy dokončí.
     run.log('🔎 Spouštím zdroje: MPSV (celá ČR), ATS firem, celý web…');
@@ -107,11 +107,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     const atsP = timed('ATS', fetchAts(env).catch((e) => { run.log(`⚠️ ATS: ${e}`); return [] as JobPosting[]; }), 20000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 ATS: ${r.length}`); await run.flush(stats); return r; });
     const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings)).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 25000, [] as JobPosting[], run)
-      .then(async (r) => { run.log(`📥 Web: ${r.length}`); await run.flush(stats); return r; });
-    const [mpsv, ats, web] = await Promise.all([mpsvP, atsP, webP]);
-    const jobs = [...mpsv, ...ats, ...web];
+      .then(async (r) => { run.log(`📥 Web (Adzuna): ${r.length}`); await run.flush(stats); return r; });
+    // Cílené hledání konkrétních inzerátů přes web_search/web_fetch — pokrývá jobs.cz a další
+    // portály, které Adzuna v ČR míjí. Delší limit (LLM + víc kol web_search).
+    const searchP = timed('WebSearch', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWebSearch(env, settings)).catch((e) => { run.log(`⚠️ WebSearch: ${e}`); return [] as JobPosting[]; }), 35000, [] as JobPosting[], run)
+      .then(async (r) => { run.log(`📥 Web (hledání, vč. jobs.cz): ${r.length}`); await run.flush(stats); return r; });
+    const [mpsv, ats, web, search] = await Promise.all([mpsvP, atsP, webP, searchP]);
+    const jobs = [...mpsv, ...ats, ...web, ...search];
     stats.fetched = jobs.length;
     run.log(`✔ Zdroje hotové → celkem ${jobs.length}`);
+    // Strop na zpracování (scoring/notify/backlog) — počítá se až teď, aby ho delší
+    // fetch (web_search) neukrojil. Zaručí, že běh se vždy v rozumném čase dokončí.
+    const deadline = Date.now() + 35000;
 
     // 2) klasifikace agentur
     const icoSet = await loadAgencyIcos(env);

@@ -18,6 +18,7 @@
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
   .filters { display:flex; gap:14px; align-items:center; padding:12px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; color:var(--mut); }
   .filters input[type=number] { width:70px; background:var(--card); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; }
+  .savemsg { color:var(--ok, #34d399); font-size:13px; }
   main { padding:16px 20px; }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
@@ -59,6 +60,8 @@
   <label>Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
   <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>
   <button id="refresh" class="ghost">Obnovit</button>
+  <button id="saveFilters" class="ghost">Uložit</button>
+  <span id="saveMsg" class="savemsg" hidden>✓ uloženo</span>
 </div>
 
 <section class="runbox" id="runbox">
@@ -114,6 +117,15 @@ async function load(){
 $('#refresh').onclick = load;
 $('#minScore').onchange = load;
 $('#agencyOnly').onchange = load;
+let saveMsgTimer;
+$('#saveFilters').onclick = () => {
+  localStorage.setItem('jw.minScore', $('#minScore').value);
+  localStorage.setItem('jw.agencyOnly', $('#agencyOnly').checked ? '1' : '0');
+  const msg = $('#saveMsg');
+  msg.hidden = false;
+  clearTimeout(saveMsgTimer);
+  saveMsgTimer = setTimeout(() => { msg.hidden = true; }, 2000);
+};
 function fmtStats(s){
   if(!s) return '';
   try{ const o=typeof s==='string'?JSON.parse(s):s;
@@ -162,6 +174,10 @@ $('#stop').onclick = async () => {
   $('#stop').disabled=false; $('#status').textContent='';
   await loadRuns(); load();
 };
+const savedMin = localStorage.getItem('jw.minScore');
+if (savedMin !== null) $('#minScore').value = savedMin;
+const savedAgency = localStorage.getItem('jw.agencyOnly');
+if (savedAgency !== null) $('#agencyOnly').checked = savedAgency === '1';
 load();
 loadRuns();
 </script>
