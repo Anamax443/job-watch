@@ -62,7 +62,7 @@ export async function scoreJob(
   job: JobPosting,
   profile = '',
   opts: { region?: string; threshold?: number } = {},
-): Promise<ScoreResult> {
+): Promise<ScoreResult | null> {
   const user = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
@@ -95,5 +95,7 @@ export async function scoreJob(
   } catch (e) {
     console.warn(`score ${job.id}: ${e}`);
   }
-  return { relevance: 0, seniority: 'other', reason: 'skóre se nepodařilo získat' };
+  // Selhání (rate-limit/parse) → null: NEzapisovat 0, ať se inzerát příště přeskóruje
+  // (0 by smyčka brala jako hotové a uvízlo by to).
+  return null;
 }

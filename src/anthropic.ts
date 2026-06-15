@@ -19,21 +19,36 @@ export interface MessagesBody {
   [k: string]: unknown;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// 429 (rate limit) a 5xx/529 (overloaded) jsou přechodné → krátký retry s backoffem.
+// Bez něj paralelní scoring/doskórování spadne hromadně na 429 (relevance 0).
+const RETRYABLE = new Set([429, 500, 502, 503, 529]);
+
 export async function messagesCreate(env: Env, body: MessagesBody): Promise<any> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
+  let lastErr = '';
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return res.json();
+
     const t = await res.text();
-    throw new Error(`Anthropic ${res.status}: ${t.slice(0, 800)}`);
+    lastErr = `Anthropic ${res.status}: ${t.slice(0, 400)}`;
+    if (!RETRYABLE.has(res.status) || attempt === 3) break;
+    // Respektuj Retry-After (s), jinak exponenciální backoff (0.5/1/2 s) — strop, ať
+    // se to vejde do rozpočtu běhu.
+    const ra = parseInt(res.headers.get('retry-after') ?? '', 10);
+    const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 3000) : 500 * 2 ** attempt;
+    await sleep(wait);
   }
-  return res.json();
+  throw new Error(lastErr);
 }
 
 /** První textový blok z odpovědi (structured outputs garantují validní JSON v textu). */

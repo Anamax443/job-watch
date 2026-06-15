@@ -139,7 +139,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // 4) zpracování — v PARALELNÍCH dávkách (sekvenčně stihlo jen ~11/běh a běh
     //    se nestihl dokončit). Každý kandidát je nezávislý; deadline mezi dávkami.
     const companyCandidates: SourceCandidate[] = [];
-    const BATCH = 6;
+    const BATCH = 3;
     const processJob = async (job: JobPosting): Promise<void> => {
       const id = job.id;
       const hash = await contentHash(job);
@@ -156,6 +156,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         region: settings.regionPriority,
         threshold: settings.notifyThreshold,
       });
+      if (!score) return; // scoring selhal (rate-limit) → nech NULL, přeskóruje se příště
       stats.scored++;
       const relevant = score.relevance >= settings.notifyThreshold;
 
@@ -232,7 +233,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // 6) doskórování fronty (seedované/nezhodnocené) — v rámci času, bez notifikací
     let backlog = 0;
     while (Date.now() < deadline) {
-      const batch = await loadUnscored(env, 6);
+      const batch = await loadUnscored(env, 3);
       if (!batch.length) break;
       await Promise.all(
         batch.map(async (job) => {
@@ -241,7 +242,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
               region: settings.regionPriority,
               threshold: settings.notifyThreshold,
             });
-            await updateScore(env, job.id, sc);
+            if (sc) await updateScore(env, job.id, sc);
           } catch (e) {
             run.log(`⚠️ skóre ${job.id}: ${e}`);
           }
