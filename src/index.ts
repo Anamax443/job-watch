@@ -18,7 +18,7 @@ function secure(resp: Response): Response {
   const h = new Headers(resp.headers);
   h.set(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
       "img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; " +
       "base-uri 'none'; form-action 'self'; upgrade-insecure-requests",
   );
