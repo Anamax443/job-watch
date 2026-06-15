@@ -4,10 +4,11 @@ name: Deploy
 # Potřebuje GitHub secret: CLOUDFLARE_API_TOKEN (oprávnění Workers + D1).
 # Pozn.: database_id musí být vyplněné ve wrangler.toml.
 
-# Auto-deploy na push je VYPNUTÝ, dokud není v GitHubu secret CLOUDFLARE_API_TOKEN
-# (jinak by každý push v CI spadl). Nasazení se dělá ručně (lokálně `npm run deploy`)
-# nebo přes ruční spuštění tohoto workflow. Až přidáš token, vrať blok `push:`.
+# Auto-deploy na push do main (secret CLOUDFLARE_API_TOKEN je nastaven).
+# Lze i ručně přes „Run workflow" (workflow_dispatch).
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -23,4 +24,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Účet má víc memberships → bez explicitního ID by wrangler v CI mohl
+          # padnout na výběru účtu. Account ID není citlivé.
+          accountId: a37a36270aa2db7382f62912ba5a0130
           command: deploy
