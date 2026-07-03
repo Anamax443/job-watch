@@ -3,7 +3,8 @@
 Cloudový agent (Cloudflare Worker), který každý den prohledá zdroje volných míst,
 vybere pozice typu **vedoucí IT / IT manažer / Solution Architect**, nechá je AI
 **ohodnotit podle TVÉHO profilu** (CV / o mně z Nastavení), u agenturních inzerátů
-dohledá **původce** a pošle nové nálezy na **Telegram / e-mail / Slack**.
+dohledá **původce**, ověří **živost inzerátu** (aktivní/zrušené), zachytí
+**kontaktní osobu** (e-mail/telefon) a pošle nové nálezy na **Telegram / e-mail / Slack**.
 
 - **Stack:** Cloudflare Worker + Cron + D1 + Anthropic API + statické UI (za Cloudflare Access)
 - **Zdroje:** MPSV (celý trh ČR) · **Adzuna Job API** (konkrétní inzeráty z webu) · ATS firem
@@ -25,7 +26,7 @@ Cloudflare Worker "job-watch"  (+ statické UI, + D1, + cron)
  │    POST /api/settings|run|run/stop|keys|test-notify  → akce (vyžadují Access)
  └─ Cloudflare Access: přihlášení e-mailem (jen povolený e-mail)
 D1:
- ├─ seen_jobs   → výsledky napříč zdroji
+ ├─ seen_jobs   → výsledky napříč zdroji (vč. živosti active + kontaktní osoby)
  ├─ sources     → dynamicky objevené zdroje (personálky/firmy + kde inzerují)
  └─ meta        → nastavení (JSON) + kurzor přírůstků
 ```
@@ -54,6 +55,22 @@ deanonymizace původce) → `notify.ts` (Telegram + e-mail/MS Graph + **Slack**)
 
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
+
+### Živost inzerátu (`src/liveness.ts`)
+
+Ve Výsledcích má každý inzerát **Stav** (✅ Aktivní / 🚫 Zrušené / ⏳ neověřeno) a v hlavičce
+je filtr **Vše (default) / Aktivní / Zrušené** (uloží se do prohlížeče). U jobs.cz (`/rpd/<id>`)
+a prace.cz (`/nabidka/<uuid>`) vrací zrušený inzerát **HTTP 404** → `recheckLiveness` v každém
+běhu dávkově přeověří zobrazované inzeráty (přednost mají nejdéle neověřené = vypadlé z listovky;
+strop `MAX_LIVENESS_CHECKS_PER_RUN`, default 60). Výskyt v živé listovce rovnou nastaví `active=1`.
+MPSV nemá detailní URL k ověření → zůstává „neověřeno".
+
+### Kontaktní osoba
+
+Aby šlo oslovit **konkrétního člověka i po skončení výběrového řízení**, ukládá se ke
+každému inzerátu kontakt (jméno, e-mail, telefon, pozice) a zobrazí se v řádku výsledku.
+Reálný kontakt dává hlavně **MPSV** (`prvniKontaktSeZamestnavatelem.komuSeHlasit`); jobs.cz/
+prace.cz přihlášky vedou přes portál, takže reálný e-mail neposkytují.
 
 ---
 
