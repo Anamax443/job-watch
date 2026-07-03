@@ -24,6 +24,12 @@ function readIds(): string[] {
   return results.map((r: any) => String(r.id)).filter(Boolean);
 }
 
+/** Číslo (portalId) z uloženého id — funguje pro "mpsv:123" i "mpsv:VolneMisto/123". */
+function numOf(id: string): string {
+  const s = id.replace(/^mpsv:/, '');
+  return s.includes('/') ? s.slice(s.lastIndexOf('/') + 1) : s;
+}
+
 function chunk<T>(a: T[], n: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));
@@ -46,15 +52,15 @@ async function main(): Promise<void> {
         : buf.toString('utf8');
     console.log(`Export ${(text.length / 1e6).toFixed(1)} MB`);
 
-    // množina aktuálně nabízených id (jen přesně "VolneMisto/<číslo>")
+    // množina aktuálně nabízených portalId (číslo za "VolneMisto/")
     const present = new Set<string>();
-    const re = /"VolneMisto\/\d+"/g;
+    const re = /"VolneMisto\/(\d+)"/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) present.add(m[0].slice(1, -1));
+    while ((m = re.exec(text)) !== null) present.add(m[1]);
     console.log(`Aktuálně nabízených VolneMisto id: ${present.size}`);
 
-    const gone = ids.filter((id) => !present.has(id.replace(/^mpsv:/, '')));
-    const alive = ids.filter((id) => present.has(id.replace(/^mpsv:/, '')));
+    const gone = ids.filter((id) => !present.has(numOf(id)));
+    const alive = ids.filter((id) => present.has(numOf(id)));
     console.log(`Aktivní ${alive.length} · nově zrušené ${gone.length}`);
     if (gone.length) console.log('GONE:', gone.join(', '));
 

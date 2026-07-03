@@ -32,6 +32,19 @@ function extractItems(data: any): any[] {
   return [];
 }
 
+/**
+ * Kanonické MPSV id = číselné portalId. Přírůstky mají rec.id "VolneMistoPrirustek/<num>",
+ * plný export/seed "VolneMisto/<num>" — týž inzerát by tak dostal různé id a NEzdedupoval by
+ * se. Bereme proto vždy číslo za lomítkem (fallback portalId), takže id je stabilní napříč zdroji.
+ */
+function mpsvSid(rec: any): string | null {
+  const raw = rec?.id ?? rec?.portalId;
+  if (raw == null) return null;
+  const s = String(raw);
+  const num = s.includes('/') ? s.slice(s.lastIndexOf('/') + 1) : s;
+  return num.trim() || null;
+}
+
 function locationOf(rec: any): string | undefined {
   const m = rec?.mistoVykonuPrace;
   if (!m) return undefined;
@@ -66,7 +79,7 @@ function contactOf(rec: any): {
 }
 
 function mapRecord(rec: any): JobPosting | null {
-  const sid = rec?.id ?? rec?.portalId;
+  const sid = mpsvSid(rec);
   if (sid == null) return null;
   const title = rec?.pozadovanaProfese?.cs ?? rec?.pozadovanaProfese ?? '';
   const employer = rec?.zamestnavatel?.nazev ?? '';

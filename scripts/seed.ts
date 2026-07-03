@@ -70,8 +70,18 @@ function locationOf(rec: any): string | undefined {
   return typeof addr === 'string' ? addr.trim() : undefined;
 }
 
+// Kanonické MPSV id = číslo za lomítkem (portalId) — shodné s src/sources/mpsv.ts,
+// ať se seed a denní přírůstky (VolneMisto/… vs VolneMistoPrirustek/…) spárují na stejné id.
+function mpsvSid(rec: any): string | null {
+  const raw = rec?.id ?? rec?.portalId;
+  if (raw == null) return null;
+  const s = String(raw);
+  const num = s.includes('/') ? s.slice(s.lastIndexOf('/') + 1) : s;
+  return num.trim() || null;
+}
+
 function map(rec: any): Row | null {
-  const sid = rec?.id ?? rec?.portalId;
+  const sid = mpsvSid(rec);
   if (sid == null) return null;
   const title = String(rec?.pozadovanaProfese?.cs ?? rec?.pozadovanaProfese ?? '').trim();
   if (!title) return null;
