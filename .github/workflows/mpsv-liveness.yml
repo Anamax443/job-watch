@@ -1,0 +1,31 @@
+name: MPSV liveness
+
+# Denně zneaktivní MPSV inzeráty, které už nejsou v aktuálním plném exportu MPSV
+# (= ukončené VŘ). Běží v CI, protože plný export má ~184 MB — Worker to v běhu
+# neunese (jobs.cz/prace.cz řeší živost přímo pipeline přes HTTP 404).
+# Potřebuje GitHub secret: CLOUDFLARE_API_TOKEN (Workers + D1, stejný jako deploy/seed).
+on:
+  schedule:
+    - cron: '0 5 * * *' # 05:00 UTC, před denním během pipeline (06:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  liveness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Export MPSV id z D1
+        run: npx wrangler d1 execute job-watch --remote --json --command "SELECT id FROM seen_jobs WHERE source='mpsv' AND (active IS NULL OR active=1)" > mpsv_ids.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Spočítej zrušené proti plnému exportu
+        run: npm run mpsv:liveness # čte mpsv_ids.json → píše mpsv_liveness.sql
+      - name: Zapiš stav do D1
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 execute job-watch --remote --file=mpsv_liveness.sql

@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "db:init": "wrangler d1 execute job-watch --remote --file=schema.sql",
     "db:init:local": "wrangler d1 execute job-watch --local --file=schema.sql",
-    "seed": "node --max-old-space-size=4096 scripts/seed.ts"
+    "seed": "node --max-old-space-size=4096 scripts/seed.ts",
+    "mpsv:liveness": "node --max-old-space-size=4096 scripts/mpsv-liveness.ts"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251201.0",

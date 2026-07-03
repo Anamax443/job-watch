@@ -63,7 +63,11 @@ je filtr **Vše (default) / Aktivní / Zrušené** (uloží se do prohlížeče)
 a prace.cz (`/nabidka/<uuid>`) vrací zrušený inzerát **HTTP 404** → `recheckLiveness` v každém
 běhu dávkově přeověří zobrazované inzeráty (přednost mají nejdéle neověřené = vypadlé z listovky;
 strop `MAX_LIVENESS_CHECKS_PER_RUN`, default 60). Výskyt v živé listovce rovnou nastaví `active=1`.
-MPSV nemá detailní URL k ověření → zůstává „neověřeno".
+
+**MPSV** nemá detailní URL k ověření a plný export má ~184 MB (Worker to v běhu neunese), takže
+živost MPSV řeší **denní GitHub Action `mpsv-liveness.yml`** (`scripts/mpsv-liveness.ts`): stáhne
+plný export, uložené MPSV inzeráty, které v něm už nejsou, označí `active=0`. Spouští se v CI
+nezávisle na PC (secret `CLOUDFLARE_API_TOKEN`); ručně přes „Run workflow".
 
 ### Kontaktní osoba
 
