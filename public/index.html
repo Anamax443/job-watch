@@ -18,6 +18,7 @@
   button.ghost { background:transparent; border:1px solid var(--line); color:var(--fg); }
   .filters { display:flex; gap:14px; align-items:center; padding:12px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; color:var(--mut); }
   .filters input[type=number] { width:70px; background:var(--card); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; }
+  .filters select { background:var(--card); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; }
   .savemsg { color:var(--ok, #34d399); font-size:13px; }
   main { padding:16px 20px; }
   table { width:100%; border-collapse:collapse; }
@@ -29,6 +30,13 @@
   .badge.rep { background:#16263a; color:#7fb6f0; }
   .orig { color:var(--good); font-size:13px; }
   .reason { color:var(--mut); font-size:13px; }
+  .stat { font-size:12px; padding:2px 7px; border-radius:5px; white-space:nowrap; }
+  .stat.on { background:#16311f; color:var(--good); }
+  .stat.off { background:#3a1c1e; color:#ef8f95; }
+  .stat.unk { background:#2a2f3a; color:var(--mut); }
+  .contact { color:var(--mut); font-size:12px; margin-top:4px; line-height:1.35; }
+  .contact a { color:var(--acc); text-decoration:none; }
+  tr.dead td { opacity:.6; }
   a.link { color:var(--acc); text-decoration:none; }
   .empty { color:var(--mut); padding:40px 0; text-align:center; }
   #status { color:var(--mut); font-size:13px; }
@@ -58,9 +66,16 @@
 
 <div class="filters">
   <label>Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
+  <label title="Zobrazit vše, jen aktivní, nebo jen zrušené (ukončené výběrové řízení)">Stav
+    <select id="activeFilter">
+      <option value="all">Vše</option>
+      <option value="active">Aktivní</option>
+      <option value="inactive">Zrušené</option>
+    </select>
+  </label>
   <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>
-  <button id="refresh" class="ghost">Obnovit</button>
-  <button id="saveFilters" class="ghost">Uložit</button>
+  <button id="refresh" class="ghost" title="Načíst výsledky znovu podle nastavených filtrů">Obnovit</button>
+  <button id="saveFilters" class="ghost" title="Zapamatovat si tyto filtry v prohlížeči">Uložit</button>
   <span id="saveMsg" class="savemsg" hidden>✓ uloženo</span>
 </div>
 
@@ -76,7 +91,7 @@
 <main>
   <table>
     <thead><tr>
-      <th>Skóre</th><th>Pozice</th><th>Zaměstnavatel</th><th>Lokalita</th><th>Mzda</th><th>Zdroj</th><th></th>
+      <th>Skóre</th><th>Pozice</th><th>Zaměstnavatel</th><th>Lokalita</th><th>Mzda</th><th>Zdroj</th><th>Stav</th><th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>

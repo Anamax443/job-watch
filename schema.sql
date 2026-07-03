@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
   seen_count         INTEGER DEFAULT 1,  -- kolikrát se inzerát objevil (1 = poprvé, >1 = opakovaný)
   date_posted        TEXT,               -- datum vložení inzerátu u zdroje (stáří)
   notified_at        TEXT,               -- kdy odešla notifikace (NULL = ještě ne)
+  active             INTEGER,            -- 1=aktivní, 0=zrušené (detail vrací 404/410), NULL=neověřeno
+  active_checked_at  TEXT,               -- kdy byla naposledy ověřena živost inzerátu
+  contact_name       TEXT,               -- kontaktní osoba (tituly + jméno + příjmení) — hl. z MPSV
+  contact_email      TEXT,               -- e-mail kontaktní osoby (kontakt i po skončení VŘ)
+  contact_phone      TEXT,               -- telefon kontaktní osoby
+  contact_position   TEXT,               -- pozice kontaktní osoby ve firmě
   first_seen         TEXT DEFAULT (datetime('now')),
   last_seen          TEXT DEFAULT (datetime('now'))
 );
@@ -38,6 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_seen_dedup     ON seen_jobs(dedup_key);
 CREATE INDEX IF NOT EXISTS idx_seen_agency    ON seen_jobs(is_agency);
 CREATE INDEX IF NOT EXISTS idx_seen_first     ON seen_jobs(first_seen);
 CREATE INDEX IF NOT EXISTS idx_seen_fp        ON seen_jobs(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_seen_active    ON seen_jobs(active);
 
 -- Key-value úložiště: editovatelné nastavení (JSON pod 'settings') + kurzory běhu.
 CREATE TABLE IF NOT EXISTS meta (

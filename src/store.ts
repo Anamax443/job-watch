@@ -47,7 +47,10 @@ export async function loadExisting(env: Env, id: string): Promise<ExistingRow | 
 }
 
 export async function touchSeen(env: Env, id: string): Promise<void> {
-  await env.DB.prepare("UPDATE seen_jobs SET last_seen = datetime('now') WHERE id = ?")
+  // Objevil se znovu v živé listovce → je aktivní (a živost je tím ověřená).
+  await env.DB.prepare(
+    "UPDATE seen_jobs SET last_seen = datetime('now'), active = 1, active_checked_at = datetime('now') WHERE id = ?",
+  )
     .bind(id)
     .run();
 }
@@ -87,14 +90,20 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
     `INSERT INTO seen_jobs
        (id, source, hash, dedup_key, title, employer, employer_ico, location, region, cz_isco,
         salary_from, salary_to, url, description, is_agency, relevance, seniority, reason,
-        real_employer, real_employer_url, duplicate_of, fingerprint, first_seen, last_seen)
+        real_employer, real_employer_url, duplicate_of, fingerprint,
+        contact_name, contact_email, contact_phone, contact_position,
+        active, active_checked_at, first_seen, last_seen)
      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,
-             datetime('now'), datetime('now'))
+             ?23,?24,?25,?26,
+             1, datetime('now'), datetime('now'), datetime('now'))
      ON CONFLICT(id) DO UPDATE SET
        hash=?3, dedup_key=?4, title=?5, employer=?6, employer_ico=?7, location=?8, region=?9, cz_isco=?10,
        salary_from=?11, salary_to=?12, url=?13, description=?14, is_agency=?15,
        relevance=?16, seniority=?17, reason=?18, real_employer=?19, real_employer_url=?20,
-       duplicate_of=?21, fingerprint=?22, last_seen=datetime('now')`,
+       duplicate_of=?21, fingerprint=?22,
+       contact_name=COALESCE(?23, contact_name), contact_email=COALESCE(?24, contact_email),
+       contact_phone=COALESCE(?25, contact_phone), contact_position=COALESCE(?26, contact_position),
+       active=1, active_checked_at=datetime('now'), last_seen=datetime('now')`,
   )
     .bind(
       j.id,
@@ -119,6 +128,10 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
       x.enrich?.realEmployerUrl ?? null,
       x.duplicateOf ?? null,
       x.fingerprint ?? null,
+      j.contactName ?? null,
+      j.contactEmail ?? null,
+      j.contactPhone ?? null,
+      j.contactPosition ?? null,
     )
     .run();
 }

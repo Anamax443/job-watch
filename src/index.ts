@@ -44,6 +44,8 @@ function securityTxt(): Response {
 async function handleJobs(env: Env, url: URL): Promise<Response> {
   const minScore = parseInt(url.searchParams.get('minScore') ?? '0', 10) || 0;
   const agencyOnly = url.searchParams.get('agency') === '1';
+  // active: 'all' (default) | 'active' (aktivní/neověřené) | 'inactive' (zrušené)
+  const active = url.searchParams.get('active') ?? 'all';
   const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '200', 10) || 200, 500);
 
   const conds = ['duplicate_of IS NULL'];
@@ -53,11 +55,16 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
     binds.push(minScore);
   }
   if (agencyOnly) conds.push('is_agency = 1');
+  // Zrušené = potvrzené 404 (active=0). Aktivní = vše, co není potvrzeně zrušené
+  // (active=1 i dosud neověřené NULL) — ať se nic nezobrazí předčasně jako mrtvé.
+  if (active === 'inactive') conds.push('active = 0');
+  else if (active === 'active') conds.push('(active IS NULL OR active = 1)');
 
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
             url, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
-            notified_at, first_seen, seen_count
+            notified_at, first_seen, seen_count, active, active_checked_at,
+            contact_name, contact_email, contact_phone, contact_position
      FROM seen_jobs WHERE ${conds.join(' AND ')}
      ORDER BY (relevance IS NULL), relevance DESC, first_seen DESC LIMIT ?`;
   binds.push(limit);

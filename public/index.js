@@ -3,26 +3,48 @@ const $ = (s) => document.querySelector(s);
 function salary(j){ if(!j.salary_from && !j.salary_to) return '—'; return `${j.salary_from??'?'}–${j.salary_to??'?'} Kč`; }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
+// Stav živosti: 1=aktivní, 0=zrušené (detail 404), NULL=zatím neověřeno.
+function statusCell(j){
+  if(j.active === 0) return '<span class="stat off" title="Inzerát už není dostupný (ukončené výběrové řízení)">🚫 Zrušené</span>';
+  if(j.active === 1) return '<span class="stat on" title="Inzerát je stále aktivní">✅ Aktivní</span>';
+  return '<span class="stat unk" title="Živost zatím neověřena">⏳ neověřeno</span>';
+}
+
+// Kontaktní osoba (hl. z MPSV) — ať jde oslovit konkrétní člověk i po skončení VŘ.
+function contactBlock(j){
+  if(!j.contact_email && !j.contact_phone && !j.contact_name) return '';
+  const parts = [];
+  if(j.contact_name) parts.push(`👤 ${esc(j.contact_name)}${j.contact_position?` — ${esc(j.contact_position)}`:''}`);
+  const line2 = [];
+  if(j.contact_email) line2.push(`✉ <a href="mailto:${esc(j.contact_email)}">${esc(j.contact_email)}</a>`);
+  if(j.contact_phone) line2.push(`☎ <a href="tel:${esc(String(j.contact_phone).replace(/\s+/g,''))}">${esc(j.contact_phone)}</a>`);
+  if(line2.length) parts.push(line2.join(' · '));
+  return `<div class="contact">${parts.join('<br>')}</div>`;
+}
+
 async function load(){
   const min = $('#minScore').value || 0;
   const ag = $('#agencyOnly').checked ? '1' : '0';
+  const act = $('#activeFilter').value || 'all';
   $('#status').textContent = 'Načítám…';
-  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}`);
+  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}`);
   const { jobs } = await r.json();
   const tb = $('#rows'); tb.innerHTML = '';
   $('#empty').hidden = jobs.length > 0;
   for(const j of jobs){
     const tr = document.createElement('tr');
+    if(j.active === 0) tr.className = 'dead';
     const emp = j.real_employer
       ? `${esc(j.employer)} <span class="badge agency">agentura</span><br><span class="orig">🎯 ${esc(j.real_employer)}</span>`
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
       <td class="score">${j.relevance ?? '—'}</td>
       <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div></td>
-      <td>${emp}</td>
+      <td>${emp}${contactBlock(j)}</td>
       <td>${esc(j.location ?? '—')}</td>
       <td>${salary(j)}</td>
       <td><span class="badge">${esc((j.source||'').split(':')[0])}</span></td>
+      <td>${statusCell(j)}</td>
       <td>${j.url ? `<a class="link" href="${esc(j.url)}" target="_blank" rel="noopener">otevřít ↗</a>` : ''}</td>`;
     tb.appendChild(tr);
   }
@@ -32,10 +54,12 @@ async function load(){
 $('#refresh').onclick = load;
 $('#minScore').onchange = load;
 $('#agencyOnly').onchange = load;
+$('#activeFilter').onchange = load;
 let saveMsgTimer;
 $('#saveFilters').onclick = () => {
   localStorage.setItem('jw.minScore', $('#minScore').value);
   localStorage.setItem('jw.agencyOnly', $('#agencyOnly').checked ? '1' : '0');
+  localStorage.setItem('jw.activeFilter', $('#activeFilter').value);
   const msg = $('#saveMsg');
   msg.hidden = false;
   clearTimeout(saveMsgTimer);
@@ -44,7 +68,8 @@ $('#saveFilters').onclick = () => {
 function fmtStats(s){
   if(!s) return '';
   try{ const o=typeof s==='string'?JSON.parse(s):s;
-    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}`;
+    const gone = o.livenessGone ? ` · zrušené ${o.livenessGone}` : '';
+    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}`;
   }catch(e){ return ''; }
 }
 function runStale(latest){
@@ -93,5 +118,7 @@ const savedMin = localStorage.getItem('jw.minScore');
 if (savedMin !== null) $('#minScore').value = savedMin;
 const savedAgency = localStorage.getItem('jw.agencyOnly');
 if (savedAgency !== null) $('#agencyOnly').checked = savedAgency === '1';
+const savedActive = localStorage.getItem('jw.activeFilter');
+if (savedActive !== null) $('#activeFilter').value = savedActive;
 load();
 loadRuns();

@@ -11,6 +11,7 @@ import { prefilter } from './prefilter';
 import { scoreJob } from './score';
 import { enrichOriginator } from './enrich';
 import { discoverSources, type SourceCandidate } from './discover';
+import { recheckLiveness } from './liveness';
 import { notify } from './notify';
 import {
   contentHash,
@@ -33,6 +34,7 @@ export interface RunStats {
   enriched: number;
   notified: number;
   discovered: number;
+  livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
 }
 
 // Záznam běhu do D1 (tabulka runs) → dashboard pak ukáže ŽIVĚ, co agent dělá.
@@ -230,6 +232,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     if (unchanged) run.log(`⏭ ${unchanged} beze změny — přeskočeno (už ohodnocené, viz historie/Výsledky)`);
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
+
+    // 4b) živost inzerátů — u jobs.cz/prace.cz detail 404 = zrušené VŘ. Přednost mají
+    //     nejdéle neověřené (vypadlé z listovky). Levné HTTP → dávkově, do deadline.
+    if (Date.now() < deadline) {
+      const liveLimit = parseInt(env.MAX_LIVENESS_CHECKS_PER_RUN ?? '60', 10) || 60;
+      const lv = await recheckLiveness(env, (m) => run.log(m), deadline, liveLimit);
+      if (lv.checked) {
+        stats.livenessGone = lv.gone;
+        run.log(`🔓 Živost: ověřeno ${lv.checked} · aktivní ${lv.active} · nově zrušené ${lv.gone}`);
+        await run.flush(stats);
+      }
+    }
 
     // 5) dynamický screening zdrojů — pro nově viděné agentury + odhalené firmy
     const agencyCandidates: SourceCandidate[] = [];

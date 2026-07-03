@@ -41,11 +41,36 @@ function locationOf(rec: any): string | undefined {
   return typeof addr === 'string' ? addr.trim() : undefined;
 }
 
+/** Kontaktní osoba z MPSV: prvniKontaktSeZamestnavatelem.komuSeHlasit (fallback kdeSeHlasit). */
+function contactOf(rec: any): {
+  name?: string;
+  email?: string;
+  phone?: string;
+  position?: string;
+} {
+  const k = rec?.prvniKontaktSeZamestnavatelem;
+  const who = k?.komuSeHlasit ?? {};
+  const where = k?.kdeSeHlasit ?? {};
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const name =
+    [who.titulPredJmenem, who.jmeno, who.prijmeni]
+      .map((x) => str(x))
+      .filter(Boolean)
+      .join(' ') + (str(who.titulZaJmenem) ? `, ${str(who.titulZaJmenem)}` : '');
+  return {
+    name: name.trim() || undefined,
+    email: str(who.email) ?? str(where.email),
+    phone: str(who.telefon) ?? str(where.telefon),
+    position: str(who.poziceVeSpolecnosti),
+  };
+}
+
 function mapRecord(rec: any): JobPosting | null {
   const sid = rec?.id ?? rec?.portalId;
   if (sid == null) return null;
   const title = rec?.pozadovanaProfese?.cs ?? rec?.pozadovanaProfese ?? '';
   const employer = rec?.zamestnavatel?.nazev ?? '';
+  const contact = contactOf(rec);
   return {
     id: `mpsv:${sid}`,
     source: 'mpsv',
@@ -62,6 +87,10 @@ function mapRecord(rec: any): JobPosting | null {
     datePosted: rec?.datumVlozeni ?? undefined,
     dateChanged: rec?.datumZmeny ?? undefined,
     isAgency: false, // doplní agencies.ts dle IČO/názvu
+    contactName: contact.name,
+    contactEmail: contact.email,
+    contactPhone: contact.phone,
+    contactPosition: contact.position,
   };
 }
 

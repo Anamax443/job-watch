@@ -15,6 +15,11 @@ export interface JobPosting {
   datePosted?: string; // ISO
   dateChanged?: string; // ISO
   isAgency: boolean;
+  // Kontaktní osoba (hlavně z MPSV) — ať lze oslovit konkrétního člověka i po skončení VŘ.
+  contactName?: string; // tituly + jméno + příjmení
+  contactEmail?: string;
+  contactPhone?: string;
+  contactPosition?: string; // pozice kontaktní osoby ve firmě
 }
 
 export interface ScoreResult {
@@ -69,6 +74,7 @@ export interface Env {
   ENRICH_MODEL: string;
   MAX_INCREMENT_BACKFILL_DAYS?: string;
   MAX_DISCOVERY_PER_RUN?: string;
+  MAX_LIVENESS_CHECKS_PER_RUN?: string;
   WEB_SEARCH?: string;
   GIT_COMMIT?: string;
   BUILT_AT?: string;
