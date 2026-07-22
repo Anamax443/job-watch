@@ -221,6 +221,24 @@ async function route(
       return json({ notifications: rows.results ?? [] });
     }
     if (p === '/api/health' && request.method === 'GET') return await handleHealth(env);
+    // DOČASNÁ DIAGNOSTIKA — identifikace účtu za ANTHROPIC_API_KEY (org ID z hlaviček). Po zjištění smazat.
+    if (p === '/api/ai-diag' && request.method === 'GET') {
+      const renv = await resolveEnv(env);
+      if (!renv.ANTHROPIC_API_KEY) return json({ configured: false });
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': renv.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({ model: renv.SCORE_MODEL, max_tokens: 1, messages: [{ role: 'user', content: '.' }] }),
+      });
+      const headers: Record<string, string> = {};
+      r.headers.forEach((v, k) => { headers[k] = v; });
+      const keyTail = renv.ANTHROPIC_API_KEY.slice(-4); // poslední 4 znaky klíče pro spárování v konzoli
+      return json({ status: r.status, keyTail, headers });
+    }
     if (p === '/api/test-web' && request.method === 'GET') {
       const renv = await resolveEnv(env);
       const s = await loadSettings(renv);
