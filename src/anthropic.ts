@@ -69,18 +69,50 @@ export function allText(resp: any): string {
     .join('\n');
 }
 
-/** Živá kontrola spojení na Anthropic (GET /v1/models — zdarma, ověří platnost klíče). */
-export async function checkAnthropic(
-  env: Env,
-): Promise<{ configured: boolean; ok: boolean | null; status: number }> {
+export interface AnthropicHealth {
+  configured: boolean;
+  ok: boolean | null;
+  status: number;
+  /** Příčina selhání: no_credit | auth | network | other. */
+  reason?: 'no_credit' | 'auth' | 'network' | 'other';
+  detail?: string;
+}
+
+/**
+ * Živá kontrola, že AI reálně poběží.
+ *
+ * POZOR: `GET /v1/models` je zdarma a projde i s prázdným kreditem — takže by
+ * hlásil „ok", i když skutečné skórování padá na „credit balance too low".
+ * Proto se posílá minimální dotaz (max_tokens 1) přes stejnou billable cestu
+ * jako scoring. Cena je zanedbatelná (~1 token Haiku na kontrolu).
+ */
+export async function checkAnthropic(env: Env): Promise<AnthropicHealth> {
   if (!env.ANTHROPIC_API_KEY) return { configured: false, ok: null, status: 0 };
   try {
-    const r = await fetch('https://api.anthropic.com/v1/models?limit=1', {
-      headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: env.SCORE_MODEL,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: '.' }],
+      }),
     });
-    return { configured: true, ok: r.ok, status: r.status };
+    if (r.ok) return { configured: true, ok: true, status: r.status };
+
+    const body = await r.text();
+    const reason: AnthropicHealth['reason'] = /credit balance/i.test(body)
+      ? 'no_credit'
+      : r.status === 401 || /authentication|x-api-key|invalid api key/i.test(body)
+        ? 'auth'
+        : 'other';
+    return { configured: true, ok: false, status: r.status, reason, detail: body.slice(0, 300) };
   } catch {
-    return { configured: true, ok: false, status: 0 };
+    return { configured: true, ok: false, status: 0, reason: 'network' };
   }
 }
 

@@ -58,9 +58,11 @@ $('#check').onclick = async () => {
       return `<div>${dot(c)} ${label}: ${t}${extra||''}</div>`;
     };
     const a = h.anthropic||{}, tg = h.telegram||{}, g = h.graph||{}, sl = h.slack||{};
+    const aReason = { no_credit: ' — účet nemá kredit, doplň v Plans & Billing', auth: ' — neplatný klíč', network: ' — bez spojení' };
+    const aExtra = (a.configured && a.ok===false) ? (aReason[a.reason] || (a.status ? ` (HTTP ${a.status})` : '')) : '';
     $('#checkres').innerHTML =
       line('Databáze', h.db) +
-      line('Anthropic (API klíč)', a.configured ? a.ok : null, (a.configured && a.ok===false && a.status) ? ` (HTTP ${a.status})` : '') +
+      line('Anthropic (API klíč)', a.configured ? a.ok : null, aExtra) +
       line('Telegram (bot token)', tg.configured ? tg.ok : null) +
       line('E-mail (MS Graph)', g.configured ? g.ok : null) +
       `<div>${dot(sl.configured?'#3ecf8e':'#8b97ad')} Slack: ${sl.configured?'nastaven (ověř tlačítkem „Odeslat test")':'– nenastaveno'}</div>`;

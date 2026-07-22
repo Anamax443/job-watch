@@ -43,10 +43,16 @@
         var a = h.anthropic || {};
         var col = !a.configured ? '#8b97ad' : (a.ok ? '#3ecf8e' : '#ef6b73');
         function st(x) { return !x || !x.configured ? '–' : (x.ok === true ? '✓' : (x.ok === false ? '✗' : '?')); }
+        var reasonTxt = { no_credit: 'chybí kredit', auth: 'neplatný klíč', network: 'bez spojení' };
+        function anthropicStr() {
+          if (!a.configured) return '–';
+          if (a.ok) return '✓';
+          return '✗ ' + (reasonTxt[a.reason] || ('HTTP ' + (a.status || '?')));
+        }
         health.innerHTML = 'API <span style="color:' + col + '">●</span>';
         health.title =
           'DB ' + (h.db ? 'OK' : 'CHYBA') +
-          ' · Anthropic ' + (!a.configured ? '–' : (a.ok ? '✓' : '✗' + (a.status ? ' ' + a.status : ''))) +
+          ' · Anthropic ' + anthropicStr() +
           ' · Telegram ' + st(h.telegram) +
           ' · E-mail ' + st(h.graph) +
           ' · Slack ' + (h.slack && h.slack.configured ? 'nastaven' : '–') +
