@@ -66,7 +66,9 @@
       .then(function (h) {
         renderAi(h.ai);
         var a = h.anthropic || {};
-        var col = !a.configured ? '#8b97ad' : (a.ok ? '#3ecf8e' : '#ef6b73');
+        // API tečka = CELKOVÝ stav (DB + aktivní AI backend), NE surový Anthropic. Když jede
+        // zdarma Workers AI, Anthropic bez kreditu není chyba (řeší jen volitelnou deanonymizaci).
+        var col = h.ok ? '#3ecf8e' : '#ef6b73';
         function st(x) { return !x || !x.configured ? '–' : (x.ok === true ? '✓' : (x.ok === false ? '✗' : '?')); }
         var reasonTxt = { no_credit: 'chybí kredit', auth: 'neplatný klíč', network: 'bez spojení' };
         function anthropicStr() {
@@ -74,10 +76,12 @@
           if (a.ok) return '✓';
           return '✗ ' + (reasonTxt[a.reason] || ('HTTP ' + (a.status || '?')));
         }
+        var aiOk = h.ai && h.ai.configured ? (h.ai.ok ? '✓' : '✗') : '–';
         health.innerHTML = 'API <span style="color:' + col + '">●</span>';
         health.title =
           'DB ' + (h.db ? 'OK' : 'CHYBA') +
-          ' · Anthropic ' + anthropicStr() +
+          ' · AI backend ' + aiOk +
+          ' · Anthropic (jen deanonymizace) ' + anthropicStr() +
           ' · Telegram ' + st(h.telegram) +
           ' · E-mail ' + st(h.graph) +
           ' · Slack ' + (h.slack && h.slack.configured ? 'nastaven' : '–') +
