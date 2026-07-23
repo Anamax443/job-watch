@@ -34,6 +34,10 @@
   .stat.on { background:#16311f; color:var(--good); }
   .stat.off { background:#3a1c1e; color:#ef8f95; }
   .stat.unk { background:#2a2f3a; color:var(--mut); }
+  .stat.pulled { background:#3a2f1a; color:#f0b35b; }
+  .savedad { margin-top:6px; }
+  .savedad summary { cursor:pointer; color:var(--acc); font-size:12px; }
+  .savedad .adbody { margin-top:6px; padding:8px 10px; background:#0b1018; border:1px solid var(--line); border-radius:8px; color:#cdd6e6; font-size:13px; white-space:pre-wrap; max-height:280px; overflow:auto; }
   .contact { color:var(--mut); font-size:12px; margin-top:4px; line-height:1.35; }
   .contact a { color:var(--acc); text-decoration:none; }
   tr.dead td { opacity:.6; }
@@ -66,11 +70,11 @@
 
 <div class="filters">
   <label>Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
-  <label title="Zobrazit vše, jen aktivní, nebo jen zrušené (ukončené výběrové řízení)">Stav
+  <label title="Zobrazit vše, jen na portálu, nebo jen stažené z portálu (VŘ ale může běžet dál)">Stav
     <select id="activeFilter">
       <option value="all">Vše</option>
-      <option value="active">Aktivní</option>
-      <option value="inactive">Zrušené</option>
+      <option value="active">Na portálu</option>
+      <option value="inactive">Staženo z portálu</option>
     </select>
   </label>
   <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>

@@ -259,14 +259,15 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
 
-    // 4b) živost inzerátů — u jobs.cz/prace.cz detail 404 = zrušené VŘ. Přednost mají
+    // 4b) živost inzerátů — u jobs.cz/prace.cz detail 404 = inzerát stažen z portálu (VŘ může
+    //     běžet dál, jen zmizel placený inzerát). Přednost mají
     //     nejdéle neověřené (vypadlé z listovky). Levné HTTP → dávkově, do deadline.
     if (Date.now() < deadline) {
       const liveLimit = parseInt(env.MAX_LIVENESS_CHECKS_PER_RUN ?? '60', 10) || 60;
       const lv = await recheckLiveness(env, (m) => run.log(m), deadline, liveLimit);
       if (lv.checked) {
         stats.livenessGone = lv.gone;
-        run.log(`🔓 Živost: ověřeno ${lv.checked} · aktivní ${lv.active} · nově zrušené ${lv.gone}`);
+        run.log(`🔓 Živost: ověřeno ${lv.checked} · na portálu ${lv.active} · nově staženo z portálu ${lv.gone}`);
         await run.flush(stats);
       }
     }

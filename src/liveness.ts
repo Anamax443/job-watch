@@ -22,6 +22,9 @@ export async function checkUrl(url: string): Promise<Liveness> {
       method: 'GET',
       redirect: 'follow',
       headers: { 'User-Agent': UA, 'Accept-Language': 'cs', Accept: 'text/html' },
+      // Bez timeoutu mohl jeden pomalý/zaseklý fetch protáhnout celý běh přes strop
+      // (dávka 6 se čeká celá) → běh pak přetáhl a smyčka ho brala jako „zaseklý".
+      signal: AbortSignal.timeout(6000),
     });
     // Tělo nepotřebujeme (rozhoduje status) → zavři stream, ať neblokuje.
     try {
@@ -84,7 +87,7 @@ export async function recheckLiveness(
           )
             .bind(r.id)
             .run();
-          log(`  🚫 zrušeno: ${r.url}`);
+          log(`  📄 staženo z portálu: ${r.url}`);
         } else if (state === 'active') {
           await env.DB.prepare(
             "UPDATE seen_jobs SET active = 1, active_checked_at = datetime('now') WHERE id = ?",

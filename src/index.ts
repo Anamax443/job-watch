@@ -69,7 +69,7 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
 
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
-            url, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
+            url, description, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
             notified_at, first_seen, seen_count, active, active_checked_at,
             contact_name, contact_email, contact_phone, contact_position
      FROM seen_jobs WHERE ${conds.join(' AND ')}
@@ -277,10 +277,17 @@ async function route(
       return json({ started: true });
     }
     if (p === '/api/run/stop' && request.method === 'POST') {
+      // ?auto=1 = automatické ukončení dávky ze smyčky (časový limit), ne ruční Stop uživatele.
+      const auto = url.searchParams.get('auto') === '1';
+      const msg = auto
+        ? '⏱ ukončeno (časový limit dávky — běh nedoběhl včas)'
+        : '⏹ zastaveno uživatelem';
       await env.DB.prepare(
         "UPDATE runs SET finished_at = datetime('now'), ok = 0, " +
-          "log = COALESCE(log,'') || char(10) || '⏹ zastaveno uživatelem' WHERE finished_at IS NULL",
-      ).run();
+          'log = COALESCE(log,\'\') || char(10) || ?1 WHERE finished_at IS NULL',
+      )
+        .bind(msg)
+        .run();
       return json({ stopped: true });
     }
     // vše ostatní → statické UI (public/)

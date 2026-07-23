@@ -3,11 +3,20 @@ const $ = (s) => document.querySelector(s);
 function salary(j){ if(!j.salary_from && !j.salary_to) return '—'; return `${j.salary_from??'?'}–${j.salary_to??'?'} Kč`; }
 function esc(s){ return String(s??'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-// Stav živosti: 1=aktivní, 0=zrušené (detail 404), NULL=zatím neověřeno.
+// Stav živosti: 1=inzerát na portálu, 0=stažen z portálu (detail 404), NULL=zatím neověřeno.
+// POZOR: stažení inzerátu z portálu ≠ konec výběrového řízení — VŘ může běžet dál (firma
+// jen sundala placený inzerát). Proto neutrální „staženo z portálu", ne „zrušeno".
 function statusCell(j){
-  if(j.active === 0) return '<span class="stat off" title="Inzerát už není dostupný (ukončené výběrové řízení)">🚫 Zrušené</span>';
-  if(j.active === 1) return '<span class="stat on" title="Inzerát je stále aktivní">✅ Aktivní</span>';
+  if(j.active === 0) return '<span class="stat pulled" title="Inzerát už není na portálu, ale výběrové řízení může běžet dál — zkus oslovit zaměstnavatele přímo (uložený inzerát rozbalíš u pozice).">📄 Staženo z portálu</span>';
+  if(j.active === 1) return '<span class="stat on" title="Inzerát je stále na portálu">✅ Na portálu</span>';
   return '<span class="stat unk" title="Živost zatím neověřena">⏳ neověřeno</span>';
+}
+
+// Archiv inzerátu: uložený popis se v appce zobrazí i po stažení z portálu (kdy odkaz dá 404).
+function savedAd(j){
+  const d = (j.description || '').trim();
+  if(!d) return '';
+  return `<details class="savedad"><summary>📄 uložený inzerát</summary><div class="adbody">${esc(d)}</div></details>`;
 }
 
 // Kontaktní osoba (hl. z MPSV) — ať jde oslovit konkrétní člověk i po skončení VŘ.
@@ -33,13 +42,13 @@ async function load(){
   $('#empty').hidden = jobs.length > 0;
   for(const j of jobs){
     const tr = document.createElement('tr');
-    if(j.active === 0) tr.className = 'dead';
+    // Stažený inzerát NEzešednujeme — VŘ může běžet dál, je to pořád lead.
     const emp = j.real_employer
       ? `${esc(j.employer)} <span class="badge agency">agentura</span><br><span class="orig">🎯 ${esc(j.real_employer)}</span>`
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
       <td class="score">${j.relevance ?? '—'}</td>
-      <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div></td>
+      <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div>${savedAd(j)}</td>
       <td>${emp}${contactBlock(j)}</td>
       <td>${esc(j.location ?? '—')}</td>
       <td>${salary(j)}</td>
@@ -68,7 +77,7 @@ $('#saveFilters').onclick = () => {
 function fmtStats(s){
   if(!s) return '';
   try{ const o=typeof s==='string'?JSON.parse(s):s;
-    const gone = o.livenessGone ? ` · zrušené ${o.livenessGone}` : '';
+    const gone = o.livenessGone ? ` · staženo z portálu ${o.livenessGone}` : '';
     const pend = o.candidatesPending ? ` · zbývá ${o.candidatesPending}` : '';
     return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}${pend}`;
   }catch(e){ return ''; }
@@ -106,9 +115,11 @@ function runSingle(){
     const iv = setInterval(async () => {
       latest = await loadRuns();
       if(latest && latest.finished_at){ clearInterval(iv); resolve({ latest, clean:true }); return; }
-      if(Date.now()-t0 > 45000){         // běh má doběhnout do ~25 s; 45 s = evidentně visí
+      // Běh (fetch + skóre + až 60 liveness kontrol) doběhne do ~50 s; 90 s = evidentně visí.
+      // auto=1 → do logu se napíše „časový limit dávky", ne „zastaveno uživatelem".
+      if(Date.now()-t0 > 90000){
         clearInterval(iv);
-        try{ await fetch('/api/run/stop',{method:'POST'}); }catch(e){}
+        try{ await fetch('/api/run/stop?auto=1',{method:'POST'}); }catch(e){}
         resolve({ latest: latest||null, clean:false });
       }
     }, 1500);
