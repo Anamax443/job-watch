@@ -1,11 +1,15 @@
-// Sdílený proužek: živé hodinky (důkaz, že stránka nezamrzla) + číslo commitu nasazené verze.
+// Sdílený stavový proužek V HLAVIČCE: živé hodinky (důkaz, že stránka nezamrzla) +
+// číslo commitu nasazené verze + aktivní AI backend + stav spojení.
 (function () {
   var css = document.createElement('style');
   css.textContent =
-    '#jw-footer{position:fixed;right:12px;bottom:10px;display:flex;align-items:center;gap:7px;' +
-    'font:12px/1.4 system-ui,Segoe UI,sans-serif;color:#8b97ad;background:rgba(20,25,37,.88);' +
-    'border:1px solid #2a3346;padding:5px 10px;border-radius:9px;z-index:50}' +
+    // Inline v <header>, zarovnané doprava (všechny hlavičky jsou display:flex).
+    '#jw-footer{display:inline-flex;align-items:center;gap:7px;margin-left:auto;' +
+    'font:12px/1.4 system-ui,Segoe UI,sans-serif;color:#8b97ad;white-space:nowrap}' +
     '#jw-footer code{color:#e9edf5;background:#1b2233;border:1px solid #2a3346;padding:0 5px;border-radius:5px}' +
+    // Fallback pro stránky bez <header> — původní plovoucí box vpravo dole.
+    '#jw-footer.jw-fixed{position:fixed;right:12px;bottom:10px;margin-left:0;' +
+    'background:rgba(20,25,37,.88);border:1px solid #2a3346;padding:5px 10px;border-radius:9px;z-index:50}' +
     '#jw-live{width:7px;height:7px;border-radius:50%;background:#3ecf8e;animation:jwp 1.2s infinite}' +
     '@keyframes jwp{0%,100%{opacity:1}50%{opacity:.45}}';
   document.head.appendChild(css);
@@ -13,7 +17,14 @@
   var bar = document.createElement('div');
   bar.id = 'jw-footer';
   bar.innerHTML = '<span id="jw-live"></span><span id="jw-clock">--:--:--</span> · <span id="jw-ver">…</span> · <span id="jw-ai" title="AI backend…">AI …</span> · <span id="jw-health" title="kontrola spojení…">API …</span>';
-  document.body.appendChild(bar);
+  // Do hlavičky (nahoře); když ji stránka nemá, spadni na plovoucí box dole.
+  var header = document.querySelector('header');
+  if (header) {
+    header.appendChild(bar);
+  } else {
+    bar.classList.add('jw-fixed');
+    document.body.appendChild(bar);
+  }
 
   var clock = document.getElementById('jw-clock');
   (function tick() {
