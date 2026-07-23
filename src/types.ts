@@ -55,11 +55,18 @@ export interface Settings {
   notifyTelegram: boolean;
   notifySlack: boolean;
   profile?: string; // CV / o mně — AI porovnává pozice proti tomuto profilu
+  // AI backend „dle úhrady": '' = podle serveru (default zdarma Workers AI),
+  // 'workers-ai' | 'anthropic' | 'off' (viz src/ai.ts). Přebíjí env.AI_PROVIDER.
+  aiProvider?: string;
 }
 
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  // Cloudflare Workers AI binding — free backend AI vrstvy (skórování). Viz wrangler.toml [ai].
+  AI?: Ai;
+  // Výběr AI backendu: '' = podle serveru (default zdarma Workers AI), 'workers-ai' | 'anthropic' | 'off'.
+  AI_PROVIDER?: string;
   ANTHROPIC_API_KEY: string;
   TELEGRAM_BOT_TOKEN: string;
   GRAPH_TENANT_ID: string;

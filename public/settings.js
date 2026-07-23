@@ -15,6 +15,7 @@ async function load(){
   $('#notifyEmail').checked = !!current.notifyEmail;
   $('#notifyTelegram').checked = !!current.notifyTelegram;
   $('#notifySlack').checked = !!current.notifySlack;
+  $('#aiProvider').value = current.aiProvider ?? '';
 }
 
 $('#save').onclick = async () => {
@@ -29,6 +30,7 @@ $('#save').onclick = async () => {
     notifyEmail: $('#notifyEmail').checked,
     notifyTelegram: $('#notifyTelegram').checked,
     notifySlack: $('#notifySlack').checked,
+    aiProvider: $('#aiProvider').value,
   };
   $('#save').disabled = true;
   const r = await fetch('/api/settings', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(payload) });
@@ -57,10 +59,14 @@ $('#check').onclick = async () => {
       const t = ok===true ? '✓ dostupné' : (ok===false ? '✗ nedostupné' : '– nenastaveno');
       return `<div>${dot(c)} ${label}: ${t}${extra||''}</div>`;
     };
-    const a = h.anthropic||{}, tg = h.telegram||{}, g = h.graph||{}, sl = h.slack||{};
+    const a = h.anthropic||{}, tg = h.telegram||{}, g = h.graph||{}, sl = h.slack||{}, ai = h.ai||{};
     const aReason = { no_credit: ' — účet nemá kredit, doplň v Plans & Billing', auth: ' — neplatný klíč', network: ' — bez spojení' };
     const aExtra = (a.configured && a.ok===false) ? (aReason[a.reason] || (a.status ? ` (HTTP ${a.status})` : '')) : '';
+    const aiName = ai.provider === 'workers-ai' ? '⚡ Cloudflare Workers AI (zdarma)'
+      : ai.provider === 'anthropic' ? 'Claude (placené)' : 'vypnuto';
+    const aiExtra = ` — ${aiName}` + (ai.webResearch ? ' · deanonymizace zapnutá' : ' · deanonymizace vypnutá');
     $('#checkres').innerHTML =
+      line('AI backend (skórování)', ai.configured ? ai.ok : null, aiExtra) +
       line('Databáze', h.db) +
       line('Anthropic (API klíč)', a.configured ? a.ok : null, aExtra) +
       line('Telegram (bot token)', tg.configured ? tg.ok : null) +

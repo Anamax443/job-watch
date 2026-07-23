@@ -29,8 +29,19 @@ binding = "DB"
 database_name = "job-watch"
 database_id = "09fc72b1-9595-4a8f-9cba-e1b463138cf7"
 
+# Cloudflare Workers AI — free backend AI vrstvy (skórování). Data neopustí Cloudflare.
+# Bez klíče = skórování jede zdarma; placený Claude je volitelný (viz AI_PROVIDER).
+[ai]
+binding = "AI"
+
 # Necitlivé proměnné. Tajné klíče jdou přes `wrangler secret put ...` (viz .dev.vars.example).
 [vars]
+# AI backend „dle úhrady" (přebíjí ho volba v Nastavení → settings.aiProvider):
+#   "" = podle serveru → ZDARMA Cloudflare Workers AI primárně (default „co má Cloudflare"),
+#        placený Claude jen jako fallback / pro deanonymizaci (když je ANTHROPIC_API_KEY).
+#   "workers-ai" = jen zdarma · "anthropic" = placený Claude · "off" = bez AI.
+AI_PROVIDER = ""
+# Modely placeného Claude backendu (skórování / deanonymizace). Free backend = viz src/ai.ts.
 SCORE_MODEL = "claude-haiku-4-5"
 ENRICH_MODEL = "claude-sonnet-4-6"
 # Volitelné: kolik dní zpět maximálně dohánět přírůstky při prvním běhu / po výpadku.

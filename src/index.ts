@@ -2,6 +2,13 @@ import type { Env, Settings } from './types';
 import { runPipeline } from './pipeline';
 import { notify, checkTelegram, checkGraph, type NotifyJob } from './notify';
 import { checkAnthropic, messagesCreate, allText } from './anthropic';
+import {
+  AI_PROVIDER_VALUES,
+  WORKERS_AI_MODEL,
+  ctxFrom,
+  providerChain,
+  webResearchEnabled,
+} from './ai';
 import { loadSettings, saveSettings } from './config';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets';
 import { fetchWeb } from './sources/web';
@@ -92,9 +99,37 @@ async function handleHealth(env: Env): Promise<Response> {
     checkGraph(env),
   ]);
   const slack = { configured: !!env.SLACK_WEBHOOK_URL };
+
+  // Aktivní AI backend „dle úhrady" (skórování) — to jde do indikátoru v záhlaví.
+  const ctx = ctxFrom(env, s);
+  const chain = providerChain(ctx);
+  const scoreProvider = chain[0] ?? null;
+  const fallback = chain[1] ?? null;
+  const webResearch = webResearchEnabled(ctx);
+  const ai =
+    scoreProvider === null
+      ? { configured: false, ok: null as boolean | null, provider: null, webResearch }
+      : scoreProvider === 'workers-ai'
+        ? // Free/nativní backend billable probe nepotřebuje — hlásí se dostupnost.
+          { configured: true, ok: true, provider: 'workers-ai', free: true, model: WORKERS_AI_MODEL, fallback, webResearch }
+        : // Placený Claude → převezmi živý výsledek billable probe (odhalí i chybějící kredit).
+          {
+            configured: true,
+            ok: anthropic.ok,
+            provider: 'anthropic',
+            free: false,
+            model: env.SCORE_MODEL,
+            reason: anthropic.reason,
+            status: anthropic.status,
+            fallback,
+            webResearch,
+          };
+
   return json({
-    ok: db && anthropic.ok === true,
+    // ok = DB + reálně použitelný AI backend skórování (u free vždy true, u placeného dle probe).
+    ok: db && ai.ok === true,
     db,
+    ai,
     anthropic,
     telegram,
     graph,
@@ -137,6 +172,10 @@ function sanitizeSettings(input: any): Partial<Settings> {
   if (typeof input.notifyTelegram === 'boolean') out.notifyTelegram = input.notifyTelegram;
   if (typeof input.notifySlack === 'boolean') out.notifySlack = input.notifySlack;
   if (typeof input.profile === 'string') out.profile = input.profile;
+  if (typeof input.aiProvider === 'string') {
+    const v = input.aiProvider.trim().toLowerCase();
+    if ((AI_PROVIDER_VALUES as readonly string[]).includes(v)) out.aiProvider = v;
+  }
   return out;
 }
 

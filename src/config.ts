@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyTelegram: true,
   notifySlack: false,
   profile: '',
+  aiProvider: '', // '' = podle serveru (default zdarma Cloudflare Workers AI)
 };
 
 // --- ATS watchlist -------------------------------------------------------

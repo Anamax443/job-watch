@@ -16,7 +16,7 @@
   main { padding:20px; max-width:720px; }
   .field { margin-bottom:20px; }
   label.lbl { display:block; margin-bottom:6px; color:var(--mut); font-size:13px; }
-  input[type=text], input[type=number], input[type=email], textarea {
+  input[type=text], input[type=number], input[type=email], textarea, select {
     width:100%; background:var(--card); border:1px solid var(--line); color:var(--fg);
     border-radius:8px; padding:9px 11px; font:inherit;
   }
@@ -40,6 +40,17 @@
     <label class="lbl" for="profile">🧑 Můj profil — AI podle něj hodnotí shodu pozic</label>
     <textarea id="profile" style="min-height:160px" placeholder="Vlož svoje CV / shrnutí, odkazy na profesní stránky (LinkedIn…), text o tobě: zkušenosti, seniorita, zaměření, preferovaná lokalita…"></textarea>
     <div class="hint">Čím konkrétnější, tím přesnější skóre (porovnává pozice přímo proti tobě). Když je prázdné, hodnotí se obecně „vedoucí IT". Po vyplnění dej „Spustit teď" pro přeskórování.</div>
+  </div>
+
+  <div class="field">
+    <label class="lbl" for="aiProvider">🤖 AI backend (skórování) — „dle úhrady"</label>
+    <select id="aiProvider" title="Který model hodnotí relevanci pozic. Výchozí je zdarma Cloudflare Workers AI (data zůstanou na Cloudflare). Placený Claude je přesnější a jako jediný umí deanonymizaci agentur (web_search).">
+      <option value="">Podle serveru (dnes: zdarma Cloudflare Workers AI)</option>
+      <option value="workers-ai">Zdarma — Cloudflare Workers AI (Llama 3.1 8B)</option>
+      <option value="anthropic">Placené — Claude (přesnější + deanonymizace agentur)</option>
+      <option value="off">Vypnuto — bez AI (skórování se neprovádí)</option>
+    </select>
+    <div class="hint">Skórování relevance běží defaultně na <b>zdarma Cloudflare Workers AI</b> (běží celé na Cloudflare). Placený <b>Claude</b> je přesnější a je nutný pro <b>deanonymizaci agentur</b> a <b>screening zdrojů</b> (potřebují web-nástroje, které Workers AI neumí) — ty se při zdarma/vypnuto přeskočí. „Podle serveru" nechá volbu na nasazení. Aktivní backend vidíš v proužku vpravo dole (<code>AI ●</code>).</div>
   </div>
 
   <div class="field">

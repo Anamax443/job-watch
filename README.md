@@ -6,9 +6,9 @@ vybere pozice typu **vedoucí IT / IT manažer / Solution Architect**, nechá je
 dohledá **původce**, ověří **živost inzerátu** (aktivní/zrušené), zachytí
 **kontaktní osobu** (e-mail/telefon) a pošle nové nálezy na **Telegram / e-mail / Slack**.
 
-- **Stack:** Cloudflare Worker + Cron + D1 + Anthropic API + statické UI (za Cloudflare Access)
+- **Stack:** Cloudflare Worker + Cron + D1 + přepínatelný AI backend + statické UI (za Cloudflare Access)
 - **Zdroje:** MPSV (celý trh ČR) · **Adzuna Job API** (konkrétní inzeráty z webu) · ATS firem
-- **Modely:** `claude-haiku-4-5` (scoring) · `claude-sonnet-4-6` (deanonymizace)
+- **AI backend „dle úhrady" (`src/ai.ts`):** default **zdarma Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct-fp8`) pro skórování; volitelně placený **Claude** `claude-haiku-4-5`. Deanonymizace/screening (`claude-sonnet-4-6` + web_search/web_fetch) umí jen Claude → při zdarma/off se přeskočí. Přepíná se v Nastavení / var `AI_PROVIDER`.
 - **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
 
 ---
@@ -101,7 +101,7 @@ npm run db:init                       # vytvoří tabulky (remote); local: npm r
 
 # 2) Secrets (necommitovat!)
 cp .dev.vars.example .dev.vars        # vyplň pro lokální dev
-wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put ANTHROPIC_API_KEY # VOLITELNÉ (placený Claude + deanonymizace); skórování jede zdarma bez klíče
 wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put GRAPH_TENANT_ID
 wrangler secret put GRAPH_CLIENT_ID

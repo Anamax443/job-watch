@@ -1,5 +1,6 @@
 import type { Env, JobPosting, ScoreResult } from './types';
 import { messagesCreate, firstText, extractJson } from './anthropic';
+import { providerChain, runWorkersJson } from './ai';
 import { truncate } from './util';
 
 // Relevance scoring přes levný model (haiku) + structured outputs (JSON-only).
@@ -57,12 +58,23 @@ function buildSystem(profile: string, region?: string, threshold?: number): stri
   );
 }
 
+/** Sjednotí výstup obou backendů (Workers AI vrací čísla občas jako string). */
+function normalize(parsed: any): ScoreResult | null {
+  const rel = Number(parsed?.relevance);
+  if (!Number.isFinite(rel)) return null;
+  const sen: ScoreResult['seniority'] = ['lead', 'senior', 'other'].includes(parsed?.seniority)
+    ? parsed.seniority
+    : 'other';
+  return { relevance: clamp(rel), seniority: sen, reason: String(parsed?.reason ?? '') };
+}
+
 export async function scoreJob(
   env: Env,
   job: JobPosting,
   profile = '',
-  opts: { region?: string; threshold?: number } = {},
+  opts: { region?: string; threshold?: number; provider?: string } = {},
 ): Promise<ScoreResult | null> {
+  const system = buildSystem(profile, opts.region, opts.threshold);
   const user = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
@@ -76,24 +88,34 @@ export async function scoreJob(
     .filter(Boolean)
     .join('\n');
 
-  try {
-    const resp = await messagesCreate(env, {
-      model: env.SCORE_MODEL,
-      max_tokens: 300,
-      system: buildSystem(profile, opts.region, opts.threshold),
-      messages: [{ role: 'user', content: user }],
-      output_config: { format: { type: 'json_schema', schema: SCHEMA } },
-    });
-    const parsed = extractJson<ScoreResult>(firstText(resp));
-    if (parsed && typeof parsed.relevance === 'number') {
-      return {
-        relevance: clamp(parsed.relevance),
-        seniority: parsed.seniority ?? 'other',
-        reason: String(parsed.reason ?? ''),
-      };
+  // Backend „dle úhrady": zkoušej v pořadí dle providerChain (default zdarma Workers AI,
+  // placený Claude jako fallback). Když jeden selže, spadni na další.
+  const chain = providerChain({
+    provider: opts.provider,
+    anthropicKey: env.ANTHROPIC_API_KEY,
+    ai: env.AI,
+  });
+  for (const provider of chain) {
+    try {
+      let parsed: any = null;
+      if (provider === 'anthropic') {
+        const resp = await messagesCreate(env, {
+          model: env.SCORE_MODEL,
+          max_tokens: 300,
+          system,
+          messages: [{ role: 'user', content: user }],
+          output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+        });
+        parsed = extractJson<ScoreResult>(firstText(resp));
+      } else {
+        // Workers AI (Llama) — JSON přes prompt, viz src/ai.ts.
+        parsed = await runWorkersJson(env.AI as Ai, system, user, 400);
+      }
+      const out = normalize(parsed);
+      if (out) return out;
+    } catch (e) {
+      console.warn(`score ${job.id} [${provider}]: ${e}`);
     }
-  } catch (e) {
-    console.warn(`score ${job.id}: ${e}`);
   }
   // Selhání (rate-limit/parse) → null: NEzapisovat 0, ať se inzerát příště přeskóruje
   // (0 by smyčka brala jako hotové a uvízlo by to).

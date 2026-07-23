@@ -1,7 +1,10 @@
 # Vzor lokálních secrets. Zkopíruj na `.dev.vars` (které je v .gitignore) a vyplň.
 # Na produkci nastav přes: wrangler secret put NAZEV
 
-# Anthropic API (scoring + deanonymizace)
+# Anthropic API — VOLITELNÉ. Skórování jede defaultně zdarma na Cloudflare Workers AI
+# (binding [ai] ve wrangler.toml). Klíč je potřeba jen pro placený Claude backend
+# a pro deanonymizaci agentur / screening zdrojů (web_search/web_fetch).
+# Backend se přepíná v Nastavení (settings.aiProvider) nebo přes var AI_PROVIDER.
 ANTHROPIC_API_KEY=
 
 # Telegram bot (token je tajný; cílový chat_id se nastavuje v UI / settings)

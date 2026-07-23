@@ -11,6 +11,7 @@ import { prefilter } from './prefilter';
 import { scoreJob } from './score';
 import { enrichOriginator } from './enrich';
 import { discoverSources, type SourceCandidate } from './discover';
+import { effectiveProvider, providerChain, providerLabel, webResearchEnabled } from './ai';
 import { recheckLiveness } from './liveness';
 import { notify } from './notify';
 import {
@@ -100,7 +101,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   const run = new RunLog(env, trigger);
   await run.start();
 
+  // AI backend „dle úhrady" (viz src/ai.ts): default zdarma Workers AI, přepínatelné v Nastavení.
+  // Deanonymizace + screening zdrojů umí jen placený Anthropic (web_search/web_fetch) → gate zvlášť.
+  const provider = effectiveProvider(env, settings);
+  const aiCtx = { provider, anthropicKey: env.ANTHROPIC_API_KEY, ai: env.AI };
+  const scoreProvider = providerChain(aiCtx)[0] ?? null;
+  const webResearch = webResearchEnabled(aiCtx);
+
   try {
+    run.log(
+      `🧠 AI backend (skórování): ${providerLabel(scoreProvider)}` +
+        ` · deanonymizace/screening: ${webResearch ? 'Claude (web)' : 'vypnuto (běží free/off)'}`,
+    );
     // 1) fetch — MPSV + ATS z D1 + OTEVŘENÉ hledání napříč webem.
     //    Každý zdroj má limit a loguje se hned jak doběhne → běh se vždy dokončí.
     run.log('🔎 Spouštím zdroje: MPSV (celá ČR), ATS firem, celý web…');
@@ -159,12 +171,14 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       const score = await scoreJob(env, job, settings.profile, {
         region: settings.regionPriority,
         threshold: settings.notifyThreshold,
+        provider,
       });
       if (!score) return; // scoring selhal (rate-limit) → nech NULL, přeskóruje se příště
       stats.scored++;
       const relevant = score.relevance >= settings.notifyThreshold;
 
-      const enrich = job.isAgency && relevant ? await enrichOriginator(env, job) : null;
+      // Deanonymizace jen když je povolený web-výzkum (placený Anthropic); jinak přeskoč.
+      const enrich = job.isAgency && relevant && webResearch ? await enrichOriginator(env, job) : null;
       if (enrich) {
         stats.enriched++;
         if (enrich.realEmployer) {
@@ -259,7 +273,9 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // jinak by ujelo přes limit a zabilo běh před dokončením (finished_at zůstalo null).
     const limit = parseInt(env.MAX_DISCOVERY_PER_RUN ?? '5', 10) || 5;
     const toDiscover = [...agencyCandidates, ...companyCandidates];
-    if (Date.now() >= deadline) {
+    if (!webResearch) {
+      if (toDiscover.length) run.log('🌐 Screening zdrojů přeskočen (běží free/off — web-nástroje umí jen Claude).');
+    } else if (Date.now() >= deadline) {
       if (toDiscover.length) run.log('🌐 Screening zdrojů přeskočen (došel čas) — příště.');
     } else {
       if (toDiscover.length) run.log(`🌐 Screening nových zdrojů (max ${limit})…`);
@@ -278,6 +294,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
             const sc = await scoreJob(env, job, settings.profile, {
               region: settings.regionPriority,
               threshold: settings.notifyThreshold,
+              provider,
             });
             if (sc) await updateScore(env, job.id, sc);
           } catch (e) {

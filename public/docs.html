@@ -120,15 +120,18 @@
   nepoužívá. Stav, naučené zdroje i nastavení žijí v cloudu. Deploy lze řídit i z GitHub Actions.</p>
 
   <h2 id="secrets">Klíče (secrets)</h2>
-  <pre><code>wrangler secret put ANTHROPIC_API_KEY     # nutné pro AI (scoring, web, deanonymizace)
+  <pre><code>wrangler secret put ANTHROPIC_API_KEY     # volitelné — placený Claude + deanonymizace
 wrangler secret put TELEGRAM_BOT_TOKEN    # Telegram
 wrangler secret put GRAPH_TENANT_ID       # e-mail (MS Graph)
 wrangler secret put GRAPH_CLIENT_ID
 wrangler secret put GRAPH_CLIENT_SECRET
 wrangler secret put GRAPH_MAILBOX
 wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack</code></pre>
-  <div class="warn">⚠️ Bez <code>ANTHROPIC_API_KEY</code> AI část (web-hledání, scoring, deanonymizace)
-  nic nevrátí a skóre bude 0. MPSV jede i bez klíče.</div>
+  <div class="warn">🤖 <b>AI backend je přepínatelný „dle úhrady"</b> (Nastavení → „AI backend"). Výchozí je
+  <b>zdarma Cloudflare Workers AI</b> (skórování běží celé na Cloudflare, klíč není potřeba).
+  Placený <b>Claude</b> (<code>ANTHROPIC_API_KEY</code>) je přesnější a jako jediný umí
+  <b>deanonymizaci agentur</b> a <b>screening zdrojů</b> (web_search/web_fetch) — ty se při
+  zdarma/vypnuto přeskočí. Aktivní backend ukazuje proužek vpravo dole (<code>AI ●</code>).</div>
 
   <h2 id="faq">FAQ</h2>
   <h3>Proč je dashboard prázdný?</h3>
