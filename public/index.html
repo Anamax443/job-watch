@@ -42,6 +42,21 @@
   .contact a { color:var(--acc); text-decoration:none; }
   .reach { font-size:12px; margin-top:4px; color:var(--mut); }
   .reach a { color:var(--acc); text-decoration:none; }
+  .titlelink { color:var(--fg); text-decoration:none; cursor:pointer; font-weight:600; }
+  .titlelink:hover { color:var(--acc); text-decoration:underline; }
+  .showad { display:inline-block; margin-top:6px; color:var(--acc); text-decoration:none; font-size:12px; cursor:pointer; }
+  .showad:hover { text-decoration:underline; }
+  .mut { color:var(--mut); }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:100; overflow:auto; }
+  .modal-backdrop[hidden] { display:none; }
+  .modal { position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; max-width:820px; width:100%; padding:22px 26px; }
+  .modal-close { position:absolute; top:12px; right:14px; background:transparent; border:1px solid var(--line); color:var(--fg); border-radius:8px; width:32px; height:32px; cursor:pointer; font-size:15px; padding:0; }
+  .dtitle { font-size:20px; margin:0 34px 10px 0; }
+  .dmeta { color:var(--mut); font-size:13.5px; margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .dscore { font-size:13px; color:var(--mut); margin-bottom:6px; }
+  .dbody { white-space:pre-wrap; line-height:1.6; font-size:14.5px; margin:14px 0; padding-top:14px; border-top:1px solid var(--line); }
+  .dlinks { border-top:1px solid var(--line); padding-top:12px; font-size:13px; }
+  .dlinks a { color:var(--acc); text-decoration:none; }
   tr.dead td { opacity:.6; }
   a.link { color:var(--acc); text-decoration:none; }
   .empty { color:var(--mut); padding:40px 0; text-align:center; }
@@ -103,6 +118,13 @@
   </table>
   <div id="empty" class="empty" hidden>Zatím žádné výsledky. Spusť běh tlačítkem „Spustit teď".</div>
 </main>
+
+<div id="detail" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Detail inzerátu">
+    <button id="detailClose" class="modal-close" title="Zavřít (Esc)">✕</button>
+    <div id="detailBody"></div>
+  </div>
+</div>
 
 <script src="/index.js"></script>
 <script src="footer.js"></script>

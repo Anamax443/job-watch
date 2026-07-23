@@ -12,6 +12,7 @@ import {
 import { loadSettings, saveSettings } from './config';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets';
 import { fetchWeb } from './sources/web';
+import { isCheckableUrl } from './liveness';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -36,6 +37,50 @@ function secure(resp: Response): Response {
   h.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   h.set('X-XSS-Protection', '0');
   return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+}
+
+// HTML → čitelný text (pro archiv inzerátu). Zachová odstavce/odrážky, zahodí značky.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr|ul|ol)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+// Vytáhne text inzerátu z detailové stránky — primárně ze strukturovaných dat JobPosting
+// (JSON-LD, nejčistší), jinak prázdný. Vrací čitelný text (max 12k znaků).
+function extractJobDescription(html: string): string {
+  const scripts = html.match(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) ?? [];
+  for (const s of scripts) {
+    const jsonText = s.replace(/^[\s\S]*?>/, '').replace(/<\/script>\s*$/i, '').trim();
+    let data: any;
+    try {
+      data = JSON.parse(jsonText);
+    } catch {
+      continue;
+    }
+    const graph = Array.isArray(data) ? data : data?.['@graph'] ?? [data];
+    for (const n of Array.isArray(graph) ? graph : [graph]) {
+      const type = n?.['@type'];
+      const isJob = type === 'JobPosting' || (Array.isArray(type) && type.includes('JobPosting'));
+      if (isJob && typeof n.description === 'string' && n.description.trim()) {
+        return htmlToText(n.description).slice(0, 12000);
+      }
+    }
+  }
+  return '';
 }
 
 function securityTxt(): Response {
@@ -245,6 +290,41 @@ async function route(
     }
     if (p === '/api/version' && request.method === 'GET') {
       return json({ commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null });
+    }
+    // Detail inzerátu (archiv): vrať uložený text; když chybí, stáhni ho ze zdroje a ulož
+    // (od té chvíle přežije i stažení inzerátu z portálu). Zdroj bereme z DB, ne od uživatele.
+    if (p === '/api/ad' && request.method === 'GET') {
+      const id = url.searchParams.get('id') ?? '';
+      const row = await env.DB.prepare('SELECT id, url, description FROM seen_jobs WHERE id = ?')
+        .bind(id)
+        .first<{ id: string; url: string | null; description: string | null }>();
+      if (!row) return json({ error: 'inzerát nenalezen' }, 404);
+      if (row.description && row.description.trim()) {
+        return json({ id: row.id, description: row.description, cached: true });
+      }
+      const target = row.url ?? '';
+      if (!isCheckableUrl(target)) return json({ id: row.id, description: '', note: 'zdroj bez načitatelného detailu' });
+      try {
+        const res = await fetch(target, {
+          redirect: 'follow',
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Accept-Language': 'cs',
+            Accept: 'text/html',
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) return json({ id: row.id, description: '', withdrawn: res.status === 404, status: res.status });
+        const html = await res.text();
+        const desc = extractJobDescription(html);
+        if (desc) {
+          await env.DB.prepare('UPDATE seen_jobs SET description = ?2 WHERE id = ?1').bind(row.id, desc).run();
+        }
+        return json({ id: row.id, description: desc, fetched: true });
+      } catch (e: any) {
+        return json({ id: row.id, description: '', error: `${e?.name ?? 'err'}` });
+      }
     }
     if (p === '/api/runs' && request.method === 'GET') {
       const rows = await env.DB.prepare(

@@ -12,12 +12,57 @@ function statusCell(j){
   return '<span class="stat unk" title="Živost zatím neověřena">⏳ neověřeno</span>';
 }
 
-// Archiv inzerátu: uložený popis se v appce zobrazí i po stažení z portálu (kdy odkaz dá 404).
-function savedAd(j){
-  const d = (j.description || '').trim();
-  if(!d) return '';
-  return `<details class="savedad"><summary>📄 uložený inzerát</summary><div class="adbody">${esc(d)}</div></details>`;
+// Detail inzerátu (archiv): plný uložený inzerát „jako bys na něj klikl na portálu" —
+// funguje i po stažení z portálu (kdy odkaz dá 404). Otvírá se v modálním okně.
+let jobsById = {};
+
+function portalName(url){
+  if(/jobs\.cz/.test(url||'')) return 'jobs.cz';
+  if(/prace\.cz/.test(url||'')) return 'prace.cz';
+  return '';
 }
+
+function detailHtml(j, bodyHtml){
+  const emp = j.real_employer
+    ? `${esc(j.employer)} <span class="badge agency">agentura</span> → <span class="orig">🎯 ${esc(j.real_employer)}</span>`
+    : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
+  const src = esc((j.source||'').split(':')[0]);
+  const portal = portalName(j.url) || src;
+  const withdrawn = j.active === 0;
+  return `
+    <h2 class="dtitle">${esc(j.title)}</h2>
+    <div class="dmeta">${emp} · 📍 ${esc(j.location||'—')} · 💰 ${salary(j)} · <span class="badge">${src}</span> ${statusCell(j)}</div>
+    ${j.relevance!=null?`<div class="dscore">Skóre <b>${j.relevance}</b>${j.seniority?` · ${esc(j.seniority)}`:''}${j.reason?` — ${esc(j.reason)}`:''}</div>`:''}
+    ${contactBlock(j)}
+    ${reachOut(j)}
+    <div class="dbody">${bodyHtml}</div>
+    <div class="dlinks">
+      ${j.url?`<a href="${esc(j.url)}" target="_blank" rel="noopener">Otevřít původní inzerát na ${esc(portal)} ↗</a>${withdrawn?' <span class="mut">(inzerát je stažený → odkaz dá 404; text máš výše z archivu)</span>':''}`:''}
+    </div>`;
+}
+
+// Detail se dotáhne z /api/ad (archiv; když chybí, server ho stáhne ze zdroje a uloží).
+async function openDetail(id){
+  const j = jobsById[id];
+  if(!j) return;
+  const dlg = $('#detail');
+  dlg.hidden = false;
+  $('#detail .modal').scrollTop = 0;
+  $('#detailBody').innerHTML = detailHtml(j, '<span class="mut">📄 Načítám inzerát…</span>');
+  let bodyHtml;
+  try {
+    const d = await (await fetch(`/api/ad?id=${encodeURIComponent(id)}`)).json();
+    const body = (d.description || '').trim();
+    if(body) bodyHtml = esc(body);
+    else if(d.withdrawn || d.status === 404) bodyHtml = '<span class="mut">Inzerát je stažený z portálu a jeho text nebyl dřív archivovaný, takže ho nelze zobrazit. Firmu ale můžeš oslovit napřímo (odkazy výše).</span>';
+    else bodyHtml = `<span class="mut">Text inzerátu se nepodařilo získat${d.note?` (${esc(d.note)})`:''}. Zkus „Otevřít původní inzerát".</span>`;
+  } catch(e){
+    bodyHtml = '<span class="mut">Nepodařilo se načíst text inzerátu.</span>';
+  }
+  if(dlg.hidden) return;   // uživatel mezitím zavřel
+  $('#detailBody').innerHTML = detailHtml(j, bodyHtml);
+}
+function closeDetail(){ $('#detail').hidden = true; }
 
 // Oslovit firmu napřímo — hlavně u stažených inzerátů (portálová přihláška je zavřená,
 // ale VŘ může běžet). Odkazy na firmu vč. odhaleného původce u agentur.
@@ -49,9 +94,10 @@ async function load(){
   $('#status').textContent = 'Načítám…';
   const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}`);
   const { jobs } = await r.json();
-  const tb = $('#rows'); tb.innerHTML = '';
+  const tb = $('#rows'); tb.innerHTML = ''; jobsById = {};
   $('#empty').hidden = jobs.length > 0;
   for(const j of jobs){
+    jobsById[j.id] = j;
     const tr = document.createElement('tr');
     // Stažený inzerát NEzešednujeme — VŘ může běžet dál, je to pořád lead.
     const emp = j.real_employer
@@ -59,7 +105,7 @@ async function load(){
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
       <td class="score">${j.relevance ?? '—'}</td>
-      <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div>${savedAd(j)}</td>
+      <td><a class="titlelink" data-id="${esc(j.id)}" title="Zobrazit uložený inzerát (jako na portálu)">${esc(j.title)}</a>${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div><a class="showad" data-id="${esc(j.id)}">📄 zobrazit inzerát</a></td>
       <td>${emp}${contactBlock(j)}${reachOut(j)}</td>
       <td>${esc(j.location ?? '—')}</td>
       <td>${salary(j)}</td>
@@ -75,6 +121,17 @@ $('#refresh').onclick = load;
 $('#minScore').onchange = load;
 $('#agencyOnly').onchange = load;
 $('#activeFilter').onchange = load;
+
+// Klik na název pozice / „zobrazit inzerát" → detail inzerátu (archiv). Delegace přes tbody.
+$('#rows').addEventListener('click', (e) => {
+  const el = e.target.closest('a.titlelink, a.showad');
+  if(!el) return;
+  e.preventDefault();
+  openDetail(el.getAttribute('data-id'));
+});
+$('#detailClose').onclick = closeDetail;
+$('#detail').addEventListener('click', (e) => { if(e.target.id === 'detail') closeDetail(); }); // klik mimo kartu
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !$('#detail').hidden) closeDetail(); });
 let saveMsgTimer;
 $('#saveFilters').onclick = () => {
   localStorage.setItem('jw.minScore', $('#minScore').value);
