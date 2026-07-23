@@ -36,6 +36,9 @@ export interface RunStats {
   notified: number;
   discovered: number;
   livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
+  // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
+  // UI podle toho spouští další dávky, dokud není 0 (viz index.js — „doskórování").
+  candidatesPending?: number;
 }
 
 // Záznam běhu do D1 (tabulka runs) → dashboard pak ukáže ŽIVĚ, co agent dělá.
@@ -154,6 +157,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     //    se nestihl dokončit). Každý kandidát je nezávislý; deadline mezi dávkami.
     const companyCandidates: SourceCandidate[] = [];
     let unchanged = 0;
+    let handled = 0; // kandidáti, co už mají skóre (ohodnocené teď / beze změny) — zbytek je „pending"
     const BATCH = 3;
     const processJob = async (job: JobPosting): Promise<void> => {
       const id = job.id;
@@ -165,6 +169,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       if (existing && existing.hash === hash && existing.relevance != null) {
         await touchSeen(env, id);
         unchanged++;
+        handled++;
         return;
       }
 
@@ -175,6 +180,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       });
       if (!score) return; // scoring selhal (rate-limit) → nech NULL, přeskóruje se příště
       stats.scored++;
+      handled++;
       const relevant = score.relevance >= settings.notifyThreshold;
 
       // Deanonymizace jen když je povolený web-výzkum (placený Anthropic); jinak přeskoč.
@@ -244,6 +250,10 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       await run.flush(stats);
     }
     if (unchanged) run.log(`⏭ ${unchanged} beze změny — přeskočeno (už ohodnocené, viz historie/Výsledky)`);
+    // Kolik kandidátů z tohoto stažení ještě nemá skóre (nedojely v časovém stropu) → UI podle
+    // toho spustí další dávku. 0 = hotovo, celé stažení je ohodnocené.
+    stats.candidatesPending = Math.max(0, candidates.length - handled);
+    if (stats.candidatesPending) run.log(`⏳ Zbývá doskórovat ${stats.candidatesPending} kandidátů (další dávka je dožene).`);
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
 

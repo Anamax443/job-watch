@@ -69,7 +69,8 @@ function fmtStats(s){
   if(!s) return '';
   try{ const o=typeof s==='string'?JSON.parse(s):s;
     const gone = o.livenessGone ? ` · zrušené ${o.livenessGone}` : '';
-    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}`;
+    const pend = o.candidatesPending ? ` · zbývá ${o.candidatesPending}` : '';
+    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}${pend}`;
   }catch(e){ return ''; }
 }
 function runStale(latest){
@@ -95,20 +96,61 @@ async function loadRuns(){
   latest._stale=stale;
   return latest;
 }
+// Spustí JEDEN běh a vyřeší se, až doběhne (nebo je stale / zastavený). Vrací poslední záznam.
+function runSingle(){
+  return new Promise(async (resolve) => {
+    try{ await fetch('/api/run', { method:'POST' }); }catch(e){}
+    await loadRuns();
+    let tries=0;
+    const iv=setInterval(async () => {
+      const latest=await loadRuns(); tries++;
+      if((latest && (latest.finished_at || latest._stale)) || tries>120){
+        clearInterval(iv); resolve(latest||null);
+      }
+    }, 1500);
+  });
+}
+function pendingOf(latest){
+  try{ const o=typeof latest?.stats==='string'?JSON.parse(latest.stats):latest?.stats; return o?.candidatesPending ?? 0; }
+  catch(e){ return 0; }
+}
+// Jeden klik = doskórování CELÉHO stažení: běh se opakuje po dávkách, dokud zbývají
+// nezhodnocení kandidáti (jeden běh jich kvůli 24s stropu Workeru stihne ~11).
+let loopStop = false;
+const MAX_BATCHES = 20;
 $('#run').onclick = async () => {
-  $('#run').disabled = true; $('#status').textContent = 'Spouštím…';
-  await fetch('/api/run', { method:'POST' });
-  loadRuns();
-  let tries=0;
-  const iv=setInterval(async () => {
-    const latest=await loadRuns(); tries++;
-    if((latest && (latest.finished_at || latest._stale)) || tries>120){
-      clearInterval(iv); $('#run').disabled=false; $('#status').textContent='';
-      load();
+  loopStop = false;
+  $('#run').disabled = true;
+  $('#stop').style.display = '';      // Stop přeruší i smyčku
+  let batch = 0, lastPending = Infinity;
+  try {
+    while(!loopStop){
+      batch++;
+      $('#status').textContent = batch===1 ? 'Spouštím…' : `Doskórování — dávka ${batch}…`;
+      const latest = await runSingle();
+      if(loopStop) break;
+      const pending = pendingOf(latest);
+      if(pending<=0) break;                      // celé stažení ohodnoceno
+      if(pending>=lastPending){                  // žádný pokrok → nezacyklit
+        $('#status').textContent = `Doskórování zastaveno — beze změny, zbývá ${pending}. Zkus později.`;
+        return;
+      }
+      if(batch>=MAX_BATCHES){
+        $('#status').textContent = `Doskórování přerušeno po ${batch} dávkách (zbývá ${pending}).`;
+        return;
+      }
+      lastPending = pending;
+      $('#status').textContent = `Doskórování — zbývá ~${pending}, spouštím další dávku…`;
     }
-  }, 1500);
+    $('#status').textContent = loopStop ? 'Zastaveno.' : '✅ Hotovo — celé stažení ohodnoceno.';
+  } finally {
+    $('#run').disabled = false;
+    load();
+    setTimeout(()=>{ if($('#status').textContent.startsWith('✅')||$('#status').textContent==='Zastaveno.') $('#status').textContent=''; }, 4000);
+  }
 };
 $('#stop').onclick = async () => {
+  loopStop = true;                    // zastav i dávkovou smyčku
   $('#stop').disabled=true; $('#status').textContent='Zastavuji…';
   try{ await fetch('/api/run/stop',{method:'POST'}); }catch(e){}
   $('#stop').disabled=false; $('#status').textContent='';
