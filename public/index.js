@@ -55,6 +55,7 @@ async function openDetail(id){
     const body = (d.description || '').trim();
     if(body) bodyHtml = esc(body);
     else if(d.withdrawn || d.status === 404) bodyHtml = '<span class="mut">Inzerát je stažený z portálu a jeho text nebyl dřív archivovaný, takže ho nelze zobrazit. Firmu ale můžeš oslovit napřímo (odkazy výše).</span>';
+    else if(portalName(j.url) === 'jobs.cz') bodyHtml = '<span class="mut">jobs.cz zobrazuje text inzerátu až v prohlížeči (aplikace), takže ho nelze serverově archivovat. Otevři původní inzerát níže, nebo firmu oslov napřímo (odkazy výše). U prace.cz se text ukládá.</span>';
     else bodyHtml = `<span class="mut">Text inzerátu se nepodařilo získat${d.note?` (${esc(d.note)})`:''}. Zkus „Otevřít původní inzerát".</span>`;
   } catch(e){
     bodyHtml = '<span class="mut">Nepodařilo se načíst text inzerátu.</span>';
