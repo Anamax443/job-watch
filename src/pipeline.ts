@@ -91,6 +91,7 @@ function timed<T>(label: string, p: Promise<T>, ms: number, fallback: T, run: Ru
 }
 
 export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual'): Promise<RunStats> {
+  const runStart = Date.now(); // pro absolutní strop celého běhu (viz deadline níže)
   env = await resolveEnv(env); // klíče přednostně z D1 (UI), jinak Worker secrets
   const settings = await loadSettings(env);
   const stats: RunStats = {
@@ -137,10 +138,11 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     const jobs = [...mpsv, ...ats, ...web, ...jobscz, ...pracecz];
     stats.fetched = jobs.length;
     run.log(`✔ Zdroje hotové → celkem ${jobs.length}`);
-    // Strop na zpracování (scoring/notify/backlog) — počítá se až teď, aby ho delší
-    // fetch (web_search) neukrojil. Drženo nízko, protože manuální běh jede přes
-    // ctx.waitUntil s omezeným rozpočtem (delší celkový čas zabíjel celý běh).
-    const deadline = Date.now() + 24000;
+    // Strop na zpracování (scoring/notify/backlog). Dvojitý: max ~18 s od TEĎ (aby ho delší
+    // fetch neukrojil) A zároveň absolutní strop ~26 s od startu běhu — ať se vždy stihne
+    // zapsat finished_at PŘED rozpočtem Workeru (ctx.waitUntil). Bez toho běh „visí" jako
+    // „neodpovídá (limit)". Radši míň skóre/běh a spolehlivě dokončit; zbytek dožene další dávka.
+    const deadline = Math.min(Date.now() + 18000, runStart + 26000);
 
     // 2) klasifikace agentur
     const icoSet = await loadAgencyIcos(env);

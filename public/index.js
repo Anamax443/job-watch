@@ -96,57 +96,70 @@ async function loadRuns(){
   latest._stale=stale;
   return latest;
 }
-// Spustí JEDEN běh a vyřeší se, až doběhne (nebo je stale / zastavený). Vrací poslední záznam.
+// Spustí JEDEN běh a vyřeší se, až doběhne. Když viditelně visí (>45 s bez finished_at),
+// sám ho ukončí. Vrací { latest, clean } — clean=false = běh nedoběhl čistě.
 function runSingle(){
   return new Promise(async (resolve) => {
     try{ await fetch('/api/run', { method:'POST' }); }catch(e){}
-    await loadRuns();
-    let tries=0;
-    const iv=setInterval(async () => {
-      const latest=await loadRuns(); tries++;
-      if((latest && (latest.finished_at || latest._stale)) || tries>120){
-        clearInterval(iv); resolve(latest||null);
+    let latest = await loadRuns();
+    const t0 = Date.now();
+    const iv = setInterval(async () => {
+      latest = await loadRuns();
+      if(latest && latest.finished_at){ clearInterval(iv); resolve({ latest, clean:true }); return; }
+      if(Date.now()-t0 > 45000){         // běh má doběhnout do ~25 s; 45 s = evidentně visí
+        clearInterval(iv);
+        try{ await fetch('/api/run/stop',{method:'POST'}); }catch(e){}
+        resolve({ latest: latest||null, clean:false });
       }
     }, 1500);
   });
 }
+// Kolik kandidátů z tohoto stažení ještě zbývá. null = neznámo (běh nedoběhl / bez údaje).
 function pendingOf(latest){
-  try{ const o=typeof latest?.stats==='string'?JSON.parse(latest.stats):latest?.stats; return o?.candidatesPending ?? 0; }
-  catch(e){ return 0; }
+  try{ const o=typeof latest?.stats==='string'?JSON.parse(latest.stats):latest?.stats;
+    return (o && o.candidatesPending!=null) ? o.candidatesPending : null; }
+  catch(e){ return null; }
 }
 // Jeden klik = doskórování CELÉHO stažení: běh se opakuje po dávkách, dokud zbývají
-// nezhodnocení kandidáti (jeden běh jich kvůli 24s stropu Workeru stihne ~11).
+// nezhodnocení kandidáti (jeden běh jich kvůli časovému stropu Workeru stihne jen část).
 let loopStop = false;
-const MAX_BATCHES = 20;
+const MAX_BATCHES = 25;
 $('#run').onclick = async () => {
   loopStop = false;
   $('#run').disabled = true;
   $('#stop').style.display = '';      // Stop přeruší i smyčku
-  let batch = 0, lastPending = Infinity;
+  let batch = 0, lastPending = null, stuck = 0;
   try {
-    while(!loopStop){
+    while(!loopStop && batch < MAX_BATCHES){
       batch++;
-      $('#status').textContent = batch===1 ? 'Spouštím…' : `Doskórování — dávka ${batch}…`;
-      const latest = await runSingle();
+      $('#status').textContent = batch===1 ? 'Spouštím…'
+        : `Doskórování — dávka ${batch}${lastPending!=null?` (zbývá ~${lastPending})`:''}…`;
+      const { latest } = await runSingle();
       if(loopStop) break;
       const pending = pendingOf(latest);
-      if(pending<=0) break;                      // celé stažení ohodnoceno
-      if(pending>=lastPending){                  // žádný pokrok → nezacyklit
-        $('#status').textContent = `Doskórování zastaveno — beze změny, zbývá ${pending}. Zkus později.`;
-        return;
+      if(pending===0) break;                       // celé stažení ohodnoceno → hotovo
+      if(pending==null){                           // běh nedoběhl čistě → neznámý zbytek
+        if(++stuck>=3){ $('#status').textContent='Běhy nestíhají dokončit — zkus znovu za chvíli.'; return; }
+      } else {                                      // pending > 0
+        stuck = 0;
+        if(lastPending!=null && pending>=lastPending){
+          $('#status').textContent = `Doskórování zastaveno — beze změny, zbývá ${pending}.`;
+          return;
+        }
+        lastPending = pending;
       }
-      if(batch>=MAX_BATCHES){
-        $('#status').textContent = `Doskórování přerušeno po ${batch} dávkách (zbývá ${pending}).`;
-        return;
-      }
-      lastPending = pending;
-      $('#status').textContent = `Doskórování — zbývá ~${pending}, spouštím další dávku…`;
+      await new Promise(r=>setTimeout(r, 1500));   // krátká pauza mezi dávkami (nešrotovat Worker)
+    }
+    if(batch>=MAX_BATCHES && !loopStop){
+      $('#status').textContent = `Přerušeno po ${batch} dávkách${lastPending!=null?` (zbývá ${lastPending})`:''}.`;
+      return;
     }
     $('#status').textContent = loopStop ? 'Zastaveno.' : '✅ Hotovo — celé stažení ohodnoceno.';
   } finally {
     $('#run').disabled = false;
+    await loadRuns();
     load();
-    setTimeout(()=>{ if($('#status').textContent.startsWith('✅')||$('#status').textContent==='Zastaveno.') $('#status').textContent=''; }, 4000);
+    setTimeout(()=>{ const s=$('#status').textContent; if(s.startsWith('✅')||s==='Zastaveno.') $('#status').textContent=''; }, 4000);
   }
 };
 $('#stop').onclick = async () => {
