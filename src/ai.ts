@@ -74,13 +74,16 @@ export function providerChain(ctx: AiCtx): AiProvider[] {
 }
 
 /**
- * Smí běžet web-výzkum (deanonymizace + discovery)? Jen Anthropic umí `web_search`/`web_fetch`.
- * Při výslovném free/off režimu se placená volání NEspouští (uživatel chce šetřit).
+ * Smí běžet web-výzkum (deanonymizace agentur + screening zdrojů)? Umí ho jen Anthropic
+ * (`web_search`/`web_fetch`) a je PLACENÝ i POMALÝ (multi-turn, klidně desítky sekund).
+ * Proto ho spouštíme JEN když uživatel výslovně zvolí placený backend ('anthropic').
+ * Default (auto/free/off) ho nespouští — ušetří čas běhu i peníze a nezdržuje smyčku
+ * zbytečnými (u účtu bez kreditu stejně selhávajícími) voláními.
  */
 export function webResearchEnabled(ctx: AiCtx): boolean {
   const pref = (ctx.provider ?? '').trim().toLowerCase();
-  if (pref === 'off' || pref === 'workers-ai') return false;
-  return Boolean(ctx.anthropicKey);
+  if (pref === 'anthropic') return Boolean(ctx.anthropicKey);
+  return false;
 }
 
 /** Vytáhne první úplný {...} JSON objekt z textu (Workers AI ho občas obalí prózou/```). */

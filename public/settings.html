@@ -50,7 +50,7 @@
       <option value="anthropic">Placené — Claude (přesnější + deanonymizace agentur)</option>
       <option value="off">Vypnuto — bez AI (skórování se neprovádí)</option>
     </select>
-    <div class="hint">Skórování relevance běží defaultně na <b>zdarma Cloudflare Workers AI</b> (běží celé na Cloudflare). Placený <b>Claude</b> je přesnější a je nutný pro <b>deanonymizaci agentur</b> a <b>screening zdrojů</b> (potřebují web-nástroje, které Workers AI neumí) — ty se při zdarma/vypnuto přeskočí. „Podle serveru" nechá volbu na nasazení. Aktivní backend vidíš v proužku vpravo dole (<code>AI ●</code>).</div>
+    <div class="hint">Skórování relevance běží defaultně na <b>zdarma Cloudflare Workers AI</b> (běží celé na Cloudflare). <b>Deanonymizace agentur</b> a <b>screening zdrojů</b> (přes Claude web_search — placené a pomalé) se spustí <b>jen při volbě „Placené — Claude"</b>; jinak se přeskočí, ať běh nezdržují. „Podle serveru" nechá volbu na nasazení. Aktivní backend vidíš v proužku nahoře v hlavičce (<code>AI ●</code>).</div>
   </div>
 
   <div class="field">

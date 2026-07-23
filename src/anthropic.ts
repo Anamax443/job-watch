@@ -36,6 +36,8 @@ export async function messagesCreate(env: Env, body: MessagesBody): Promise<any>
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
+      // Pojistka proti zaseknutí běhu — jeden dotaz (i pomalý web_search) nesmí viset donekonečna.
+      signal: AbortSignal.timeout(25000),
     });
     if (res.ok) return res.json();
 
