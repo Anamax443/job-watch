@@ -79,7 +79,8 @@ function fmtStats(s){
   try{ const o=typeof s==='string'?JSON.parse(s):s;
     const gone = o.livenessGone ? ` · staženo z portálu ${o.livenessGone}` : '';
     const pend = o.candidatesPending ? ` · zbývá ${o.candidatesPending}` : '';
-    return `staženo ${o.fetched} · kandidáti ${o.candidates} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}${pend}`;
+    const noise = (o.fetched!=null && o.candidates!=null && o.fetched>o.candidates) ? ` (−${o.fetched-o.candidates} šum)` : '';
+    return `staženo ${o.fetched} · kandidáti ${o.candidates}${noise} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}${pend}`;
   }catch(e){ return ''; }
 }
 function runStale(latest){

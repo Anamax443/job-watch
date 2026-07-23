@@ -149,10 +149,24 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     applyAgencyFlag(jobs, icoSet);
     run.log(`🏷️ Agentur označeno: ${jobs.filter((j) => j.isAgency).length}`);
 
-    // 3) prefilter
+    // 3) prefilter — hrubě odřízne šum (hlavně široké hledání prace.cz) PŘED AI skórováním.
+    //    Zprůhledníme, kam se poděl rozdíl staženo → kandidáti (per zdroj).
     const candidates = prefilter(jobs, settings);
     stats.candidates = candidates.length;
-    run.log(`🧹 Po prefilteru: ${candidates.length} kandidátů (práh skóre ${settings.notifyThreshold})`);
+    const keptIds = new Set(candidates.map((j) => j.id));
+    const droppedBySource = new Map<string, number>();
+    for (const j of jobs) {
+      if (keptIds.has(j.id)) continue;
+      const src = (j.source || '?').split(':')[0];
+      droppedBySource.set(src, (droppedBySource.get(src) ?? 0) + 1);
+    }
+    const dropped = jobs.length - candidates.length;
+    const breakdown = [...droppedBySource.entries()].map(([s, n]) => `${s} ${n}`).join(', ');
+    run.log(
+      `🧹 Po prefilteru: ${candidates.length} kandidátů z ${jobs.length} staženo` +
+        (dropped > 0 ? ` (odříznuto ${dropped} nerelevantních${breakdown ? `: ${breakdown}` : ''})` : '') +
+        ` · práh skóre ${settings.notifyThreshold}`,
+    );
     await run.flush(stats);
 
     // 4) zpracování — v PARALELNÍCH dávkách (sekvenčně stihlo jen ~11/běh a běh
