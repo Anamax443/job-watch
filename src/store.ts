@@ -46,13 +46,14 @@ export async function loadExisting(env: Env, id: string): Promise<ExistingRow | 
     .first<ExistingRow>();
 }
 
-export async function touchSeen(env: Env, id: string): Promise<void> {
-  // Objevil se znovu v živé listovce → je aktivní (a živost je tím ověřená).
-  await env.DB.prepare(
-    "UPDATE seen_jobs SET last_seen = datetime('now'), active = 1, active_checked_at = datetime('now') WHERE id = ?",
-  )
-    .bind(id)
-    .run();
+export async function touchSeen(env: Env, id: string, setActive = true): Promise<void> {
+  // U inzerátů s OVĚŘITELNÝM detailem (jobs.cz/prace.cz) o `active` rozhoduje výhradně liveness
+  // (detail 404 = stažen). Listovka totiž stažený inzerát ještě chvíli zobrazuje, takže by ho
+  // `active=1` mylně „vzkřísila". Proto pro ně jen last_seen; jinak (MPSV…) listovka = signál.
+  const sql = setActive
+    ? "UPDATE seen_jobs SET last_seen = datetime('now'), active = 1, active_checked_at = datetime('now') WHERE id = ?"
+    : "UPDATE seen_jobs SET last_seen = datetime('now') WHERE id = ?";
+  await env.DB.prepare(sql).bind(id).run();
 }
 
 /** Najde jiný (ne-duplicitní) záznam se stejným dedup_key — preferuje již notifikovaný originál. */

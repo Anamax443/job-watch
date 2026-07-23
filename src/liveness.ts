@@ -24,7 +24,8 @@ export async function checkUrl(url: string): Promise<Liveness> {
       headers: { 'User-Agent': UA, 'Accept-Language': 'cs', Accept: 'text/html' },
       // Bez timeoutu mohl jeden pomalý/zaseklý fetch protáhnout celý běh přes strop
       // (dávka 6 se čeká celá) → běh pak přetáhl a smyčka ho brala jako „zaseklý".
-      signal: AbortSignal.timeout(6000),
+      // 10 s = dost i pod zátěží běhu (web-výzkum je teď default vypnutý → je rozpočet).
+      signal: AbortSignal.timeout(10000),
     });
     // Tělo nepotřebujeme (rozhoduje status) → zavři stream, ať neblokuje.
     try {

@@ -12,7 +12,7 @@ import { scoreJob } from './score';
 import { enrichOriginator } from './enrich';
 import { discoverSources, type SourceCandidate } from './discover';
 import { effectiveProvider, providerChain, providerLabel, webResearchEnabled } from './ai';
-import { recheckLiveness } from './liveness';
+import { recheckLiveness, isCheckableUrl } from './liveness';
 import { notify } from './notify';
 import {
   contentHash,
@@ -183,7 +183,8 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       // Přeskoč jen když je beze změny A UŽ OHODNOCENÝ. Vynulované skóre (relevance
       // NULL po resetu) se musí přeskórovat, i když se obsah inzerátu nezměnil.
       if (existing && existing.hash === hash && existing.relevance != null) {
-        await touchSeen(env, id);
+        // U ověřitelných URL (jobs.cz/prace.cz) nech `active` na liveness (404), listovka ho nevzkřísí.
+        await touchSeen(env, id, !isCheckableUrl(job.url));
         unchanged++;
         handled++;
         return;
