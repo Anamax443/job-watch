@@ -19,6 +19,17 @@ function savedAd(j){
   return `<details class="savedad"><summary>📄 uložený inzerát</summary><div class="adbody">${esc(d)}</div></details>`;
 }
 
+// Oslovit firmu napřímo — hlavně u stažených inzerátů (portálová přihláška je zavřená,
+// ale VŘ může běžet). Odkazy na firmu vč. odhaleného původce u agentur.
+function reachOut(j){
+  const name = (j.real_employer || j.employer || '').trim();
+  if(!name) return '';
+  const q = encodeURIComponent(name);
+  const li = `https://www.linkedin.com/search/results/companies/?keywords=${q}`;
+  const web = `https://www.google.com/search?q=${encodeURIComponent('"'+name+'" kariéra volná místa')}`;
+  return `<div class="reach" title="Oslov firmu napřímo (portálová přihláška u staženého inzerátu už nefunguje)">🎯 <a href="${li}" target="_blank" rel="noopener">LinkedIn</a> · <a href="${web}" target="_blank" rel="noopener">web / kariéra</a></div>`;
+}
+
 // Kontaktní osoba (hl. z MPSV) — ať jde oslovit konkrétní člověk i po skončení VŘ.
 function contactBlock(j){
   if(!j.contact_email && !j.contact_phone && !j.contact_name) return '';
@@ -49,7 +60,7 @@ async function load(){
     tr.innerHTML = `
       <td class="score">${j.relevance ?? '—'}</td>
       <td>${esc(j.title)}${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div>${savedAd(j)}</td>
-      <td>${emp}${contactBlock(j)}</td>
+      <td>${emp}${contactBlock(j)}${reachOut(j)}</td>
       <td>${esc(j.location ?? '—')}</td>
       <td>${salary(j)}</td>
       <td><span class="badge">${esc((j.source||'').split(':')[0])}</span></td>

@@ -246,6 +246,33 @@ async function route(
     if (p === '/api/version' && request.method === 'GET') {
       return json({ commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null });
     }
+    // DIAGNOSTIKA (dočasná): co Worker reálně dostane z jobs.cz/prace.cz detailu (liveness).
+    if (p === '/api/livecheck' && request.method === 'GET') {
+      const target = url.searchParams.get('url') ?? '';
+      // SSRF pojistka — jen ověřitelné detaily jobs.cz/prace.cz.
+      if (!/^https:\/\/(www\.)?(jobs\.cz\/rpd\/|prace\.cz\/nabidka\/)/.test(target)) {
+        return json({ error: 'jen jobs.cz/rpd/ nebo prace.cz/nabidka/ URL' }, 400);
+      }
+      const t0 = Date.now();
+      try {
+        const res = await fetch(target, {
+          method: 'GET',
+          redirect: 'follow',
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+            'Accept-Language': 'cs',
+            Accept: 'text/html',
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+        const body = await res.text().catch(() => '');
+        const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body)?.[1]?.replace(/\s+/g, ' ').trim().slice(0, 140) ?? '';
+        return json({ ms: Date.now() - t0, status: res.status, finalUrl: res.url, redirected: res.redirected, len: body.length, title });
+      } catch (e: any) {
+        return json({ ms: Date.now() - t0, error: `${e?.name ?? 'err'}: ${e?.message ?? e}` });
+      }
+    }
     if (p === '/api/runs' && request.method === 'GET') {
       const rows = await env.DB.prepare(
         'SELECT id, started_at, finished_at, trigger, ok, stats, log FROM runs ORDER BY id DESC LIMIT 12',
