@@ -92,7 +92,7 @@
   <table>
     <tr><th>Kanál</th><th>Stav</th><th>Jak</th></tr>
     <tr><td>Telegram</td><td><span class="pill">aktivní</span></td><td>bot token (secret) + chat_id (Nastavení)</td></tr>
-    <tr><td>E-mail</td><td><span class="pill">aktivní</span></td><td>Microsoft Graph (client credentials)</td></tr>
+    <tr><td>E-mail</td><td><span class="pill">aktivní</span></td><td>Cloudflare Email Sending (binding, bez klíčů) — odesílatel <code>jobwatch@maxferit.cz</code>; doména musí být onboardovaná na Email Sending</td></tr>
     <tr><td>Slack</td><td><span class="pill">aktivní</span></td><td>Incoming Webhook URL jako secret <code>SLACK_WEBHOOK_URL</code> + přepínač v Nastavení</td></tr>
     <tr><td>Signal / WhatsApp</td><td><span class="pill">zatím ne</span></td><td>Signal potřebuje signal-cli most; WhatsApp onboarding (Meta/Twilio)</td></tr>
   </table>
@@ -122,11 +122,9 @@
   <h2 id="secrets">Klíče (secrets)</h2>
   <pre><code>wrangler secret put ANTHROPIC_API_KEY     # volitelné — placený Claude + deanonymizace
 wrangler secret put TELEGRAM_BOT_TOKEN    # Telegram
-wrangler secret put GRAPH_TENANT_ID       # e-mail (MS Graph)
-wrangler secret put GRAPH_CLIENT_ID
-wrangler secret put GRAPH_CLIENT_SECRET
-wrangler secret put GRAPH_MAILBOX
-wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack</code></pre>
+wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack
+# E-mail = Cloudflare Email Sending (binding EMAIL, žádný secret). Jen onboardovat doménu:
+#   Dashboard → Email Service → Email Sending → Onboard Domain (maxferit.cz)</code></pre>
   <div class="warn">🤖 <b>AI backend je přepínatelný „dle úhrady"</b> (Nastavení → „AI backend"). Výchozí je
   <b>zdarma Cloudflare Workers AI</b> (skórování běží celé na Cloudflare, klíč není potřeba).
   Placený <b>Claude</b> (<code>ANTHROPIC_API_KEY</code>) je přesnější a jako jediný umí

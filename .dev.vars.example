@@ -10,12 +10,10 @@ ANTHROPIC_API_KEY=
 # Telegram bot (token je tajný; cílový chat_id se nastavuje v UI / settings)
 TELEGRAM_BOT_TOKEN=
 
-# Microsoft Graph (odesílání e-mailu, client credentials flow)
-GRAPH_TENANT_ID=
-GRAPH_CLIENT_ID=
-GRAPH_CLIENT_SECRET=
-# Odesílací schránka (UPN/e-mail), ze které se posílá sendMail
-GRAPH_MAILBOX=
+# E-mail = Cloudflare Email Sending (binding EMAIL, viz wrangler.toml [[send_email]]).
+# Žádný secret — jen jednorázově onboardovat doménu odesílatele:
+#   Dashboard → Email Service → Email Sending → Onboard Domain (maxferit.cz)
+# Odesílatel se nastavuje varem EMAIL_FROM ve wrangler.toml [vars].
 
 # Slack Incoming Webhook URL (volitelné; zapni v Nastavení přepínačem „Posílat na Slack")
 SLACK_WEBHOOK_URL=

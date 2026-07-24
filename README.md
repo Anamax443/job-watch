@@ -50,7 +50,7 @@ na běh). ATS adaptér pak tyto zdroje čte. Přehled: `GET /api/sources`.
 `prefilter.ts` (CZ-ISCO + klíčová slova; web obchází, je předfiltrovaný) → `store.ts`
 (cross-source dedup + **otisk věty / opakování v čase**) → `score.ts` (haiku, structured
 outputs — **hodnotí shodu proti profilu z Nastavení**) → `enrich.ts` (Sonnet 4.6 —
-deanonymizace původce) → `notify.ts` (Telegram + e-mail/MS Graph + **Slack**).
+deanonymizace původce) → `notify.ts` (Telegram + e-mail/Cloudflare Email Sending + **Slack**).
 `pipeline.ts` navíc: časové limity zdrojů + celkový strop, doskórování fronty, stav běhu do `runs`.
 
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
@@ -103,11 +103,9 @@ npm run db:init                       # vytvoří tabulky (remote); local: npm r
 cp .dev.vars.example .dev.vars        # vyplň pro lokální dev
 wrangler secret put ANTHROPIC_API_KEY # VOLITELNÉ (placený Claude + deanonymizace); skórování jede zdarma bez klíče
 wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put GRAPH_TENANT_ID
-wrangler secret put GRAPH_CLIENT_ID
-wrangler secret put GRAPH_CLIENT_SECRET
-wrangler secret put GRAPH_MAILBOX
 wrangler secret put SLACK_WEBHOOK_URL   # volitelné — Slack Incoming Webhook
+# E-mail = Cloudflare Email Sending (binding EMAIL, bez secretu). Onboarduj doménu odesílatele:
+#   Dashboard → Email Service → Email Sending → Onboard Domain (maxferit.cz)
 wrangler secret put ADZUNA_APP_ID       # web zdroj (konkrétní inzeráty) — developer.adzuna.com
 wrangler secret put ADZUNA_APP_KEY
 # Klíče lze nově spravovat i přes UI (Nastavení → Klíče a přístupy), uloží se do D1.
@@ -153,5 +151,5 @@ takže fungují jen přes přihlášený Access (ne přímo přes workers.dev).
 - [ ] **ATS endpointy** — ověřit živě tvar odpovědi pro každou platformu/firmu (`ats.ts`).
 - [ ] **Registr agentur práce** — zdroj strojových dat / IČO (`agencies.ts` má fallback dle názvu).
 - [ ] **Detailní URL inzerátu MPSV** — ověřit veřejný odkaz na detail (`mpsv.ts` má fallback).
-- [ ] **Graph oprávnění** — app registrace s `Mail.Send` (application) + admin consent.
+- [ ] **E-mail (Cloudflare Email Sending)** — onboardovat doménu odesílatele: Dashboard → Email Service → Email Sending → Onboard Domain (`maxferit.cz`). Bez secretu; odesílatel = `EMAIL_FROM`.
 - [ ] **Telegram** — bot přes @BotFather, zjistit `chat_id`.

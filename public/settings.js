@@ -59,7 +59,7 @@ $('#check').onclick = async () => {
       const t = ok===true ? '✓ dostupné' : (ok===false ? '✗ nedostupné' : '– nenastaveno');
       return `<div>${dot(c)} ${label}: ${t}${extra||''}</div>`;
     };
-    const a = h.anthropic||{}, tg = h.telegram||{}, g = h.graph||{}, sl = h.slack||{}, ai = h.ai||{};
+    const a = h.anthropic||{}, tg = h.telegram||{}, g = h.email||{}, sl = h.slack||{}, ai = h.ai||{};
     const aReason = { no_credit: ' — účet nemá kredit, doplň v Plans & Billing', auth: ' — neplatný klíč', network: ' — bez spojení' };
     const aExtra = (a.configured && a.ok===false) ? (aReason[a.reason] || (a.status ? ` (HTTP ${a.status})` : '')) : '';
     const aiName = ai.provider === 'workers-ai' ? '⚡ Cloudflare Workers AI (zdarma)'
@@ -70,7 +70,7 @@ $('#check').onclick = async () => {
       line('Databáze', h.db) +
       line('Anthropic (API klíč)', a.configured ? a.ok : null, aExtra) +
       line('Telegram (bot token)', tg.configured ? tg.ok : null) +
-      line('E-mail (MS Graph)', g.configured ? g.ok : null) +
+      line('E-mail (Cloudflare)', g.configured ? g.ok : null, g.from ? ` — odesílatel ${g.from} (doručení ověř „Odeslat test")` : '') +
       `<div>${dot(sl.configured?'#3ecf8e':'#8b97ad')} Slack: ${sl.configured?'nastaven (ověř tlačítkem „Odeslat test")':'– nenastaveno'}</div>`;
   } catch(e) { $('#checkres').textContent = '✗ kontrola selhala'; }
 };

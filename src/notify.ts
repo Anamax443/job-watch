@@ -57,53 +57,32 @@ async function sendSlack(webhookUrl: string, text: string): Promise<boolean> {
   }
 }
 
-async function graphToken(env: Env): Promise<string | null> {
-  try {
-    const body = new URLSearchParams({
-      client_id: env.GRAPH_CLIENT_ID,
-      client_secret: env.GRAPH_CLIENT_SECRET,
-      scope: 'https://graph.microsoft.com/.default',
-      grant_type: 'client_credentials',
-    });
-    const res = await fetch(
-      `https://login.microsoftonline.com/${env.GRAPH_TENANT_ID}/oauth2/v2.0/token`,
-      { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body },
-    );
-    if (!res.ok) {
-      console.warn(`Graph token: HTTP ${res.status}`);
-      return null;
-    }
-    const j: any = await res.json();
-    return j.access_token ?? null;
-  } catch (e) {
-    console.warn('Graph token:', e);
-    return null;
-  }
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// E-mail přes Cloudflare Email Sending (binding EMAIL) — bez SMTP a bez klíčů.
+// Odesílatel = env.EMAIL_FROM; jeho doména musí být onboardovaná na Email Sending
+// (Dashboard → Email Service → Email Sending → Onboard Domain), jinak send() hodí
+// E_SENDER_NOT_VERIFIED. HTML i text kvůli doručitelnosti.
 async function sendEmail(env: Env, to: string, subject: string, text: string): Promise<boolean> {
-  const token = await graphToken(env);
-  if (!token) return false;
+  if (!env.EMAIL) {
+    console.warn('Email: binding EMAIL chybí — Email Sending není nakonfigurováno');
+    return false;
+  }
+  const from = { email: env.EMAIL_FROM || 'jobwatch@maxferit.cz', name: 'JobWatch' };
   try {
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(env.GRAPH_MAILBOX)}/sendMail`,
-      {
-        method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          message: {
-            subject,
-            body: { contentType: 'Text', content: text },
-            toRecipients: [{ emailAddress: { address: to } }],
-          },
-          saveToSentItems: true,
-        }),
-      },
-    );
-    if (!res.ok) console.warn(`Graph sendMail: HTTP ${res.status} ${await res.text()}`);
-    return res.ok;
-  } catch (e) {
-    console.warn('Graph sendMail:', e);
+    await env.EMAIL.send({
+      to,
+      from,
+      subject,
+      text,
+      html: `<pre style="font:inherit;white-space:pre-wrap;margin:0">${escapeHtml(text)}</pre>`,
+    });
+    return true;
+  } catch (e: any) {
+    // .code např. E_SENDER_NOT_VERIFIED (doména neonboardovaná), E_RECIPIENT_SUPPRESSED.
+    console.warn(`Email send: ${e?.code ?? ''} ${e?.message ?? e}`);
     return false;
   }
 }
@@ -121,12 +100,15 @@ export async function checkTelegram(
   }
 }
 
-/** Živá kontrola MS Graph (získání tokenu — ověří client credentials, nic neodesílá). */
-export async function checkGraph(env: Env): Promise<{ configured: boolean; ok: boolean | null }> {
-  const configured = !!(env.GRAPH_TENANT_ID && env.GRAPH_CLIENT_ID && env.GRAPH_CLIENT_SECRET);
-  if (!configured) return { configured: false, ok: null };
-  const token = await graphToken(env);
-  return { configured: true, ok: !!token };
+/** Stav e-mailového kanálu (Cloudflare Email Sending). Reálné doručení nejde ověřit bez
+ *  odeslání (ok = binding je nasazený, „kanál zapojen"); deliverability prověří test/ostrý mail. */
+export function checkEmail(env: Env): { configured: boolean; ok: boolean | null; from: string | null } {
+  const configured = !!env.EMAIL;
+  return {
+    configured,
+    ok: configured ? true : null,
+    from: configured ? env.EMAIL_FROM || 'jobwatch@maxferit.cz' : null,
+  };
 }
 
 export async function notify(

@@ -34,6 +34,12 @@ database_id = "09fc72b1-9595-4a8f-9cba-e1b463138cf7"
 [ai]
 binding = "AI"
 
+# Cloudflare Email Sending — odesílání e-mailových notifikací z Workeru (bez SMTP, bez klíčů).
+# Doména odesílatele (EMAIL_FROM) musí být onboardovaná: Dashboard → Email Service → Email Sending
+# → Onboard Domain (maxferit.cz). Do té doby send() vrací E_SENDER_NOT_VERIFIED (mail se přeskočí).
+[[send_email]]
+name = "EMAIL"
+
 # Necitlivé proměnné. Tajné klíče jdou přes `wrangler secret put ...` (viz .dev.vars.example).
 [vars]
 # AI backend „dle úhrady" (přebíjí ho volba v Nastavení → settings.aiProvider):
@@ -51,3 +57,5 @@ MAX_DISCOVERY_PER_RUN = "5"
 # Otevřené hledání „jako na Googlu" přes Serper.dev (rychlé). Funguje jen když je
 # nastaven secret SERPER_API_KEY; jinak se web zdroj přeskočí. "false" = úplně vypnout.
 WEB_SEARCH = "true"
+# Odesílatel e-mailových notifikací (Cloudflare Email Sending). Doména musí být onboardovaná.
+EMAIL_FROM = "jobwatch@maxferit.cz"

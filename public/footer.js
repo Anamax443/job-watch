@@ -94,7 +94,7 @@
           ' · AI backend ' + aiOk +
           ' · Anthropic (jen deanonymizace) ' + anthropicStr() +
           ' · Telegram ' + st(h.telegram) +
-          ' · E-mail ' + st(h.graph) +
+          ' · E-mail ' + st(h.email) +
           ' · Slack ' + (h.slack && h.slack.configured ? 'nastaven' : '–') +
           '   (klikni pro re-check)';
       })

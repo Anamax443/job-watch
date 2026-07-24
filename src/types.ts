@@ -69,10 +69,20 @@ export interface Env {
   AI_PROVIDER?: string;
   ANTHROPIC_API_KEY: string;
   TELEGRAM_BOT_TOKEN: string;
-  GRAPH_TENANT_ID: string;
-  GRAPH_CLIENT_ID: string;
-  GRAPH_CLIENT_SECRET: string;
-  GRAPH_MAILBOX: string;
+  // Cloudflare Email Sending binding (viz wrangler.toml [[send_email]]) — odesílání bez SMTP/klíčů.
+  // Doména odesílatele (EMAIL_FROM) musí být onboardovaná na Email Sending.
+  EMAIL?: {
+    send(message: {
+      to: string | string[];
+      from: { email: string; name?: string };
+      replyTo?: string;
+      subject: string;
+      text?: string;
+      html?: string;
+    }): Promise<{ messageId: string }>;
+  };
+  // Adresa odesílatele e-mailů (necitlivé, viz [vars]); default jobwatch@maxferit.cz.
+  EMAIL_FROM?: string;
   SLACK_WEBHOOK_URL?: string;
   SERPER_API_KEY?: string;
   ADZUNA_APP_ID?: string;

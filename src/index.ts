@@ -1,6 +1,6 @@
 import type { Env, Settings } from './types';
 import { runPipeline } from './pipeline';
-import { notify, checkTelegram, checkGraph, type NotifyJob } from './notify';
+import { notify, checkTelegram, checkEmail, type NotifyJob } from './notify';
 import { checkAnthropic, messagesCreate, allText } from './anthropic';
 import {
   AI_PROVIDER_VALUES,
@@ -138,11 +138,11 @@ async function handleHealth(env: Env): Promise<Response> {
     /* db nedostupná */
   }
   const s = await loadSettings(env);
-  const [anthropic, telegram, graph] = await Promise.all([
+  const [anthropic, telegram] = await Promise.all([
     checkAnthropic(env),
     checkTelegram(env),
-    checkGraph(env),
   ]);
+  const email = checkEmail(env);
   const slack = { configured: !!env.SLACK_WEBHOOK_URL };
 
   // Aktivní AI backend „dle úhrady" (skórování) — to jde do indikátoru v záhlaví.
@@ -177,7 +177,7 @@ async function handleHealth(env: Env): Promise<Response> {
     ai,
     anthropic,
     telegram,
-    graph,
+    email,
     slack,
     enabled: { telegram: s.notifyTelegram, email: s.notifyEmail, slack: s.notifySlack },
   });
