@@ -131,8 +131,9 @@ export async function notify(
   settings: Settings,
   job: NotifyJob,
   log?: (msg: string) => void,
+  textOverride?: string, // pro test doručení — vlastní text místo formátu inzerátu
 ): Promise<NotifyResult> {
-  const text = buildText(job);
+  const text = textOverride ?? buildText(job);
   const lines: string[] = [];
   const say = (m: string) => {
     lines.push(m);

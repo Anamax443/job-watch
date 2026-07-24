@@ -187,18 +187,27 @@ async function handleHealth(env: Env): Promise<Response> {
 async function handleTestNotify(env: Env): Promise<Response> {
   env = await resolveEnv(env);
   const s = await loadSettings(env);
+  const enabled: string[] = [];
+  if (s.notifyEmail) enabled.push('E-mail');
+  if (s.notifyTelegram) enabled.push('Telegram');
+  if (s.notifySlack) enabled.push('Slack');
+  const now = new Date().toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' });
+  const testText = [
+    '🔔 JobWatch — test doručení',
+    'Když čteš tuhle zprávu, tenhle kanál funguje. ✅',
+    `Zapnuté kanály: ${enabled.length ? enabled.join(', ') : '(žádný — zapni je v Nastavení)'}`,
+    `Odesláno: ${now}`,
+  ].join('\n');
   const testJob: NotifyJob = {
     id: 'test',
     source: 'test',
-    title: 'JobWatch — testovací notifikace',
+    title: 'test doručení',
     employer: '(test)',
-    location: '—',
-    url: 'https://job-watch.bass443.workers.dev',
     isAgency: false,
     relevance: 100,
-    reason: 'Ověření kanálů nastavených v JobWatch.',
+    reason: 'test',
   };
-  const r = await notify(env, s, testJob);
+  const r = await notify(env, s, testJob, undefined, testText);
   return json({ ok: r.telegram || r.email || r.slack, ...r });
 }
 
