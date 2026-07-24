@@ -338,7 +338,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       run.log(`📊 Doskórováno z fronty: ${backlog} (zbytek příště)`);
     }
 
-    run.log(`✅ Hotovo — ${JSON.stringify(stats)}`);
+    // Souhrn v běžné češtině — ať i někdo, kdo nezná vnitřnosti, na první pohled pozná,
+    // co se (ne)děje. Strojová podoba čísel je ve sloupci `stats`; do logu patří lidská.
+    const perSource = `jobs.cz ${jobscz.length} · prace.cz ${pracecz.length} · MPSV ${mpsv.length} · ATS ${ats.length} · web ${web.length}`;
+    const leads = stats.notified === 0 ? 'žádný nový lead' : `${stats.notified} nových leadů`;
+    const pending = stats.candidatesPending
+      ? ` · ve frontě čeká ${stats.candidatesPending} (dožene další běh)`
+      : '';
+    run.log(
+      `📋 Souhrn: staženo ${stats.fetched} inzerátů (${perSource}), po filtru ${stats.candidates} relevantních · ` +
+        `ohodnoceno ${stats.scored} · ${leads}${pending}`,
+    );
+    run.log('✅ Hotovo — běh proběhl v pořádku (detaily po zdrojích viz 📡 řádky výše).');
     await run.flush(stats, true);
   } catch (e: any) {
     run.log(`❌ Chyba: ${e?.message ?? e}`);

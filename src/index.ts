@@ -360,7 +360,7 @@ async function route(
       // ?auto=1 = automatické ukončení dávky ze smyčky (časový limit), ne ruční Stop uživatele.
       const auto = url.searchParams.get('auto') === '1';
       const msg = auto
-        ? '⏱ ukončeno (časový limit dávky — běh nedoběhl včas)'
+        ? '⏱ Dávka ukončena časovým limitem — normální u „Spustit teď": další dávka pokračuje tam, kde tato skončila, nic se neztrácí.'
         : '⏹ zastaveno uživatelem';
       await env.DB.prepare(
         "UPDATE runs SET finished_at = datetime('now'), ok = 0, " +
