@@ -107,19 +107,23 @@ function mapRecord(rec: any): JobPosting | null {
   };
 }
 
-async function fetchIncrement(date: string): Promise<any[]> {
+// status: 'ok' = soubor publikován (200), 'absent' = ještě/vůbec není (404),
+// 'error' = přechodná chyba (≠404 / parse) → příště zopakovat, kurzor neposouvat.
+type IncrementResult = { status: 'ok' | 'absent' | 'error'; items: any[] };
+
+async function fetchIncrement(date: string): Promise<IncrementResult> {
   const url = `${BASE}/volna-mista-prirustek-${date}.json`;
   const res = await fetch(url, { headers: { accept: 'application/json' } });
-  if (res.status === 404) return [];
+  if (res.status === 404) return { status: 'absent', items: [] };
   if (!res.ok) {
     console.warn(`MPSV ${date}: HTTP ${res.status}`);
-    return [];
+    return { status: 'error', items: [] };
   }
   try {
-    return extractItems(await res.json());
+    return { status: 'ok', items: extractItems(await res.json()) };
   } catch (e) {
     console.warn(`MPSV ${date}: parse error`, e);
-    return [];
+    return { status: 'error', items: [] };
   }
 }
 
@@ -137,16 +141,30 @@ export async function fetchMpsv(env: Env): Promise<JobPosting[]> {
   const minStart = addDays(today, -maxBackfill);
   if (start < minStart) start = minStart;
 
+  // Kurzor posouváme JEN na definitivně zpracovaná data — jinak se přeskočí přírůstky.
+  // Den v minulosti je finální: 200 = ingesce, 404 = pracovní volno/bez přírůstku
+  // (přeskoč, ale posuň se za něj, ať se cyklus nezasekne na víkendu). Dnešek započítáme
+  // jen když je soubor už publikovaný (200); jinak kurzor zůstane na včerejšku a příští
+  // běh dnešek zopakuje — soubor MPSV se pro dané datum publikuje až během dne, ne v 06:00.
+  // Přechodná chyba (≠404) = nezapočítat → zopakovat příště (ochrana dat).
   const out: JobPosting[] = [];
+  let lastCovered: string | null = null;
   for (let d = new Date(start); ymd(d) <= todayStr; d = addDays(d, 1)) {
-    const items = await fetchIncrement(ymd(d));
-    for (const rec of items) {
-      const job = mapRecord(rec);
-      if (job && job.title) out.push(job);
+    const ds = ymd(d);
+    const inc = await fetchIncrement(ds);
+    if (inc.status === 'ok') {
+      for (const rec of inc.items) {
+        const job = mapRecord(rec);
+        if (job && job.title) out.push(job);
+      }
     }
+    const covered = inc.status === 'ok' || (inc.status === 'absent' && ds < todayStr);
+    if (covered) lastCovered = ds;
   }
 
-  await setMeta(env, CURSOR_KEY, todayStr);
-  console.log(`MPSV: ${out.length} záznamů (od ${ymd(start)} do ${todayStr})`);
+  if (lastCovered) await setMeta(env, CURSOR_KEY, lastCovered);
+  console.log(
+    `MPSV: ${out.length} záznamů (od ${ymd(start)} do ${todayStr}, kurzor → ${lastCovered ?? cursor ?? '—'})`,
+  );
   return out;
 }
