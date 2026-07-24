@@ -228,24 +228,27 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         } else if (existing?.notified_at) {
           run.log(`  🔕 ${head} → neodesláno (už odesláno ${existing.notified_at})`);
         } else {
-          const r = await notify(env, settings, {
-            ...job,
-            relevance: score.relevance,
-            reason: score.reason,
-            realEmployer: enrich?.realEmployer,
-            realEmployerUrl: enrich?.realEmployerUrl,
-          });
-          const ch: string[] = [];
-          if (settings.notifySlack) ch.push(`Slack ${r.slack ? '✓' : '✗'}`);
-          if (settings.notifyEmail) ch.push(`E-mail ${r.email ? '✓' : '✗'}`);
-          if (settings.notifyTelegram) ch.push(`Telegram ${r.telegram ? '✓' : '✗'}`);
+          run.log(`  🔔 ${head} → odesílám na zapnuté kanály…`);
+          // log callback → komunikace každého kanálu (vč. výsledku e-mailu) teče živě do konzole
+          const r = await notify(
+            env,
+            settings,
+            {
+              ...job,
+              relevance: score.relevance,
+              reason: score.reason,
+              realEmployer: enrich?.realEmployer,
+              realEmployerUrl: enrich?.realEmployerUrl,
+            },
+            (m) => run.log(`    ${m}`),
+          );
           const okAny = r.telegram || r.email || r.slack;
           if (okAny) {
             await setNotified(env, id);
             stats.notified++;
+          } else {
+            run.log(`  ⚠️ ${head} → neodesláno žádným kanálem`);
           }
-          const tail = ch.length ? ch.join(' · ') : 'žádný kanál zapnutý';
-          run.log(`  🔔 ${head} → ${tail}${okAny ? '' : ' ⚠️ neodesláno'}`);
         }
       } else {
         // Zamítnuté (pod prahem) — taky do logu, ať je v Konzoli VEŠKERÁ komunikace.

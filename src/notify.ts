@@ -61,29 +61,36 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+interface EmailSendResult {
+  ok: boolean;
+  messageId?: string;
+  code?: string;
+  message?: string;
+}
+
 // E-mail přes Cloudflare Email Sending (binding EMAIL) — bez SMTP a bez klíčů.
 // Odesílatel = env.EMAIL_FROM; jeho doména musí být onboardovaná na Email Sending
 // (Dashboard → Email Service → Email Sending → Onboard Domain), jinak send() hodí
-// E_SENDER_NOT_VERIFIED. HTML i text kvůli doručitelnosti.
-async function sendEmail(env: Env, to: string, subject: string, text: string): Promise<boolean> {
-  if (!env.EMAIL) {
-    console.warn('Email: binding EMAIL chybí — Email Sending není nakonfigurováno');
-    return false;
-  }
+// E_SENDER_NOT_VERIFIED. Vrací konkrétní výsledek (messageId / kód chyby), ať je v konzoli
+// vidět, co se stalo. Pozn.: úspěch = Cloudflare PŘIJAL k odeslání, ne že už je v doručené poště.
+async function sendEmail(env: Env, to: string, subject: string, text: string): Promise<EmailSendResult> {
+  if (!env.EMAIL) return { ok: false, code: 'NO_BINDING', message: 'binding EMAIL chybí (Email Sending nenakonfigurováno)' };
   const from = { email: env.EMAIL_FROM || 'jobwatch@maxferit.cz', name: 'JobWatch' };
   try {
-    await env.EMAIL.send({
+    const r = await env.EMAIL.send({
       to,
       from,
       subject,
       text,
       html: `<pre style="font:inherit;white-space:pre-wrap;margin:0">${escapeHtml(text)}</pre>`,
     });
-    return true;
+    return { ok: true, messageId: (r as { messageId?: string })?.messageId };
   } catch (e: any) {
     // .code např. E_SENDER_NOT_VERIFIED (doména neonboardovaná), E_RECIPIENT_SUPPRESSED.
-    console.warn(`Email send: ${e?.code ?? ''} ${e?.message ?? e}`);
-    return false;
+    const code = e?.code as string | undefined;
+    const message = (e?.message as string) ?? String(e);
+    console.warn(`Email send: ${code ?? ''} ${message}`);
+    return { ok: false, code, message };
   }
 }
 
@@ -111,20 +118,57 @@ export function checkEmail(env: Env): { configured: boolean; ok: boolean | null;
   };
 }
 
+export interface NotifyResult {
+  telegram: boolean;
+  email: boolean;
+  slack: boolean;
+  lines: string[]; // lidsky čitelná komunikace per kanál (pro konzoli i test)
+}
+
+// `log` (volitelné) streamuje řádky komunikace živě do konzole běhu; zároveň se vrací v `lines`.
 export async function notify(
   env: Env,
   settings: Settings,
   job: NotifyJob,
-): Promise<{ telegram: boolean; email: boolean; slack: boolean }> {
+  log?: (msg: string) => void,
+): Promise<NotifyResult> {
   const text = buildText(job);
+  const lines: string[] = [];
+  const say = (m: string) => {
+    lines.push(m);
+    log?.(m);
+  };
   let telegram = false;
   let email = false;
   let slack = false;
-  if (settings.notifyTelegram && settings.telegramChatId)
+
+  if (settings.notifyTelegram && settings.telegramChatId) {
     telegram = await sendTelegram(env, settings.telegramChatId, text);
-  if (settings.notifyEmail && settings.emailTo)
-    email = await sendEmail(env, settings.emailTo, `JobWatch: ${job.title}`, text);
-  if (settings.notifySlack && env.SLACK_WEBHOOK_URL)
+    say(`📨 Telegram → ${settings.telegramChatId}: ${telegram ? '✓ odesláno' : '✗ selhalo (viz Worker log)'}`);
+  } else if (settings.notifyTelegram) {
+    say('📨 Telegram: ✗ zapnutý, ale chybí chat_id v Nastavení');
+  }
+
+  if (settings.notifyEmail && settings.emailTo) {
+    const from = env.EMAIL_FROM || 'jobwatch@maxferit.cz';
+    say(`📧 E-mail ${from} → ${settings.emailTo}: odesílám přes Cloudflare Email Sending…`);
+    const res = await sendEmail(env, settings.emailTo, `JobWatch: ${job.title}`, text);
+    email = res.ok;
+    say(
+      res.ok
+        ? `📧 E-mail: ✓ přijato Cloudflarem k odeslání${res.messageId ? ` (id ${res.messageId})` : ''} — doručení může chvíli trvat, zkontroluj i spam`
+        : `📧 E-mail: ✗ ${res.code ?? 'chyba'}${res.message ? ` — ${res.message}` : ''}`,
+    );
+  } else if (settings.notifyEmail) {
+    say('📧 E-mail: ✗ zapnutý, ale chybí cílová adresa (emailTo v Nastavení)');
+  }
+
+  if (settings.notifySlack && env.SLACK_WEBHOOK_URL) {
     slack = await sendSlack(env.SLACK_WEBHOOK_URL, text);
-  return { telegram, email, slack };
+    say(`💬 Slack: ${slack ? '✓ odesláno' : '✗ selhalo (viz Worker log)'}`);
+  } else if (settings.notifySlack) {
+    say('💬 Slack: ✗ zapnutý, ale chybí SLACK_WEBHOOK_URL (secret)');
+  }
+
+  return { telegram, email, slack, lines };
 }

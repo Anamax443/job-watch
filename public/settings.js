@@ -44,7 +44,10 @@ $('#test').onclick = async () => {
   try {
     const r = await fetch('/api/test-notify', { method:'POST' });
     const d = await r.json();
-    $('#status').textContent = 'Test → Telegram '+(d.telegram?'✓':'–')+' · E-mail '+(d.email?'✓':'–')+' · Slack '+(d.slack?'✓':'–');
+    var esc = function(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    $('#status').innerHTML = (d.lines && d.lines.length)
+      ? 'Test — komunikace:<br>' + d.lines.map(function(l){ return '· ' + esc(l); }).join('<br>')
+      : 'Test → Telegram '+(d.telegram?'✓':'–')+' · E-mail '+(d.email?'✓':'–')+' · Slack '+(d.slack?'✓':'–');
   } catch(e){ $('#status').textContent = '✗ chyba testu'; }
   $('#test').disabled = false;
 };
