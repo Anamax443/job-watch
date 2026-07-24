@@ -42,14 +42,16 @@ export function parseListing(html: string): JobPosting[] {
   return out;
 }
 
-export async function fetchPraceCz(env: Env, settings: Settings): Promise<JobPosting[]> {
+export async function fetchPraceCz(env: Env, settings: Settings, log?: (msg: string) => void): Promise<JobPosting[]> {
   const urls = buildListingUrls(settings);
+  const statuses: string[] = []; // komunikační stopa: HTTP stav každé listovky
   const pages = await Promise.all(
     urls.map(async (u) => {
       try {
         const res = await fetch(u, {
           headers: { 'User-Agent': UA, 'Accept-Language': 'cs', Accept: 'text/html' },
         });
+        statuses.push(String(res.status));
         if (!res.ok) {
           console.warn(`prace.cz ${res.status}: ${u}`);
           return [] as JobPosting[];
@@ -57,6 +59,7 @@ export async function fetchPraceCz(env: Env, settings: Settings): Promise<JobPos
         return parseListing(await res.text());
       } catch (e) {
         console.warn('prace.cz:', e);
+        statuses.push('chyba');
         return [] as JobPosting[];
       }
     }),
@@ -69,6 +72,7 @@ export async function fetchPraceCz(env: Env, settings: Settings): Promise<JobPos
     seen.add(j.id);
     out.push(j);
   }
+  log?.(`📡 www.prace.cz: ${urls.length} listovek → ${statuses.join(',')} → ${out.length} inzerátů (projdou prefilterem)`);
   console.log(`prace.cz: ${out.length} inzerátů z ${urls.length} dotazů (projdou prefilterem)`);
   return out;
 }

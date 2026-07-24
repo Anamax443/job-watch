@@ -125,14 +125,14 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       .then(async (r) => { run.log(`📥 MPSV: ${r.length}`); await run.flush(stats); return r; });
     const atsP = timed('ATS', fetchAts(env, (m) => run.log(m)).catch((e) => { run.log(`⚠️ ATS: ${e}`); return [] as JobPosting[]; }), 20000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 ATS: ${r.length}`); await run.flush(stats); return r; });
-    const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings)).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 25000, [] as JobPosting[], run)
+    const webP = timed('Web', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchWeb(env, settings, (m) => run.log(m))).catch((e) => { run.log(`⚠️ Web: ${e}`); return [] as JobPosting[]; }), 25000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 Web (Adzuna): ${r.length}`); await run.flush(stats); return r; });
     // jobs.cz (LMC) — konkrétní inzeráty z listovky; Adzuna ho v ČR neindexuje.
     // Deterministický fetch (bez LLM) → rychlý, fit do rozpočtu běhu (waitUntil).
-    const jobsczP = timed('jobs.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchJobsCz(env, settings)).catch((e) => { run.log(`⚠️ jobs.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
+    const jobsczP = timed('jobs.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchJobsCz(env, settings, (m) => run.log(m))).catch((e) => { run.log(`⚠️ jobs.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 jobs.cz: ${r.length}`); await run.flush(stats); return r; });
     // prace.cz (LMC) — volné hledání → projde prefilterem (šum se odřízne), dedup řeší překryv s jobs.cz.
-    const pracesczP = timed('prace.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchPraceCz(env, settings)).catch((e) => { run.log(`⚠️ prace.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
+    const pracesczP = timed('prace.cz', (env.WEB_SEARCH === 'false' ? Promise.resolve([] as JobPosting[]) : fetchPraceCz(env, settings, (m) => run.log(m))).catch((e) => { run.log(`⚠️ prace.cz: ${e}`); return [] as JobPosting[]; }), 12000, [] as JobPosting[], run)
       .then(async (r) => { run.log(`📥 prace.cz: ${r.length}`); await run.flush(stats); return r; });
     const [mpsv, ats, web, jobscz, pracecz] = await Promise.all([mpsvP, atsP, webP, jobsczP, pracesczP]);
     const jobs = [...mpsv, ...ats, ...web, ...jobscz, ...pracecz];

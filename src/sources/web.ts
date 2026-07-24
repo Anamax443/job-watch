@@ -51,11 +51,12 @@ const strip = (s: unknown) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-export async function fetchWeb(env: Env, settings: Settings): Promise<JobPosting[]> {
+export async function fetchWeb(env: Env, settings: Settings, log?: (msg: string) => void): Promise<JobPosting[]> {
   const e = env as unknown as Record<string, string>;
   const id = e.ADZUNA_APP_ID;
   const key = e.ADZUNA_APP_KEY;
   if (!id || !key) {
+    log?.('📡 web/Adzuna: klíče ADZUNA_APP_ID/KEY nenastaveny → přeskočeno (proto 0)');
     console.warn('Web: ADZUNA_APP_ID/KEY nenastaveny — přeskakuji');
     return [];
   }
@@ -85,6 +86,7 @@ export async function fetchWeb(env: Env, settings: Settings): Promise<JobPosting
       isAgency: false,
     });
   }
+  log?.(`📡 api.adzuna.com: ${queries.length} dotazů → ${out.length} inzerátů`);
   console.log(`Web (Adzuna): ${out.length} konkrétních inzerátů z ${queries.length} dotazů`);
   return out;
 }
