@@ -131,7 +131,7 @@ async function fetchIncrement(date: string): Promise<IncrementResult> {
  * Stáhne přírůstky od posledního zpracovaného data (kurzor v meta) do dneška,
  * omezeno na MAX_INCREMENT_BACKFILL_DAYS. Dedup řeší store.ts.
  */
-export async function fetchMpsv(env: Env): Promise<JobPosting[]> {
+export async function fetchMpsv(env: Env, log?: (msg: string) => void): Promise<JobPosting[]> {
   const maxBackfill = parseInt(env.MAX_INCREMENT_BACKFILL_DAYS ?? '7', 10) || 7;
   const today = new Date();
   const todayStr = ymd(today);
@@ -148,10 +148,14 @@ export async function fetchMpsv(env: Env): Promise<JobPosting[]> {
   // běh dnešek zopakuje — soubor MPSV se pro dané datum publikuje až během dne, ne v 06:00.
   // Přechodná chyba (≠404) = nezapočítat → zopakovat příště (ochrana dat).
   const out: JobPosting[] = [];
+  const probes: string[] = []; // komunikační stopa: co se z data.mpsv.cz dotazovalo a s jakým výsledkem
   let lastCovered: string | null = null;
   for (let d = new Date(start); ymd(d) <= todayStr; d = addDays(d, 1)) {
     const ds = ymd(d);
     const inc = await fetchIncrement(ds);
+    const tag =
+      inc.status === 'ok' ? `200(${inc.items.length})` : inc.status === 'absent' ? '404' : 'chyba';
+    probes.push(`${ds.slice(5)}→${tag}`); // MM-DD→stav(počet)
     if (inc.status === 'ok') {
       for (const rec of inc.items) {
         const job = mapRecord(rec);
@@ -163,8 +167,10 @@ export async function fetchMpsv(env: Env): Promise<JobPosting[]> {
   }
 
   if (lastCovered) await setMeta(env, CURSOR_KEY, lastCovered);
-  console.log(
-    `MPSV: ${out.length} záznamů (od ${ymd(start)} do ${todayStr}, kurzor → ${lastCovered ?? cursor ?? '—'})`,
-  );
+  const trail = probes.length ? probes.join(', ') : 'nic k dotazu (kurzor už na dnešku)';
+  const cursorNote = lastCovered ? `kurzor → ${lastCovered}` : `kurzor ${cursor ?? '—'} (beze změny)`;
+  // Komunikační identifikátor do historie: doloží, že MPSV opravdu odpovědělo (200/404) — 0 = nic nového, ne výpadek.
+  log?.(`📡 data.mpsv.cz: ${trail}; ${cursorNote}`);
+  console.log(`MPSV: ${out.length} záznamů (${trail}; ${cursorNote})`);
   return out;
 }

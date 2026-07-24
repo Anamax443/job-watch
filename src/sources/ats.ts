@@ -140,22 +140,36 @@ async function fetchTarget(t: AtsTarget): Promise<JobPosting[]> {
   }
 }
 
-export async function fetchAts(env: Env): Promise<JobPosting[]> {
+export async function fetchAts(env: Env, log?: (msg: string) => void): Promise<JobPosting[]> {
   const targets = await loadAtsTargets(env);
-  if (!targets.length) return [];
+  if (!targets.length) {
+    // Komunikační identifikátor: prázdný registr ≠ výpadek. Cíle (Greenhouse/Lever/Recruitee/
+    // Ashby/SmartRecruiters) plní jen screening přes Claude (discover.ts) — ve free/off režimu vypnutý.
+    log?.('📡 ATS: 0 cílů v registru sources — nic k obvolání (firmy objevuje jen screening přes Claude, teď vypnuto)');
+    return [];
+  }
   const out: JobPosting[] = [];
+  const probes: string[] = []; // komunikační stopa per cíl (platforma:firma → počet / chyba)
   await Promise.all(
     targets.map(async (t) => {
       try {
         const jobs = await fetchTarget(t);
-        for (const job of jobs) if (job.title) out.push(job);
+        let n = 0;
+        for (const job of jobs)
+          if (job.title) {
+            out.push(job);
+            n++;
+          }
+        probes.push(`${t.platform}:${t.company}→${n}`);
         if (t.sourceId) await markSourceChecked(env, t.sourceId, true);
       } catch (e) {
         console.warn(`ATS ${t.platform}:${t.company}:`, e);
+        probes.push(`${t.platform}:${t.company}→chyba`);
         if (t.sourceId) await markSourceChecked(env, t.sourceId, false);
       }
     }),
   );
+  log?.(`📡 ATS: obvoláno ${targets.length} cílů — ${probes.join(', ')}`);
   console.log(`ATS: ${out.length} záznamů z ${targets.length} cílů (z D1)`);
   return out;
 }
