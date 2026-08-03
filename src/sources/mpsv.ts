@@ -45,13 +45,67 @@ function mpsvSid(rec: any): string | null {
   return num.trim() || null;
 }
 
-function locationOf(rec: any): string | undefined {
+// RÚIAN VÚSC kódy krajů → název. MPSV adresy jsou kódované ("Kraj/124"), člověk ani model z čísla
+// region nepozná. adresaText bývá null (~99 %), takže lokalitu skládáme ze strukturované adresy.
+const KRAJ_NAZVY: Record<string, string> = {
+  '19': 'Hlavní město Praha',
+  '27': 'Středočeský kraj',
+  '35': 'Jihočeský kraj',
+  '43': 'Plzeňský kraj',
+  '51': 'Karlovarský kraj',
+  '60': 'Ústecký kraj',
+  '78': 'Liberecký kraj',
+  '86': 'Královéhradecký kraj',
+  '94': 'Pardubický kraj',
+  '108': 'Kraj Vysočina',
+  '116': 'Jihomoravský kraj',
+  '124': 'Olomoucký kraj',
+  '132': 'Moravskoslezský kraj',
+  '141': 'Zlínský kraj',
+};
+
+function krajName(kraj: any): string | undefined {
+  const id = typeof kraj?.id === 'string' ? kraj.id : undefined;
+  if (!id) return undefined;
+  const code = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id;
+  return KRAJ_NAZVY[code.trim()];
+}
+
+function fmtPsc(psc: unknown): string | undefined {
+  const s = typeof psc === 'string' ? psc.replace(/\s/g, '') : psc != null ? String(psc) : '';
+  if (/^\d{5}$/.test(s)) return `${s.slice(0, 3)} ${s.slice(3)}`;
+  return s || undefined;
+}
+
+/**
+ * Lokalita + kraj (region) z MPSV. `adresaText` je skoro vždy null → skládáme ze strukturované
+ * adresy `pracoviste[].adresa` (kraj, PSČ, ulice, dodatek). `kraj` = region pro filtr; obec MPSV
+ * uvádí jen kódem (Obec/…), takže město bereme z dodatekAdresy / názvu části obce, když je vyplněné.
+ * Typ „celaCR" = práce po celé ČR (fakticky remote) → region nechÁme prázdný (neutrální).
+ */
+function placeOf(rec: any): { location?: string; region?: string } {
   const m = rec?.mistoVykonuPrace;
-  if (!m) return undefined;
-  if (typeof m.adresaText === 'string' && m.adresaText.trim()) return m.adresaText.trim();
+  if (!m) return {};
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const typ = String(m?.typMistaVykonuPrace?.id ?? '');
   const p = Array.isArray(m.pracoviste) ? m.pracoviste[0] : undefined;
-  const addr = p?.adresa?.adresaText ?? p?.adresaText;
-  return typeof addr === 'string' ? addr.trim() : undefined;
+  const a = p?.adresa;
+  const region = krajName(a?.kraj);
+
+  if (typ.endsWith('celaCR')) return { location: 'Celá ČR (remote)', region: undefined };
+  if (str(m.adresaText)) return { location: str(m.adresaText), region };
+
+  // Pozor: `p.nazev` je název provozovny (ne obec) → do lokality nepatří. Obec MPSV inline nedává
+  // (jen kód), takže město bereme jen z nazevCastiObce / dodatekAdresy; jinak stačí PSČ + kraj.
+  const town = str(a?.nazevCastiObce) ?? str(a?.dodatekAdresy);
+  const street = str(a?.ulice?.nazev)
+    ? `${str(a?.ulice?.nazev)}${a?.cisloDomovni ? ` ${a.cisloDomovni}` : ''}${a?.cisloOrientacni ? `/${a.cisloOrientacni}` : ''}`
+    : undefined;
+  const psc = fmtPsc(a?.psc);
+  const cityLine = [psc, town].filter(Boolean).join(' ') || undefined;
+  const parts = [street, cityLine, region].filter(Boolean);
+  const location = parts.length ? parts.join(', ') : region;
+  return { location: location || undefined, region };
 }
 
 /** Kontaktní osoba z MPSV: prvniKontaktSeZamestnavatelem.komuSeHlasit (fallback kdeSeHlasit). */
@@ -84,13 +138,15 @@ function mapRecord(rec: any): JobPosting | null {
   const title = rec?.pozadovanaProfese?.cs ?? rec?.pozadovanaProfese ?? '';
   const employer = rec?.zamestnavatel?.nazev ?? '';
   const contact = contactOf(rec);
+  const place = placeOf(rec);
   return {
     id: `mpsv:${sid}`,
     source: 'mpsv',
     title: String(title).trim(),
     employer: String(employer).trim(),
     employerIco: rec?.zamestnavatel?.ico ? String(rec.zamestnavatel.ico) : undefined,
-    location: locationOf(rec),
+    location: place.location,
+    region: place.region,
     czIsco: rec?.profeseCzIsco?.id ? String(rec.profeseCzIsco.id) : undefined,
     salaryFrom: num(rec?.mesicniMzdaOd),
     salaryTo: num(rec?.mesicniMzdaDo),

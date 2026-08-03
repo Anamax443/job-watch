@@ -39,7 +39,9 @@ function locationClause(region?: string, threshold?: number): string {
     ` LOKALITA JE ZÁSADNÍ KRITÉRIUM: preferovaný region je „${r}". Pokud pozice NENÍ v tomto ` +
     `regionu a zároveň NENÍ remote/hybridní s reálným dojezdem, MUSÍŠ dát relevance POD ${t} ` +
     `(klidně 30–50), i kdyby role obsahově seděla perfektně. Pozici v regionu nebo plně remote ` +
-    `lokalitou nepenalizuj. Když lokalita inzerátu chybí, ber to jako neutrální.`
+    `lokalitou nepenalizuj. NIKDY si lokalitu nedomýšlej: hodnoť VÝHRADNĚ podle pole „Lokalita"/` +
+    `„Region" ve vstupu. Když ve vstupu žádná lokalita není, do zdůvodnění napiš „lokalita neuvedena" ` +
+    `a NETVRĎ, že je v preferovaném regionu — takový inzerát nesmí přes práh jen kvůli obsahu.`
   );
 }
 
@@ -78,7 +80,8 @@ export async function scoreJob(
   const user = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
-    job.location ? `Lokalita: ${job.location}` : '',
+    job.location ? `Lokalita: ${job.location}` : 'Lokalita: neuvedena',
+    job.region ? `Region (kraj): ${job.region}` : '',
     job.czIsco ? `CZ-ISCO: ${job.czIsco}` : '',
     job.salaryFrom || job.salaryTo
       ? `Mzda: ${job.salaryFrom ?? '?'}–${job.salaryTo ?? '?'} Kč`

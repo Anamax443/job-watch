@@ -35,7 +35,7 @@ D1:
 
 | Adaptér | Co dělá |
 |---|---|
-| `mpsv.ts` | denní přírůstky ÚP ČR / MPSV (celý trh, bez bot ochrany) |
+| `mpsv.ts` | denní přírůstky ÚP ČR / MPSV (celý trh, bez bot ochrany). **Lokalitu skládá ze strukturované adresy** `pracoviste[].adresa` (`adresaText` je null u ~99 % záznamů) a překládá RÚIAN kód kraje na název → plní `location` i `region` (typ „celá ČR" = remote) |
 | `ats.ts` | veřejná JSON API ATS systémů (Recruitee, Greenhouse, Lever, Ashby, SmartRecruiters); **cíle se čtou z D1 `sources`** — dynamicky objevené, žádné statické adresy |
 | `web.ts` | **konkrétní inzeráty z webu přes Adzuna Job API** (firma, lokalita, mzda, přímý odkaz) — paralelní dotazy podle profilu/regionu; vyžaduje `ADZUNA_APP_ID`+`ADZUNA_APP_KEY` (`WEB_SEARCH=false` vypne) |
 | `agencies.ts` | registr agentur práce → klasifikace `is_agency` napříč zdroji |
@@ -49,9 +49,18 @@ na běh). ATS adaptér pak tyto zdroje čte. Přehled: `GET /api/sources`.
 
 `prefilter.ts` (CZ-ISCO + klíčová slova; web obchází, je předfiltrovaný) → `store.ts`
 (cross-source dedup + **otisk věty / opakování v čase**) → `score.ts` (haiku, structured
-outputs — **hodnotí shodu proti profilu z Nastavení**) → `enrich.ts` (Sonnet 4.6 —
-deanonymizace původce) → `notify.ts` (Telegram + e-mail/Cloudflare Email Sending + **Slack**).
-`pipeline.ts` navíc: časové limity zdrojů + celkový strop, doskórování fronty, stav běhu do `runs`.
+outputs — **hodnotí shodu proti profilu z Nastavení**; dostává `location`+`region` a **nesmí si
+lokalitu domýšlet** — chybí-li ve vstupu, do zdůvodnění jde „lokalita neuvedena" a inzerát nesmí
+přes práh jen kvůli obsahu) → `enrich.ts` (Sonnet 4.6 — deanonymizace původce) → `notify.ts`
+(Telegram + e-mail/Cloudflare Email Sending + **Slack**). Notifikace nese **📄 text inzerátu**
+(výcuc; e-mail delší), lokalitu **vždy** (i „neuvedena") a skóre jako **⭐ Hodnocení AI** — ať jde
+odlišit od inzerátu. `pipeline.ts` navíc: časové limity zdrojů + celkový strop, doskórování fronty,
+stav běhu do `runs`.
+
+> **Lokalita = tvrdý filtr, ale jen když ji dodáme.** Dřív se u MPSV lokalita nečetla (kód bral jen
+> prázdný `adresaText`) → skoro každý inzerát měl lokalitu prázdnou, filtr regionu byl fakticky
+> vypnutý a slabý (free) model si region domýšlel (např. Olomoucký kraj hlásil jako „Brno"). Fix:
+> čteme strukturovanou adresu (`placeOf` v `mpsv.ts`) + region jde do skóre + je vidět v notifikaci.
 
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
@@ -147,6 +156,7 @@ takže fungují jen přes přihlášený Access (ne přímo přes workers.dev).
 
 - [x] Přesný název přírůstkového souboru: `volna-mista-prirustek-YYYY-MM-DD.json` (potvrzeno).
 - [x] Názvy polí MPSV proti schématu (potvrzeno — viz `src/sources/mpsv.ts`).
+- [x] **Lokalita/kraj MPSV** — `adresaText` je null u ~99 %; adresa je strukturovaně v `pracoviste[].adresa` (potvrzeno na živých datech, 1739/1897 má kraj) → `placeOf` čte `kraj`/`psc`/`ulice` a mapuje RÚIAN kód kraje na název.
 - [ ] **Wrapper přírůstkového JSONu** — ověřit klíč pole položek (`mpsv.ts` parsuje defenzivně).
 - [ ] **ATS endpointy** — ověřit živě tvar odpovědi pro každou platformu/firmu (`ats.ts`).
 - [ ] **Registr agentur práce** — zdroj strojových dat / IČO (`agencies.ts` má fallback dle názvu).

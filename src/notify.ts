@@ -1,4 +1,5 @@
 import type { Env, JobPosting, Settings } from './types';
+import { stripHtml, truncate } from './util';
 
 // Notifikace přes Telegram + Microsoft Graph (e-mail). Každý kanál vypínatelný v settings.
 
@@ -14,14 +15,26 @@ function fmtSalary(j: JobPosting): string {
   return `${j.salaryFrom ?? '?'}–${j.salaryTo ?? '?'} Kč`;
 }
 
-function buildText(j: NotifyJob): string {
+/** Text inzerátu (bez HTML, zkrácený) — ať jde v notifikaci odlišit od hodnocení AI. */
+function fmtDescription(j: JobPosting, max: number): string | null {
+  const d = stripHtml(j.description).replace(/\n{3,}/g, '\n\n').trim();
+  return d ? truncate(d, max) : null;
+}
+
+// `descLimit` = kolik znaků textu inzerátu vzít (e-mail unese víc, Telegram/Slack krátký výcuc).
+function buildText(j: NotifyJob, descLimit = 700): string {
   const lines = [`🔔 ${j.title}`, `🏢 ${j.employer}${j.isAgency ? ' (agentura)' : ''}`];
   if (j.realEmployer)
     lines.push(`🎯 Původce: ${j.realEmployer}${j.realEmployerUrl ? ` — ${j.realEmployerUrl}` : ''}`);
-  if (j.location) lines.push(`📍 ${j.location}`);
+  // Lokalitu ukazuj VŽDY — „neuvedena" je taky informace (region nešel ověřit, ber s rezervou).
+  lines.push(j.location ? `📍 ${j.location}` : '📍 lokalita neuvedena (region nelze ověřit)');
   const sal = fmtSalary(j);
   if (sal) lines.push(`💰 ${sal}`);
-  lines.push(`⭐ Skóre ${j.relevance}/100 — ${j.reason}`);
+  // Hodnocení AI vs. samotný inzerát jsou dvě různé věci → jasně je odděl a pojmenuj.
+  lines.push(`⭐ Hodnocení AI ${j.relevance}/100 — ${j.reason}`);
+  const desc = fmtDescription(j, descLimit);
+  if (desc) lines.push(`📄 Text inzerátu:\n${desc}`);
+  else lines.push('📄 Text inzerátu: zdroj neuvedl žádný popis');
   lines.push(`🔗 ${j.url ?? '(bez odkazu)'}`);
   lines.push(`zdroj: ${j.source}`);
   return lines.join('\n');
@@ -133,7 +146,8 @@ export async function notify(
   log?: (msg: string) => void,
   textOverride?: string, // pro test doručení — vlastní text místo formátu inzerátu
 ): Promise<NotifyResult> {
-  const text = textOverride ?? buildText(job);
+  const text = textOverride ?? buildText(job); // Telegram/Slack — krátký výcuc inzerátu
+  const emailText = textOverride ?? buildText(job, 3000); // e-mail unese delší text (a často není odkaz)
   const lines: string[] = [];
   const say = (m: string) => {
     lines.push(m);
@@ -153,7 +167,7 @@ export async function notify(
   if (settings.notifyEmail && settings.emailTo) {
     const from = env.EMAIL_FROM || 'jobwatch@maxferit.cz';
     say(`📧 E-mail ${from} → ${settings.emailTo}: odesílám přes Cloudflare Email Sending…`);
-    const res = await sendEmail(env, settings.emailTo, `JobWatch: ${job.title}`, text);
+    const res = await sendEmail(env, settings.emailTo, `JobWatch: ${job.title}`, emailText);
     email = res.ok;
     say(
       res.ok
