@@ -133,6 +133,11 @@ wrangler d1 execute job-watch --remote --file=seed.sql
 
 > **CI:** přidej GitHub secret `CLOUDFLARE_API_TOKEN` (Workers + D1). `deploy.yml` pak
 > nasazuje při pushi do `main`, `seed.yml` se spouští ručně. Vyžaduje vyplněné `database_id`.
+>
+> **Jednorázový backfill lokality** (`mpsv-backfill-location.yml`, „Run workflow"): dotáhne
+> lokalitu+kraj u už uložených MPSV inzerátů, které se dřív uložily s prázdnou lokalitou, a
+> vynuluje jim skóre → příští běh je přeskóruje s korektním regionem. Zdroj adres = plný export
+> MPSV (proto CI, ne Worker). Logika `placeOf` je zkopírovaná z `src/sources/mpsv.ts`.
 
 Nastavení (jakou pozici hledat, kam posílat e-mail, na jaký Telegram chat_id,
 prahy, zapnuté kanály) se edituje v UI na `/settings` — ukládá se do D1, cron je
