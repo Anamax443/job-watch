@@ -10,6 +10,7 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "check:region": "node scripts/region-check.ts",
     "db:init": "wrangler d1 execute job-watch --remote --file=schema.sql",
     "db:init:local": "wrangler d1 execute job-watch --local --file=schema.sql",
     "seed": "node --max-old-space-size=4096 scripts/seed.ts",

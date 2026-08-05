@@ -155,13 +155,13 @@ export async function bumpSeen(env: Env, id: string): Promise<void> {
 /** Dávka dosud neohodnocených (seedovaných) pozic ke skórování. */
 export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[]> {
   const rows = await env.DB.prepare(
-    `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to, url, description, is_agency
+    `SELECT id, source, title, employer, employer_ico, location, region, cz_isco, salary_from, salary_to, url, description, is_agency
      FROM seen_jobs WHERE relevance IS NULL AND duplicate_of IS NULL LIMIT ?`,
   )
     .bind(limit)
     .all<{
       id: string; source: string; title: string; employer: string; employer_ico: string | null;
-      location: string | null; cz_isco: string | null; salary_from: number | null;
+      location: string | null; region: string | null; cz_isco: string | null; salary_from: number | null;
       salary_to: number | null; url: string | null; description: string | null; is_agency: number;
     }>();
   return (rows.results ?? []).map((r) => ({
@@ -171,6 +171,9 @@ export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[
     employer: r.employer ?? '',
     employerIco: r.employer_ico ?? undefined,
     location: r.location ?? undefined,
+    // region je pro filtr regionu (src/region.ts) — bez něj by doskórování z fronty
+    // posuzovalo lokalitu jen z textu adresy.
+    region: r.region ?? undefined,
     czIsco: r.cz_isco ?? undefined,
     salaryFrom: r.salary_from ?? undefined,
     salaryTo: r.salary_to ?? undefined,
@@ -184,6 +187,36 @@ export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[
 export async function updateScore(env: Env, id: string, score: ScoreResult): Promise<void> {
   await env.DB.prepare('UPDATE seen_jobs SET relevance = ?2, seniority = ?3, reason = ?4 WHERE id = ?1')
     .bind(id, score.relevance, score.seniority, score.reason)
+    .run();
+}
+
+// --- Revize regionu u už uložených inzerátů ------------------------------
+// Skóre nad prahem vzniklá dřív (než byl filtr regionu deterministický) drží v seznamu
+// pozice z cizích krajů. Běh je proto po každém stažení projde a zastropuje.
+
+export interface ScoredRow {
+  id: string;
+  title: string;
+  employer: string;
+  location: string | null;
+  region: string | null;
+  relevance: number;
+  reason: string | null;
+}
+
+export async function loadScoredAbove(env: Env, threshold: number, limit: number): Promise<ScoredRow[]> {
+  const rows = await env.DB.prepare(
+    `SELECT id, title, employer, location, region, relevance, reason
+     FROM seen_jobs WHERE relevance >= ?1 AND duplicate_of IS NULL LIMIT ?2`,
+  )
+    .bind(threshold, limit)
+    .all<ScoredRow>();
+  return rows.results ?? [];
+}
+
+export async function updateRelevance(env: Env, id: string, relevance: number, reason: string): Promise<void> {
+  await env.DB.prepare('UPDATE seen_jobs SET relevance = ?2, reason = ?3 WHERE id = ?1')
+    .bind(id, relevance, reason)
     .run();
 }
 

@@ -1,6 +1,7 @@
 import type { Env, JobPosting, ScoreResult } from './types';
 import { messagesCreate, firstText, extractJson } from './anthropic';
 import { providerChain, runWorkersJson } from './ai';
+import { applyRegionGate } from './region';
 import { truncate } from './util';
 
 // Relevance scoring přes levný model (haiku) + structured outputs (JSON-only).
@@ -29,7 +30,11 @@ function clamp(n: number): number {
 
 /**
  * Lokalita jako tvrdý faktor: pozice mimo preferovaný region (a ne remote/hybrid s
- * dojezdem) NESMÍ přes práh — i kdyby jinak seděla skvěle. AI má poslední slovo.
+ * dojezdem) NESMÍ přes práh — i kdyby jinak seděla skvěle.
+ *
+ * Tahle věta v promptu je jen NÁPOVĚDA pro model. O výsledku rozhoduje deterministický
+ * strop v src/region.ts (applyRegionGate níže) — free model instrukci prokazatelně
+ * ignoroval (pražský inzerát dostal 80/100 s odůvodněním „je v preferovaném regionu").
  */
 function locationClause(region?: string, threshold?: number): string {
   const r = (region ?? '').trim();
@@ -68,6 +73,22 @@ function normalize(parsed: any): ScoreResult | null {
     ? parsed.seniority
     : 'other';
   return { relevance: clamp(rel), seniority: sen, reason: String(parsed?.reason ?? '') };
+}
+
+/**
+ * Tvrdý strop skóre podle lokality — poslední slovo má kód, ne model.
+ * Mimo region → hluboko pod práh, neověřitelná lokalita → těsně pod práh; důvod jde do `reason`,
+ * takže je vidět v appce i v notifikaci (viz outputs-legible-to-outsiders).
+ */
+function gateByRegion(
+  out: ScoreResult,
+  job: JobPosting,
+  opts: { region?: string; threshold?: number },
+): ScoreResult {
+  const g = applyRegionGate(out, job, opts.region, opts.threshold);
+  if (!g.capped) return out;
+  console.log(`region gate ${job.id}: ${out.relevance} → ${g.relevance} (${g.check.note})`);
+  return { ...out, relevance: g.relevance, reason: g.reason };
 }
 
 export async function scoreJob(
@@ -115,7 +136,8 @@ export async function scoreJob(
         parsed = await runWorkersJson(env.AI as Ai, system, user, 400);
       }
       const out = normalize(parsed);
-      if (out) return out;
+      // Region NEnechávej na modelu: zastropuj skóre podle skutečné lokality (src/region.ts).
+      if (out) return gateByRegion(out, job, opts);
     } catch (e) {
       console.warn(`score ${job.id} [${provider}]: ${e}`);
     }

@@ -26,7 +26,10 @@ import {
   bumpSeen,
   loadUnscored,
   updateScore,
+  loadScoredAbove,
+  updateRelevance,
 } from './store';
+import { applyRegionGate } from './region';
 
 export interface RunStats {
   fetched: number;
@@ -286,6 +289,31 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       if (lv.checked) {
         stats.livenessGone = lv.gone;
         run.log(`🔓 Živost: ověřeno ${lv.checked} · na portálu ${lv.active} · nově staženo z portálu ${lv.gone}`);
+        await run.flush(stats);
+      }
+    }
+
+    // 4c) revize regionu u dřívějších skóre — dokud o lokalitě rozhodoval jen model,
+    //     protlačil nad práh i pozice z cizích krajů (např. Praha při nastavení „brno").
+    //     Deterministická oprava (bez AI, bez notifikací): mimo region → strop pod prahem.
+    if (settings.regionPriority?.trim()) {
+      const stale = await loadScoredAbove(env, settings.notifyThreshold, 300);
+      let fixed = 0;
+      for (const r of stale) {
+        const g = applyRegionGate(
+          { relevance: r.relevance, reason: r.reason ?? '' },
+          { title: r.title, location: r.location ?? undefined, region: r.region ?? undefined },
+          settings.regionPriority,
+          settings.notifyThreshold,
+        );
+        // Jen prokazatelně cizí kraj — neurčitelnou lokalitu zpětně nepřehodnocujeme.
+        if (!g.capped || g.check.verdict !== 'out') continue;
+        await updateRelevance(env, r.id, g.relevance, g.reason);
+        fixed++;
+        if (fixed <= 5) run.log(`  🧭 mimo region: ${r.title} — ${r.employer} (${r.location ?? '?'}) → ${r.relevance} → ${g.relevance}`);
+      }
+      if (fixed) {
+        run.log(`🧭 Region „${settings.regionPriority}": opraveno ${fixed} dřívějších skóre mimo region${fixed > 5 ? ' (prvních 5 vypsáno)' : ''}.`);
         await run.flush(stats);
       }
     }

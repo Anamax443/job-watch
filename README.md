@@ -49,18 +49,26 @@ na běh). ATS adaptér pak tyto zdroje čte. Přehled: `GET /api/sources`.
 
 `prefilter.ts` (CZ-ISCO + klíčová slova; web obchází, je předfiltrovaný) → `store.ts`
 (cross-source dedup + **otisk věty / opakování v čase**) → `score.ts` (haiku, structured
-outputs — **hodnotí shodu proti profilu z Nastavení**; dostává `location`+`region` a **nesmí si
-lokalitu domýšlet** — chybí-li ve vstupu, do zdůvodnění jde „lokalita neuvedena" a inzerát nesmí
-přes práh jen kvůli obsahu) → `enrich.ts` (Sonnet 4.6 — deanonymizace původce) → `notify.ts`
+outputs — **hodnotí shodu proti profilu z Nastavení**; dostává `location`+`region`) →
+**`region.ts` (tvrdý filtr regionu — rozhoduje kód, ne model)** → `enrich.ts` (Sonnet 4.6 — deanonymizace původce) → `notify.ts`
 (Telegram + e-mail/Cloudflare Email Sending + **Slack**). Notifikace nese **📄 text inzerátu**
 (výcuc; e-mail delší), lokalitu **vždy** (i „neuvedena") a skóre jako **⭐ Hodnocení AI** — ať jde
 odlišit od inzerátu. `pipeline.ts` navíc: časové limity zdrojů + celkový strop, doskórování fronty,
 stav běhu do `runs`.
 
-> **Lokalita = tvrdý filtr, ale jen když ji dodáme.** Dřív se u MPSV lokalita nečetla (kód bral jen
-> prázdný `adresaText`) → skoro každý inzerát měl lokalitu prázdnou, filtr regionu byl fakticky
-> vypnutý a slabý (free) model si region domýšlel (např. Olomoucký kraj hlásil jako „Brno"). Fix:
-> čteme strukturovanou adresu (`placeOf` v `mpsv.ts`) + region jde do skóre + je vidět v notifikaci.
+> **Region rozhoduje kód, ne AI (`src/region.ts`).** Pravidlo „jen pozice v mém regionu" bylo
+> nejdřív jen věta v systémovém promptu — a slabý free model (Llama 8B) ji ignoroval: pražský
+> inzerát dostal 80/100 se zdůvodněním „Lokalita je v Praze, což je v preferovaném regionu",
+> ačkoli v Nastavení bylo „brno". Teď se z textu lokality/kraje deterministicky určí kraj
+> (číselník krajů + okresní a větší města) a skóre se **zastropuje**:
+> **mimo region → max 40**, **lokalitu nelze určit → těsně pod práh**, **celá ČR / remote → bez
+> penalizace**. Důvod se píše do zdůvodnění (`⛔`/`⚠️`), takže je vidět v appce, v konzoli i v mailu.
+> Kontrola bez nasazení: `npm run check:region` (`scripts/region-check.ts`).
+> Každý běh navíc **zreviduje dřív uložená skóre** nad prahem a ta prokazatelně mimo region srazí
+> (řádek `🧭 Region …` v konzoli) — jinak by v seznamu zůstaly staré přestřelené nálezy.
+>
+> Předtím se u MPSV lokalita vůbec nečetla (kód bral jen prázdný `adresaText`) → filtr byl fakticky
+> vypnutý; opraveno čtením strukturované adresy (`placeOf` v `mpsv.ts`).
 
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
