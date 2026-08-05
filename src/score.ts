@@ -95,7 +95,15 @@ export async function scoreJob(
   env: Env,
   job: JobPosting,
   profile = '',
-  opts: { region?: string; threshold?: number; provider?: string } = {},
+  // `onFail` = proč skóre nevzniklo. Bez něj zůstal důvod jen ve Worker logu (console.warn)
+  // a v konzoli běhu svítilo holé „AI backend neodpovídá" — nikdo z toho nepoznal, jestli
+  // je vyčerpaný free limit, spadlý backend, nebo model vrátil nesmysl.
+  opts: {
+    region?: string;
+    threshold?: number;
+    provider?: string;
+    onFail?: (msg: string) => void;
+  } = {},
 ): Promise<ScoreResult | null> {
   const system = buildSystem(profile, opts.region, opts.threshold);
   const user = [
@@ -119,6 +127,10 @@ export async function scoreJob(
     anthropicKey: env.ANTHROPIC_API_KEY,
     ai: env.AI,
   });
+  if (!chain.length) {
+    opts.onFail?.('žádný AI backend k dispozici (chybí binding Workers AI i klíč Claude, nebo je AI vypnutá)');
+    return null;
+  }
   for (const provider of chain) {
     try {
       let parsed: any = null;
@@ -138,8 +150,12 @@ export async function scoreJob(
       const out = normalize(parsed);
       // Region NEnechávej na modelu: zastropuj skóre podle skutečné lokality (src/region.ts).
       if (out) return gateByRegion(out, job, opts);
+      // Odpověď dorazila, ale nedá se použít (chybí číselná relevance) — u free modelu se to
+      // stává. Ukázka odpovědi do hlášky, ať je poznat rozdíl proti výpadku backendu.
+      opts.onFail?.(`${provider}: model nevrátil použitelné skóre (${JSON.stringify(parsed ?? null).slice(0, 120)})`);
     } catch (e) {
       console.warn(`score ${job.id} [${provider}]: ${e}`);
+      opts.onFail?.(`${provider}: ${(e as Error)?.message ?? e}`);
     }
   }
   // Selhání (rate-limit/parse) → null: NEzapisovat 0, ať se inzerát příště přeskóruje

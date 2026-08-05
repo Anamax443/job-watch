@@ -229,16 +229,16 @@ export interface QueuedJob extends JobPosting {
  * Nejnovější první — čerstvý lead má přednost před historií. Potvrzeně zrušené (active=0)
  * se nescorují, škoda času.
  */
-export async function loadUnscored(env: Env, limit: number): Promise<QueuedJob[]> {
+export async function loadUnscored(env: Env, limit: number, offset = 0): Promise<QueuedJob[]> {
   const rows = await env.DB.prepare(
     `SELECT id, source, title, employer, employer_ico, location, region, cz_isco, salary_from, salary_to,
             url, description, is_agency, notified_at
      FROM seen_jobs
      WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)
      ORDER BY first_seen DESC
-     LIMIT ?`,
+     LIMIT ?1 OFFSET ?2`,
   )
-    .bind(limit)
+    .bind(limit, offset)
     .all<{
       id: string; source: string; title: string; employer: string; employer_ico: string | null;
       location: string | null; region: string | null; cz_isco: string | null; salary_from: number | null;

@@ -79,6 +79,12 @@ stav běhu do `runs`.
 > strop `MAX_NOTIFY_FROM_QUEUE_PER_RUN`, default 10 zpráv na běh, ať dohánění historie neudělá
 > lavinu). Hloubka fronty je ve `stats.queueDepth`, v souhrnu běhu i v UI.
 >
+> Fronta se **nesmí zaseknout na vadném řádku**: co se nepodaří ohodnotit, zůstane v ní na
+> stejném místě, a protože je pořadí deterministické, narazil by na to každý další běh znovu.
+> Neúspěšné položky se proto přeskakují (`loadUnscored(limit, offset)`) a teprve tři dávky po
+> sobě bez výsledku běh zastaví — s **důvodem** (`scoreJob(..., onFail)`), ať jde odlišit
+> vyčerpaný free limit od spadlého backendu a od modelu, který vrátil nepoužitelnou odpověď.
+>
 > Souvisí s tím **rozpočet běhu**: strop 26 s byl společný pro cron i ruční běh, takže fetch
 > zdrojů (limity 20+20+25+12+12 s paralelně) ho skoro celý spotřeboval. Cron má teď vlastních
 > 120 s — limit Workeru 30 s je **CPU** čas, a čekání na HTTP/AI do něj nespadá. Ruční běh zůstal

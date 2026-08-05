@@ -195,6 +195,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     const maxScores = parseInt(env.MAX_SCORES_PER_RUN ?? '150', 10) || 150;
     let aiCalls = 0;
 
+    // Proč skóre nevzniklo — do konzole běhu, ne jen do Worker logu. Bez toho se nedá poznat
+    // vyčerpaný free limit od spadlého backendu nebo od modelu, co vrátil nesmysl.
+    let lastFail = '';
+    let failLogged = 0;
+    const onScoreFail = (id: string) => (msg: string) => {
+      lastFail = msg;
+      if (failLogged < 3) {
+        failLogged++;
+        run.log(`  ⚠️ ${id}: skóre nevzniklo — ${msg}`);
+      }
+    };
+
     const companyCandidates: SourceCandidate[] = [];
     let unchanged = 0;
     // Kandidáti, co mají hotovo (ohodnocené teď / beze změny). Co v setu není, na to nezbyl
@@ -222,6 +234,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         region: settings.regionPriority,
         threshold: settings.notifyThreshold,
         provider,
+        onFail: onScoreFail(id),
       });
       // Scoring selhal (rate-limit/parse) → nech kandidáta neoznačeného: níž se uloží do
       // fronty bez skóre a příští běh ho zkusí znovu (dřív takový inzerát propadl úplně).
@@ -395,8 +408,10 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     let backlog = 0;
     let queueNotified = 0;
     let queueHeld = 0;
+    let queueOffset = 0; // o kolik zaseknutých řádků je potřeba se ve frontě posunout
+    let dryBatches = 0; // dávky po sobě bez jediného skóre
     while (Date.now() < deadline && aiCalls < maxScores) {
-      const batch = await loadUnscored(env, 3);
+      const batch = await loadUnscored(env, 3, queueOffset);
       if (!batch.length) break;
       let progressed = 0;
       aiCalls += batch.length;
@@ -407,6 +422,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
               region: settings.regionPriority,
               threshold: settings.notifyThreshold,
               provider,
+              onFail: onScoreFail(job.id),
             });
             if (!sc) return;
             await updateScore(env, job.id, sc);
@@ -448,13 +464,20 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         }),
       );
       backlog += progressed;
-      // Celá dávka bez pokroku = skórování zlobí (rate-limit/výpadek). Nemá smysl točit
-      // dokola tytéž řádky až do stropu — zbytek dožene další běh.
-      if (!progressed) {
-        run.log('⏸ Fronta: dávka se nepodařila ohodnotit (AI backend neodpovídá) — zbytek příště.');
+      // Co se ohodnotit nepodařilo, zůstává ve frontě na stejném místě → posuň se za to,
+      // jinak by pár vadných řádků v čele blokovalo frontu napořád (pořadí je deterministické,
+      // příští běh by narazil na tytéž). Tři dávky po sobě bez výsledku = backend nefunguje,
+      // pak už nemá smysl utrácet čas ani volání.
+      queueOffset += batch.length - progressed;
+      dryBatches = progressed ? 0 : dryBatches + 1;
+      if (dryBatches >= 3) {
+        run.log(`⏸ Fronta: tři dávky po sobě bez výsledku${lastFail ? ` (${lastFail})` : ''} — zbytek dožene další běh.`);
         break;
       }
       if (backlog % 18 === 0) await run.flush(stats);
+    }
+    if (queueOffset && dryBatches < 3) {
+      run.log(`↷ Fronta: ${queueOffset} inzerátů se ohodnotit nepodařilo, přeskočeny — zkusí je další běh.`);
     }
     if (backlog) {
       stats.scored += backlog;
