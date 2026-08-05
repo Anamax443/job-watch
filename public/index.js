@@ -147,7 +147,9 @@ function fmtStats(s){
   if(!s) return '';
   try{ const o=typeof s==='string'?JSON.parse(s):s;
     const gone = o.livenessGone ? ` · staženo z portálu ${o.livenessGone}` : '';
-    const pend = o.candidatesPending ? ` · zbývá ${o.candidatesPending}` : '';
+    // „fronta" = uložené inzeráty čekající na skóre. Nezahazují se, dožene je další běh.
+    const pend = o.queueDepth ? ` · fronta ${o.queueDepth}`
+      : (o.candidatesPending ? ` · zbývá ${o.candidatesPending}` : '');
     const noise = (o.fetched!=null && o.candidates!=null && o.fetched>o.candidates) ? ` (−${o.fetched-o.candidates} šum)` : '';
     return `staženo ${o.fetched} · kandidáti ${o.candidates}${noise} · skóre ${o.scored} · deanon ${o.enriched} · notif ${o.notified} · zdroje +${o.discovered}${gone}${pend}`;
   }catch(e){ return ''; }

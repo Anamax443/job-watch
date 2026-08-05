@@ -1,8 +1,10 @@
 name = "job-watch"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
-# Dočasně ponecháno zapnuté i workers.dev (přechod). Po zprovoznění Accessu → false.
-workers_dev = true
+# VYPNUTO: workers.dev nejde chránit Cloudflare Accessem, takže dokud bylo zapnuté, šla
+# všechna čtecí API (/api/settings s profilem/CV, /api/jobs s kontaktními osobami, /api/runs)
+# vytáhnout bez přihlášení mimo Access. Jediná adresa je jobwatch.maxferit.cz (za Accessem).
+workers_dev = false
 
 # Denní běh: 07:00 SEČ / 06:00 UTC. MPSV publikuje přírůstky v pracovní dny.
 [triggers]
@@ -16,8 +18,7 @@ binding = "ASSETS"
 run_worker_first = true
 # /api/* řeší Worker, zbytek obslouží env.ASSETS.fetch (viz src/index.ts).
 
-# Custom doména pro Cloudflare Access (workers.dev nelze chránit Accessem).
-# workers.dev zatím necháváme zapnuté; po zprovoznění Accessu ho lze vypnout (workers_dev = false).
+# Custom doména pro Cloudflare Access (workers.dev nelze chránit Accessem) — jediná cesta dovnitř.
 [[routes]]
 pattern = "jobwatch.maxferit.cz"
 custom_domain = true
@@ -54,6 +55,11 @@ ENRICH_MODEL = "claude-sonnet-4-6"
 MAX_INCREMENT_BACKFILL_DAYS = "7"
 # Kolik nových zdrojů (personálek/firem) max. dynamicky proscreenovat za jeden běh (cost control).
 MAX_DISCOVERY_PER_RUN = "5"
+# Strop AI hodnocení na jeden běh — předvídatelná spotřeba backendu (Workers AI má zdarma
+# 10 000 neuronů/den). Co se nevejde, počká ve frontě na další běh; uplatnění se loguje.
+MAX_SCORES_PER_RUN = "150"
+# Strop notifikací odeslaných z fronty na jeden běh (dohánění historie ať neudělá lavinu zpráv).
+MAX_NOTIFY_FROM_QUEUE_PER_RUN = "10"
 # Otevřené hledání „jako na Googlu" přes Serper.dev (rychlé). Funguje jen když je
 # nastaven secret SERPER_API_KEY; jinak se web zdroj přeskočí. "false" = úplně vypnout.
 WEB_SEARCH = "true"

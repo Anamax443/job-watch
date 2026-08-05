@@ -92,6 +92,10 @@ export interface Env {
   MAX_INCREMENT_BACKFILL_DAYS?: string;
   MAX_DISCOVERY_PER_RUN?: string;
   MAX_LIVENESS_CHECKS_PER_RUN?: string;
+  // Strop notifikací odeslaných z fronty na jeden běh (dohánění historie ať neudělá lavinu).
+  MAX_NOTIFY_FROM_QUEUE_PER_RUN?: string;
+  // Strop AI hodnocení na jeden běh (předvídatelná spotřeba AI backendu). Default 150.
+  MAX_SCORES_PER_RUN?: string;
   WEB_SEARCH?: string;
   GIT_COMMIT?: string;
   BUILT_AT?: string;

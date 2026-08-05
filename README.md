@@ -70,6 +70,20 @@ stav běhu do `runs`.
 > Předtím se u MPSV lokalita vůbec nečetla (kód bral jen prázdný `adresaText`) → filtr byl fakticky
 > vypnutý; opraveno čtením strukturované adresy (`placeOf` v `mpsv.ts`).
 
+> **Fronta: co se nestihne ohodnotit, se ULOŽÍ (`parkJobs` v `store.ts`).** Dřív se ukládal jen
+> inzerát, který se v běhu stihl oskórovat — na zbytek se „došel čas" a protože se přírůstek MPSV
+> pro dané datum stahuje jen jednou (kurzor se posune), byl nenávratně pryč. Denní běh takhle
+> reálně ohodnotil **3 z 91 kandidátů a 88 zahodil**, i když log sliboval „další dávka je dožene".
+> Teď se nezpracovaní kandidáti uloží bez skóre (`relevance NULL`) a fronta se dohání v dalších
+> bězích — **včetně notifikací** (jinak by lead dostal skóre, ale nikdo by se o něm nedozvěděl;
+> strop `MAX_NOTIFY_FROM_QUEUE_PER_RUN`, default 10 zpráv na běh, ať dohánění historie neudělá
+> lavinu). Hloubka fronty je ve `stats.queueDepth`, v souhrnu běhu i v UI.
+>
+> Souvisí s tím **rozpočet běhu**: strop 26 s byl společný pro cron i ruční běh, takže fetch
+> zdrojů (limity 20+20+25+12+12 s paralelně) ho skoro celý spotřeboval. Cron má teď vlastních
+> 120 s — limit Workeru 30 s je **CPU** čas, a čekání na HTTP/AI do něj nespadá. Ruční běh zůstal
+> krátký (jede přes `fetch` + `waitUntil` a UI ho stejně dávkuje ve smyčce).
+
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
 
@@ -158,6 +172,13 @@ prahy, zapnuté kanály) se edituje v UI na `/settings` — ukládá se do D1, c
 UI běží na vlastní doméně **`jobwatch.maxferit.cz`** chráněné **Cloudflare Access**
 (Zero Trust) — politika „Allow → Emails → povolený e-mail", přihlášení jednorázovým PINem.
 *(Pozn.: Access nelze dát na `*.workers.dev` — proto custom doména.)*
+
+> **`workers_dev = false`** (wrangler.toml). Dokud bylo workers.dev zapnuté, existovala druhá,
+> **Accessem nechráněná** adresa téhož Workeru — a čtecí endpointy si autentizaci nehlídají samy,
+> takže přes ni šlo bez přihlášení stáhnout `/api/settings` (profil/CV, cílový e-mail, Telegram
+> chat_id), `/api/jobs` (včetně kontaktních osob a jejich e-mailů), `/api/runs` i `/api/sources`.
+> Zápisy chráněné byly (hlavička `Cf-Access-Authenticated-User-Email`), čtení ne. Ověřeno živě
+> 2026-08-05, vypnuto týmž dnem. Jediná cesta dovnitř je custom doména za Accessem.
 
 Citlivé endpointy (`/api/keys`, `/api/run`, `/api/run/stop`, `/api/test-notify`,
 `POST /api/settings`) navíc v kódu vyžadují hlavičku `Cf-Access-Authenticated-User-Email`,

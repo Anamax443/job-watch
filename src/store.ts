@@ -137,10 +137,77 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
     .run();
 }
 
+export interface ParkInput {
+  job: JobPosting;
+  hash: string;
+  dedupKey: string;
+  fingerprint?: string | null;
+}
+
+/**
+ * Uloží kandidáty BEZ skóre — „zaparkuje" je do fronty na příští běh.
+ *
+ * Proč: dřív se ukládal jen inzerát, který se stihl ohodnotit. Na co v běhu nezbyl čas,
+ * to nikde neskončilo — a protože se přírůstek MPSV pro dané datum stahuje jen jednou
+ * (kurzor se posune), byly ty inzeráty nenávratně pryč. Běh tak denně zahodil většinu
+ * kandidátů, i když log sliboval „další dávka je dožene".
+ *
+ * Existující řádek NEPŘEPISUJE (jen `last_seen`): nesmí přijít o skóre, notifikaci ani
+ * o stav živosti (`active`) — na rozdíl od `saveJob` tady nemáme čím je nahradit.
+ */
+export async function parkJobs(env: Env, items: ParkInput[]): Promise<number> {
+  if (!items.length) return 0;
+  const stmt = env.DB.prepare(
+    `INSERT INTO seen_jobs
+       (id, source, hash, dedup_key, title, employer, employer_ico, location, region, cz_isco,
+        salary_from, salary_to, url, description, is_agency, fingerprint,
+        contact_name, contact_email, contact_phone, contact_position, first_seen, last_seen)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,
+             datetime('now'), datetime('now'))
+     ON CONFLICT(id) DO UPDATE SET last_seen = datetime('now')`,
+  );
+  const CHUNK = 40; // D1 batch = jeden round-trip; po částech, ať se nenafoukne jeden dotaz
+  let n = 0;
+  for (let i = 0; i < items.length; i += CHUNK) {
+    const chunk = items.slice(i, i + CHUNK).map((x) =>
+      stmt.bind(
+        x.job.id,
+        x.job.source,
+        x.hash,
+        x.dedupKey,
+        x.job.title,
+        x.job.employer,
+        x.job.employerIco ?? null,
+        x.job.location ?? null,
+        x.job.region ?? null,
+        x.job.czIsco ?? null,
+        x.job.salaryFrom ?? null,
+        x.job.salaryTo ?? null,
+        x.job.url ?? null,
+        x.job.description ?? null,
+        x.job.isAgency ? 1 : 0,
+        x.fingerprint ?? null,
+        x.job.contactName ?? null,
+        x.job.contactEmail ?? null,
+        x.job.contactPhone ?? null,
+        x.job.contactPosition ?? null,
+      ),
+    );
+    await env.DB.batch(chunk);
+    n += chunk.length;
+  }
+  return n;
+}
+
 export async function setNotified(env: Env, id: string): Promise<void> {
   await env.DB.prepare("UPDATE seen_jobs SET notified_at = datetime('now') WHERE id = ?")
     .bind(id)
     .run();
+}
+
+/** Označí záznam jako duplikát jiného (fronta — hlavní cesta to řeší už při ukládání). */
+export async function markDuplicate(env: Env, id: string, ofId: string): Promise<void> {
+  await env.DB.prepare('UPDATE seen_jobs SET duplicate_of = ?2 WHERE id = ?1').bind(id, ofId).run();
 }
 
 /** Inzerát se objevil znovu (opakování v čase) → zvýší počítadlo na originálu. */
@@ -152,17 +219,31 @@ export async function bumpSeen(env: Env, id: string): Promise<void> {
     .run();
 }
 
-/** Dávka dosud neohodnocených (seedovaných) pozic ke skórování. */
-export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[]> {
+/** Položka fronty = inzerát bez skóre + údaj, jestli se o něm už notifikovalo. */
+export interface QueuedJob extends JobPosting {
+  notifiedAt: string | null;
+}
+
+/**
+ * Dávka dosud neohodnocených pozic ke skórování (zaparkované z minulých běhů + seed).
+ * Nejnovější první — čerstvý lead má přednost před historií. Potvrzeně zrušené (active=0)
+ * se nescorují, škoda času.
+ */
+export async function loadUnscored(env: Env, limit: number): Promise<QueuedJob[]> {
   const rows = await env.DB.prepare(
-    `SELECT id, source, title, employer, employer_ico, location, region, cz_isco, salary_from, salary_to, url, description, is_agency
-     FROM seen_jobs WHERE relevance IS NULL AND duplicate_of IS NULL LIMIT ?`,
+    `SELECT id, source, title, employer, employer_ico, location, region, cz_isco, salary_from, salary_to,
+            url, description, is_agency, notified_at
+     FROM seen_jobs
+     WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)
+     ORDER BY first_seen DESC
+     LIMIT ?`,
   )
     .bind(limit)
     .all<{
       id: string; source: string; title: string; employer: string; employer_ico: string | null;
       location: string | null; region: string | null; cz_isco: string | null; salary_from: number | null;
       salary_to: number | null; url: string | null; description: string | null; is_agency: number;
+      notified_at: string | null;
     }>();
   return (rows.results ?? []).map((r) => ({
     id: r.id,
@@ -180,7 +261,17 @@ export async function loadUnscored(env: Env, limit: number): Promise<JobPosting[
     url: r.url ?? undefined,
     description: r.description ?? undefined,
     isAgency: !!r.is_agency,
+    notifiedAt: r.notified_at,
   }));
+}
+
+/** Kolik inzerátů čeká ve frontě na ohodnocení (do souhrnu běhu — ať je vidět, že se nezahazují). */
+export async function countUnscored(env: Env): Promise<number> {
+  const r = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM seen_jobs
+     WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)`,
+  ).first<{ n: number }>();
+  return r?.n ?? 0;
 }
 
 /** Zapíše jen skóre (doskórování fronty — bez změny ostatních polí / notifikace). */

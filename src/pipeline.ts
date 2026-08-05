@@ -28,6 +28,9 @@ import {
   updateScore,
   loadScoredAbove,
   updateRelevance,
+  parkJobs,
+  countUnscored,
+  markDuplicate,
 } from './store';
 import { applyRegionGate } from './region';
 
@@ -42,6 +45,8 @@ export interface RunStats {
   // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
   // UI podle toho spouští další dávky, dokud není 0 (viz index.js — „doskórování").
   candidatesPending?: number;
+  queued?: number; // kolik kandidátů se uložilo do fronty (dřív se zahazovali)
+  queueDepth?: number; // kolik inzerátů celkem čeká ve frontě na skóre
 }
 
 // Záznam běhu do D1 (tabulka runs) → dashboard pak ukáže ŽIVĚ, co agent dělá.
@@ -141,11 +146,20 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     const jobs = [...mpsv, ...ats, ...web, ...jobscz, ...pracecz];
     stats.fetched = jobs.length;
     run.log(`✔ Zdroje hotové → celkem ${jobs.length}`);
-    // Strop na zpracování (scoring/notify/backlog). Dvojitý: max ~18 s od TEĎ (aby ho delší
-    // fetch neukrojil) A zároveň absolutní strop ~26 s od startu běhu — ať se vždy stihne
-    // zapsat finished_at PŘED rozpočtem Workeru (ctx.waitUntil). Bez toho běh „visí" jako
-    // „neodpovídá (limit)". Radši míň skóre/běh a spolehlivě dokončit; zbytek dožene další dávka.
-    const deadline = Math.min(Date.now() + 18000, runStart + 26000);
+    // Strop na zpracování (scoring/notify/fronta) — jiný pro cron a pro ruční běh:
+    //
+    //  • CRON má na běh minuty. Limit Workeru 30 s je CPU čas, ne wall-clock, a čekání na
+    //    HTTP/AI se do CPU nepočítá. Se starým stropem 26 s (společným pro oba spouštěče)
+    //    sežral fetch zdrojů ~20 s a na skórování zbyla jedna dávka: běh ohodnotil 3 z 91
+    //    kandidátů a zbytek zahodil. Proto cron dostává vlastní, mnohem větší rozpočet.
+    //  • RUČNÍ běh jede přes fetch + ctx.waitUntil (kratší životnost) a UI ho stejně dávkuje
+    //    ve smyčce → drží se krátce, ať se vždy stihne zapsat finished_at.
+    const CRON_BUDGET_MS = 120000;
+    const MANUAL_BUDGET_MS = 26000;
+    const deadline =
+      trigger === 'cron'
+        ? runStart + CRON_BUDGET_MS
+        : Math.min(Date.now() + 18000, runStart + MANUAL_BUDGET_MS);
 
     // 2) klasifikace agentur
     const icoSet = await loadAgencyIcos(env);
@@ -174,9 +188,18 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
 
     // 4) zpracování — v PARALELNÍCH dávkách (sekvenčně stihlo jen ~11/běh a běh
     //    se nestihl dokončit). Každý kandidát je nezávislý; deadline mezi dávkami.
+    // Strop počtu AI hodnocení na běh. Dokud běh stíhal jen 3 skóre, řešil to čas; s reálným
+    // rozpočtem jich je ~100/den, a to už je měřitelná spotřeba (Workers AI má zdarma 10 000
+    // neuronů/den). Strop drží počet volání předvídatelný — co se nevejde, zůstane ve frontě
+    // a dožene ho další běh. Uplatnění stropu se VŽDY zaloguje, ať není tiché.
+    const maxScores = parseInt(env.MAX_SCORES_PER_RUN ?? '150', 10) || 150;
+    let aiCalls = 0;
+
     const companyCandidates: SourceCandidate[] = [];
     let unchanged = 0;
-    let handled = 0; // kandidáti, co už mají skóre (ohodnocené teď / beze změny) — zbytek je „pending"
+    // Kandidáti, co mají hotovo (ohodnocené teď / beze změny). Co v setu není, na to nezbyl
+    // čas (nebo selhalo skórování) → uloží se do fronty, ať se neztratí (viz parkJobs).
+    const processed = new Set<string>();
     const BATCH = 3;
     const processJob = async (job: JobPosting): Promise<void> => {
       const id = job.id;
@@ -189,18 +212,22 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         // U ověřitelných URL (jobs.cz/prace.cz) nech `active` na liveness (404), listovka ho nevzkřísí.
         await touchSeen(env, id, !isCheckableUrl(job.url));
         unchanged++;
-        handled++;
+        processed.add(id);
         return;
       }
 
+      if (aiCalls >= maxScores) return; // strop hodnocení → kandidát spadne do fronty
+      aiCalls++;
       const score = await scoreJob(env, job, settings.profile, {
         region: settings.regionPriority,
         threshold: settings.notifyThreshold,
         provider,
       });
-      if (!score) return; // scoring selhal (rate-limit) → nech NULL, přeskóruje se příště
+      // Scoring selhal (rate-limit/parse) → nech kandidáta neoznačeného: níž se uloží do
+      // fronty bez skóre a příští běh ho zkusí znovu (dřív takový inzerát propadl úplně).
+      if (!score) return;
       stats.scored++;
-      handled++;
+      processed.add(id);
       const relevant = score.relevance >= settings.notifyThreshold;
 
       // Deanonymizace jen když je povolený web-výzkum (placený Anthropic); jinak přeskoč.
@@ -273,10 +300,28 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       await run.flush(stats);
     }
     if (unchanged) run.log(`⏭ ${unchanged} beze změny — přeskočeno (už ohodnocené, viz historie/Výsledky)`);
-    // Kolik kandidátů z tohoto stažení ještě nemá skóre (nedojely v časovém stropu) → UI podle
-    // toho spustí další dávku. 0 = hotovo, celé stažení je ohodnocené.
-    stats.candidatesPending = Math.max(0, candidates.length - handled);
-    if (stats.candidatesPending) run.log(`⏳ Zbývá doskórovat ${stats.candidatesPending} kandidátů (další dávka je dožene).`);
+
+    // Na co v běhu nezbyl čas, ULOŽ bez skóre do fronty. Bez tohohle kroku kandidát nikde
+    // neskončil a — protože se přírůstek MPSV pro dané datum stahuje jen jednou — byl navždy
+    // pryč. Fronta se dohání níž (krok 6) i v dalších bězích, takže „dožene se to" platí.
+    const leftovers = candidates.filter((j) => !processed.has(j.id));
+    stats.candidatesPending = leftovers.length;
+    if (leftovers.length) {
+      const prepared = await Promise.all(
+        leftovers.map(async (job) => ({
+          job,
+          hash: await contentHash(job),
+          dedupKey: dedupKey(job),
+          fingerprint: await fingerprintHash(job),
+        })),
+      );
+      try {
+        stats.queued = await parkJobs(env, prepared);
+        run.log(`💾 Do fronty uloženo ${stats.queued} kandidátů, na které nezbyl čas — ohodnotí je další běh (nic se nezahazuje).`);
+      } catch (e) {
+        run.log(`⚠️ Frontu se nepodařilo uložit (${e}) — ${leftovers.length} kandidátů z tohoto stažení propadlo.`);
+      }
+    }
     run.log(`🧠 Ohodnoceno ${stats.scored} · deanonymizováno ${stats.enriched} · notifikováno ${stats.notified}`);
     await run.flush(stats);
 
@@ -342,11 +387,19 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       if (stats.discovered) run.log(`💾 Nové zdroje uložené: ${stats.discovered}`);
     }
 
-    // 6) doskórování fronty (seedované/nezhodnocené) — v rámci času, bez notifikací
+    // 6) doskórování fronty (zaparkovaní kandidáti + seed) — v rámci času.
+    //    Z fronty se NOTIFIKUJE taky: lead, který se nevešel do dávky, by jinak sice dostal
+    //    skóre, ale uživatel by se o něm nikdy nedozvěděl. Aby se při doháněné historii
+    //    nespustila lavina zpráv, je na běh strop — a když se strop uplatní, řekne se to.
+    const notifyCap = parseInt(env.MAX_NOTIFY_FROM_QUEUE_PER_RUN ?? '10', 10) || 10;
     let backlog = 0;
-    while (Date.now() < deadline) {
+    let queueNotified = 0;
+    let queueHeld = 0;
+    while (Date.now() < deadline && aiCalls < maxScores) {
       const batch = await loadUnscored(env, 3);
       if (!batch.length) break;
+      let progressed = 0;
+      aiCalls += batch.length;
       await Promise.all(
         batch.map(async (job) => {
           try {
@@ -355,26 +408,72 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
               threshold: settings.notifyThreshold,
               provider,
             });
-            if (sc) await updateScore(env, job.id, sc);
+            if (!sc) return;
+            await updateScore(env, job.id, sc);
+            progressed++;
+            if (sc.relevance < settings.notifyThreshold || job.notifiedAt) return;
+            const head = `${sc.relevance} | ${job.title} — ${job.employer}`;
+            // Ve frontě můžou ležet tytéž inzeráty z jobs.cz i prace.cz — bez téhle kontroly
+            // by z fronty odešly dvě zprávy o jedné pozici (hlavní cesta dedup má).
+            // Vítěz dvojice je ten už notifikovaný, jinak rozhodne id: kdyby se potlačily
+            // navzájem (obě běží v jedné dávce naráz), lead by neodešel vůbec.
+            const qdup = await findDuplicate(env, dedupKey(job), await fingerprintHash(job), job.id);
+            if (qdup && (qdup.notified_at || qdup.id < job.id)) {
+              await markDuplicate(env, job.id, qdup.id);
+              await bumpSeen(env, qdup.id);
+              run.log(`  🔕 z fronty: ${head} → neodesláno (duplikát již sledovaného inzerátu)`);
+              return;
+            }
+            if (queueNotified >= notifyCap) {
+              queueHeld++;
+              return;
+            }
+            queueNotified++;
+            run.log(`  🔔 z fronty: ${head} → odesílám na zapnuté kanály…`);
+            const r = await notify(
+              env,
+              settings,
+              { ...job, relevance: sc.relevance, reason: sc.reason },
+              (m) => run.log(`    ${m}`),
+            );
+            if (r.telegram || r.email || r.slack) {
+              await setNotified(env, job.id);
+              stats.notified++;
+            } else {
+              run.log(`  ⚠️ ${head} → neodesláno žádným kanálem`);
+            }
           } catch (e) {
             run.log(`⚠️ skóre ${job.id}: ${e}`);
           }
         }),
       );
-      backlog += batch.length;
+      backlog += progressed;
+      // Celá dávka bez pokroku = skórování zlobí (rate-limit/výpadek). Nemá smysl točit
+      // dokola tytéž řádky až do stropu — zbytek dožene další běh.
+      if (!progressed) {
+        run.log('⏸ Fronta: dávka se nepodařila ohodnotit (AI backend neodpovídá) — zbytek příště.');
+        break;
+      }
       if (backlog % 18 === 0) await run.flush(stats);
     }
     if (backlog) {
       stats.scored += backlog;
-      run.log(`📊 Doskórováno z fronty: ${backlog} (zbytek příště)`);
+      run.log(`📊 Doskórováno z fronty: ${backlog}${queueNotified ? ` · z toho ${queueNotified} nových leadů odesláno` : ''}`);
     }
+    if (queueHeld) {
+      run.log(`🔕 Fronta: ${queueHeld} leadů nad prahem čeká na odeslání (strop ${notifyCap} zpráv na běh) — pošle je další běh.`);
+    }
+    if (aiCalls >= maxScores) {
+      run.log(`🧮 Strop ${maxScores} AI hodnocení na běh vyčerpán — zbytek čeká ve frontě na další běh (nic se nezahazuje).`);
+    }
+    stats.queueDepth = await countUnscored(env);
 
     // Souhrn v běžné češtině — ať i někdo, kdo nezná vnitřnosti, na první pohled pozná,
     // co se (ne)děje. Strojová podoba čísel je ve sloupci `stats`; do logu patří lidská.
     const perSource = `jobs.cz ${jobscz.length} · prace.cz ${pracecz.length} · MPSV ${mpsv.length} · ATS ${ats.length} · web ${web.length}`;
     const leads = stats.notified === 0 ? 'žádný nový lead' : `${stats.notified} nových leadů`;
-    const pending = stats.candidatesPending
-      ? ` · ve frontě čeká ${stats.candidatesPending} (dožene další běh)`
+    const pending = stats.queueDepth
+      ? ` · ve frontě čeká ${stats.queueDepth} inzerátů na ohodnocení (uložené, dožene je další běh)`
       : '';
     run.log(
       `📋 Souhrn: staženo ${stats.fetched} inzerátů (${perSource}), po filtru ${stats.candidates} relevantních · ` +
