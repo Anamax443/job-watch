@@ -117,6 +117,18 @@
   <b>(2)</b> <code>Number(null)</code> je <code>0</code>, takže odpověď modelu <b>bez</b> skóre se ukládala jako
   <code>relevance 0</code> — a nula znamená „hotovo", takže by se inzerát už nikdy nepřeskóroval. Obojí opraveno.</div>
 
+  <h2>Známá slabina: skórování nerozlišuje</h2>
+  <div class="note warnbox"><b>Nález z produkčních dat (22. 8. 2026).</b> Nad prahem notifikace (70) je
+  13 inzerátů a <b>12 z nich má přesně 100</b>. Free model (Llama 8B) tedy nehodnotí míru shody, jen
+  hlasuje ano/ne — a „ano" dává i testerské roli od agentury, stejně jako pozici vedoucího IT.
+  Důsledek: <b>62 odeslaných notifikací nese šum a pořadí ve Výsledcích nenese informaci.</b></div>
+  <table>
+    <tr><th>Rozložení skóre</th><td>0 → <b>148</b> · 40 (strop regionu) → 86 · 1–39 → 37 · 41–69 → 27 · <b>70–89 → 1</b> · <b>100 → 12</b> · fronta 111 (z 422 nezduplikovaných)</td></tr>
+    <tr><th>Tentýž vzorec jako u regionu</th><td>Slabý model neumí odstupňovaný úsudek, umí hrubé ano/ne. U lokality se to vyřešilo přesunem rozhodnutí do kódu (<code>src/region.ts</code>); u role se nabízí totéž.</td></tr>
+    <tr><th>Možnosti ⏳</th><td><b>1)</b> deterministický filtr role nad titulem (tester, technik, support, junior, vývojář, QA, obchodník → strop) · <b>2)</b> přepnout skórování na placeného <code>claude-haiku-4-5</code>, který škálu drží · <b>3)</b> obojí. <b>Nerozhodnuto.</b></td></tr>
+    <tr><th>Co naopak v pořádku je</th><td>148 nul jsou <b>správná zamítnutí</b> se smysluplným zdůvodněním, ne následek opravené chyby <code>Number(null)</code>. Hromadné vracení nul do fronty by bylo chybou.</td></tr>
+  </table>
+
   <h2>Hotové vs. zbývá</h2>
   <div class="grid">
     <div class="card">
@@ -139,6 +151,7 @@
         <li class="todo">Rozdělit <code>pipeline.ts</code> (514 řádků) — <b>až po testech na švech</b></li>
         <li class="todo">Ověřit atomicitu zápisu kandidáta</li>
         <li class="todo">Staré <code>relevance 0</code> z opravené chyby vrátit do fronty</li>
+        <li class="todo"><b>Filtr role, nebo placený model</b> — skóre dnes nerozlišuje (viz výše)</li>
         <li class="todo">Testy adaptérů zdrojů (MPSV wrapper, tvary ATS)</li>
         <li class="todo">Registr agentur ze strojových dat (dnes fallback dle názvu)</li>
       </ul>

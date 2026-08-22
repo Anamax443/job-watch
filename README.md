@@ -286,6 +286,23 @@ UI běží na vlastní doméně **`jobwatch.maxferit.cz`** chráněné **Cloudfl
 
 ---
 
+## Známá slabina: skórování nerozlišuje
+
+Nález z produkčních dat (22. 8. 2026): nad prahem notifikace je 13 inzerátů a **12 z nich má
+přesně 100**. Free model (Llama 8B) nehodnotí míru shody, jen hlasuje ano/ne — a „ano" dá
+i testerské roli od agentury, stejně jako pozici vedoucího IT. Práh i pořadí ve Výsledcích tím
+ztrácejí smysl.
+
+Je to tentýž vzorec jako incident s regionem: slabý model neumí odstupňovaný úsudek. U lokality
+se to vyřešilo přesunem rozhodnutí do kódu (`src/region.ts`); u role se nabízí buď obdobný
+deterministický filtr nad titulem, nebo přepnutí skórování na placeného `claude-haiku-4-5`.
+**Nerozhodnuto** — podrobnosti a čísla v [`HANDOFF.md`](HANDOFF.md).
+
+> Nuly v datech jsou naopak v pořádku: 148 záznamů s `relevance 0` má smysluplné zdůvodnění
+> (mimo region), nejsou to následky opravené chyby `Number(null)`. Vracet je do fronty by byla chyba.
+
+---
+
 ## K ověření při buildu (otevřené body)
 
 - [x] Přesný název přírůstkového souboru: `volna-mista-prirustek-YYYY-MM-DD.json` (potvrzeno).

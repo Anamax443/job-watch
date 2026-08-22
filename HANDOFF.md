@@ -11,6 +11,58 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-22 (3) — nález z produkčních dat: skórování nerozlišuje
+
+Při kontrole živé D1 (read-only dotazy přes `wrangler d1 execute --remote`) vyšlo najevo, že
+**AI skóre nemá škálu**. Rozložení napříč 422 nezduplikovanými inzeráty:
+
+| Pásmo | Počet |
+|---|---:|
+| 0 | 148 |
+| 40 (strop regionu) | 86 |
+| 1–39 | 37 |
+| 41–69 | 27 |
+| **70–89** | **1** |
+| **100** | **12** |
+| ve frontě (bez skóre) | 111 |
+
+Nad prahem notifikace (70) je 13 inzerátů a **12 z nich má přesně 100**. Model tedy nehodnotí
+míru shody, jen hlasuje ano/ne — a „ano" dává i tomu, co je mimo zadání:
+
+- `Vedoucí IT oddělení` — Skupina ČEZ, Brno → 100 ✅ správně
+- `IT projektový/á manažer/ka` — RegioJet → 100
+- `Product Owner - Treasury Applications` — Atlas Copco → 100
+- `Product Quality Assurance Engineer – Hardware or Software (Electron Microscopy)` — Akkodis (agentura) → **100** ❌
+
+Poslední je testerská role a dostala stejnou známku jako vedoucí IT v ČEZ. Odesláno bylo
+**62 notifikací**, takže tenhle šum chodí uživateli do schránky a **pořadí ve Výsledcích
+nenese informaci** — nedá se podle něj vybírat, co si přečíst první.
+
+**Je to tentýž vzorec jako incident s Prahou.** Slabý free model (Llama 8B) neumí odstupňovaný
+úsudek, umí hrubé ano/ne. U regionu se to vyřešilo přesunem rozhodnutí do kódu (`src/region.ts`);
+u role se nabízí totéž.
+
+**Možnosti (nerozhodnuto):**
+
+1. **Deterministický filtr role** — obdoba `region.ts` nad titulem: `tester`, `technik`, `support`,
+   `helpdesk`, `junior`, `vývojář`/`developer`, `QA`, `obchodník`, `konzultant` → tvrdý strop.
+   Levné, vysvětlitelné, testovatelné bez Workeru, zapadá do už zavedeného vzoru.
+2. **Přepnout skórování na placeného `claude-haiku-4-5`** (Nastavení → AI backend). Ten škálu
+   drží. Provozní náklad je malý (krátké prompty, strop 150 skóre/běh), ale je to závislost
+   na placeném backendu tam, kde dnes stačí zdarma.
+3. **Obojí** — kód řeší tvrdá kritéria, model odstupňování uvnitř toho, co projde.
+
+**Pozor na past, do které jsem málem spadl:** 148 nul vypadalo jako důsledek chyby
+`Number(null)` → 0 opravené týž den. Není. **Všechny nuly mají smysluplné zdůvodnění**
+(„Lokalita není v preferovaném regionu (Brno)…"), tedy jde o správná zamítnutí.
+Hromadné `UPDATE seen_jobs SET relevance = NULL WHERE relevance = 0` by vrátilo do fronty
+148 správně vyřízených inzerátů. **Nedělat.**
+
+**Další čísla k témuž dni:** 481 záznamů celkem (59 duplicit), 166 označených jako zrušené
+(liveness funguje), 111 čeká ve frontě na doskórování.
+
+---
+
 ## 2026-08-22 (2) — identita v hlavičce, min. skóre do Nastavení, stránka /tests
 
 Tři drobnosti z provozu, jedna z nich koncepční.
@@ -142,6 +194,9 @@ Ověřeno `gh run rerun`: běh `32571766264` doběhl **zeleně** včetně kroku
 - ⏳ **Staré nuly v datech** — inzeráty, které dostaly `relevance 0` kvůli chybě č. 2, zůstávají
   nulové a samy se nepřeskórují. `UPDATE seen_jobs SET relevance = NULL WHERE relevance = 0`
   by je vrátil do fronty, ale smázlo by to i legitimní nuly → napřed se podívat, kolik jich je.
+- ⏳ **Skórování nerozlišuje** (viz nález z 22. 8. výše) — 12 ze 13 inzerátů nad prahem má
+  přesně 100, včetně testerské role od agentury. Rozhodnout mezi filtrem role v kódu
+  a přepnutím na placeného Haiku. **Nejvyšší priorita**: bez toho nemá práh ani pořadí smysl.
 - ⏳ Otevřené body na konci README (wrapper přírůstkového JSONu MPSV, tvary ATS odpovědí,
   registr agentur, detailní URL MPSV).
 
