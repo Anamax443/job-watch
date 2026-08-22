@@ -26,7 +26,16 @@
   .intro { color:var(--mut); font-size:13.5px; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--acc); border-radius:8px; padding:12px 14px; margin-bottom:18px; }
   .intro b { color:var(--fg); }
   h2 { font-size:14px; margin:22px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
-  .chk { display:grid; grid-template-columns:26px 1fr; gap:10px; padding:10px 12px; background:var(--card); border:1px solid var(--line); border-radius:8px; margin-bottom:6px; }
+  .chk { display:grid; grid-template-columns:26px 1fr; gap:10px; padding:10px 12px; background:var(--card); border:1px solid var(--line); border-radius:8px; margin-bottom:6px;
+         opacity:0; transform:translateY(-4px); transition:opacity .16s ease, transform .16s ease; }
+  .chk.in { opacity:1; transform:none; }
+  .chk.now { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc); }
+  h2 { opacity:0; transition:opacity .16s ease; } h2.in { opacity:1; }
+  .bar-progress { flex:1; min-width:160px; height:6px; border-radius:99px; background:var(--line); overflow:hidden; }
+  .bar-progress i { display:block; height:100%; width:0; background:var(--acc); transition:width .12s linear; }
+  .spin { display:inline-block; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .verdict.run { border-left:4px solid var(--acc); }
   .chk.bad { border-color:var(--bad); }
   .chk .mark { font-size:15px; line-height:1.4; }
   .chk .name { font-weight:600; }

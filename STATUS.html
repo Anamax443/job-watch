@@ -107,7 +107,7 @@
     <tr><th>Co pokrývají</th><td>autorizace a allowlist · dedup / otisk / <code>contentHash</code> · prefiltr · normalizace odpovědi modelu · <code>util</code> · verdikty regionu a strop skóre</td></tr>
     <tr><th>Brána v CI</th><td><code>typecheck</code> → <code>test</code> → deploy. Když testy spadnou, <b>nenasadí se nic</b>.</td></tr>
     <tr><th>Tvar testů</th><td>Malý dílčí celek — jedna funkce, jeden vstup, jeden očekávaný výstup. Každý případ má v názvu, <b>proč</b> tam je; jeden je přímo živý incident s Prahou.</td></tr>
-    <tr><th>Sebekontrola na živé verzi <span class="pill live">novinka</span></th><td>Stránka <code>/tests</code> + <code>GET /api/selftest</code> spouští <b>35 invariantů uvnitř nasazeného Workeru</b>. Zelené CI dokazuje, že prošel commit — tohle dokazuje, že se stejně chová i to, co obsluhuje provoz. <b>Jedna definice</b> (<code>src/selftest.ts</code>), dva spouštěče (CI + Worker), žádná kopie testů. Nedotýká se D1, sítě ani AI → projde i na rozbité databázi.</td></tr>
+    <tr><th>Sebekontrola na živé verzi <span class="pill live">novinka</span></th><td>Stránka <code>/tests</code> + <code>GET /api/selftest</code> spouští <b>celou sadu invariantů uvnitř nasazeného Workeru</b> (aktuální počet ukazuje sama stránka). Zelené CI dokazuje, že prošel commit — tohle dokazuje, že se stejně chová i to, co obsluhuje provoz. <b>Jedna definice</b> (<code>src/selftest.ts</code>), dva spouštěče (CI + Worker), žádná kopie testů. Nedotýká se D1, sítě ani AI → projde i na rozbité databázi.</td></tr>
     <tr><th>Co netestují ⏳</th><td>švy mezi moduly (že je funkce volaná se správným argumentem) a to, že zápis do D1 běží v jedné transakci</td></tr>
   </table>
 

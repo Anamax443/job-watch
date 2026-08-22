@@ -42,7 +42,13 @@ i na rozbité databázi a smí běžet na každý dotaz. Každá kontrola nese `
 přímo ty chyby nalezené dnes (prefiltr propouštěl vše; skóre `null` se ukládalo jako 0), takže
 se jako regrese už neprojdou tiše.
 
-**Stav kontrol:** 57 testů v CI + 14 kontrol regionu; sebekontrola má 35 invariantů.
+**Stav kontrol:** 57 testů v CI + 14 kontrol regionu; sebekontrola má **38** invariantů.
+
+**Doladěno po prvním použití naživo:** tlačítko „Spustit znovu" nedávalo poznat, že se něco
+stalo — server sadu spočítá za 0 ms, takže se stránka překreslila neviditelně. Průběh se teď
+odkrývá po kontrolách (stav, progress, počítadlo, propadlá kontrola se na půl vteřiny zvýrazní).
+Aby to nemátlo: krokování je **vykreslování**, skutečný čas výpočtu hlásí server a je vypsaný
+zvlášť („výpočet na serveru X ms · odpověď za Y ms").
 
 ---
 
