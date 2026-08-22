@@ -286,20 +286,38 @@ UI běží na vlastní doméně **`jobwatch.maxferit.cz`** chráněné **Cloudfl
 
 ---
 
-## Známá slabina: skórování nerozlišuje
+## Skórování: nález a jeho oprava
 
-Nález z produkčních dat (22. 8. 2026): nad prahem notifikace je 13 inzerátů a **12 z nich má
-přesně 100**. Free model (Llama 8B) nehodnotí míru shody, jen hlasuje ano/ne — a „ano" dá
-i testerské roli od agentury, stejně jako pozici vedoucího IT. Práh i pořadí ve Výsledcích tím
-ztrácejí smysl.
+Kontrola produkčních dat 22. 8. 2026 ukázala, že skóre **nemá škálu**: nad prahem bylo 13 inzerátů
+a **12 z nich mělo přesně 100**, včetně testerské role od agentury. Nabízelo se postavit
+deterministický filtr role v kódu, obdobu `src/region.ts`.
 
-Je to tentýž vzorec jako incident s regionem: slabý model neumí odstupňovaný úsudek. U lokality
-se to vyřešilo přesunem rozhodnutí do kódu (`src/region.ts`); u role se nabízí buď obdobný
-deterministický filtr nad titulem, nebo přepnutí skórování na placeného `claude-haiku-4-5`.
-**Nerozhodnuto** — podrobnosti a čísla v [`HANDOFF.md`](HANDOFF.md).
+**Příčina ale byla jinde.** Profil v Nastavení nebyl zadání, ale **životopis plus průvodní dopis
+pro jednu konkrétní firmu** — a hlavně v něm nikde nestálo, co uživatel *nechce*. Model odpovídal
+na otázku „umí to ten člověk?", ne „chce to ten člověk?".
+
+Profil byl 23. 8. přepsán na zadání: cílová role, **vylučovací kritéria** (tester, helpdesk, junior,
+čistý vývoj, projektový manažer bez vedení týmu), silné stránky, **přiznané mezery**, podmínky.
+
+**Změřený dopad** — z 59 přeskórovaných:
+
+| | před | po |
+|---|---:|---:|
+| skóre 100 | **12** | **0** |
+| nejvyšší skóre | 100 | 80 |
+
+Zamítnutí nově citují zadání: *„není vedoucí IT, projektový manažer bez vedení IT týmu"*,
+*„jedná se o junior roli"*. Jediný, kdo prošel, dostal 80 se zdůvodněním *„menší nedostatky
+v oblasti zkušeností s Linuxem a mezinárodními korporacemi"* — tedy přesně podle sekce
+o přiznaných mezerách.
+
+**Filtr role v kódu je odložený, ne zrušený.** Rozhodne se po dojetí fronty a podle čísel.
+
+> Poučení, které stojí za zapsání: nejlevnější oprava nebyla v kódu, ale **v zadání**.
+> Než se staví guardrail, vyplatí se ověřit, jestli model vůbec dostal správně položenou otázku.
 
 > Nuly v datech jsou naopak v pořádku: 148 záznamů s `relevance 0` má smysluplné zdůvodnění
-> (mimo region), nejsou to následky opravené chyby `Number(null)`. Vracet je do fronty by byla chyba.
+> (mimo region). Vracet je do fronty by byla chyba.
 
 ---
 

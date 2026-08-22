@@ -117,16 +117,27 @@
   <b>(2)</b> <code>Number(null)</code> je <code>0</code>, takže odpověď modelu <b>bez</b> skóre se ukládala jako
   <code>relevance 0</code> — a nula znamená „hotovo", takže by se inzerát už nikdy nepřeskóroval. Obojí opraveno.</div>
 
-  <h2>Známá slabina: skórování nerozlišuje</h2>
-  <div class="note warnbox"><b>Nález z produkčních dat (22. 8. 2026).</b> Nad prahem notifikace (70) je
-  13 inzerátů a <b>12 z nich má přesně 100</b>. Free model (Llama 8B) tedy nehodnotí míru shody, jen
-  hlasuje ano/ne — a „ano" dává i testerské roli od agentury, stejně jako pozici vedoucího IT.
-  Důsledek: <b>62 odeslaných notifikací nese šum a pořadí ve Výsledcích nenese informaci.</b></div>
+  <h2>Skórování: nález a jeho oprava</h2>
+  <div class="note"><b>Vyřešeno 23. 8. 2026 — a příčina byla jinde, než to vypadalo.</b>
+  Kontrola produkčních dat 22. 8. ukázala, že skóre nemá škálu: nad prahem bylo 13 inzerátů a <b>12 z nich
+  mělo přesně 100</b>, včetně testerské role od agentury. Nabízelo se postavit deterministický filtr role
+  v kódu, obdobu <code>region.ts</code>. Ukázalo se ale, že za to nemohl jen slabý model —
+  <b>profil v Nastavení neříkal, co uživatel NEchce</b>. Byl v něm nalepený životopis plus průvodní dopis
+  pro jednu konkrétní firmu, podle kterého se hodnotily všechny ostatní inzeráty.</div>
   <table>
-    <tr><th>Rozložení skóre</th><td>0 → <b>148</b> · 40 (strop regionu) → 86 · 1–39 → 37 · 41–69 → 27 · <b>70–89 → 1</b> · <b>100 → 12</b> · fronta 111 (z 422 nezduplikovaných)</td></tr>
-    <tr><th>Tentýž vzorec jako u regionu</th><td>Slabý model neumí odstupňovaný úsudek, umí hrubé ano/ne. U lokality se to vyřešilo přesunem rozhodnutí do kódu (<code>src/region.ts</code>); u role se nabízí totéž.</td></tr>
-    <tr><th>Možnosti ⏳</th><td><b>1)</b> deterministický filtr role nad titulem (tester, technik, support, junior, vývojář, QA, obchodník → strop) · <b>2)</b> přepnout skórování na placeného <code>claude-haiku-4-5</code>, který škálu drží · <b>3)</b> obojí. <b>Nerozhodnuto.</b></td></tr>
-    <tr><th>Co naopak v pořádku je</th><td>148 nul jsou <b>správná zamítnutí</b> se smysluplným zdůvodněním, ne následek opravené chyby <code>Number(null)</code>. Hromadné vracení nul do fronty by bylo chybou.</td></tr>
+    <tr><th>Co se změnilo</th><td>Profil přepsán z životopisu na <b>zadání</b>: cílová role, <b>vylučovací kritéria</b> (tester, helpdesk, junior, čistý vývoj, PM bez vedení týmu), silné stránky, <b>přiznané mezery</b>, podmínky. Poloviční délka, celé signál.</td></tr>
+    <tr><th>Změřený dopad</th><td>Před: <b>12 stovek</b> ze 13 nad prahem. Po (z 59 přeskórovaných): <b>ani jedna stovka</b>; jediný nad prahem dostal <b>80</b> se zdůvodněním „<i>menší nedostatky v oblasti zkušeností s Linuxem a mezinárodními korporacemi</i>“.</td></tr>
+    <tr><th>Zamítnutí nově citují zadání</th><td>„<i>není vedoucí IT, projektový manažer bez vedení IT týmu</i>“ · „<i>jedná se o junior roli</i>“ · „<i>nedostává se zde odpovědnost za celek IT</i>“</td></tr>
+    <tr><th>Filtr role v kódu ⏳</th><td><b>Odloženo, ne zrušeno.</b> Levnější oprava zabrala; rozhodnout se má až po dojetí fronty a podle čísel, ne podle dojmu.</td></tr>
+    <tr><th>Co bylo v pořádku pořád</th><td>Nuly nejsou chyba: 148 záznamů s <code>relevance 0</code> mělo smysluplné zdůvodnění (mimo region). Hromadné vracení nul do fronty by bylo chybou.</td></tr>
+  </table>
+
+  <h2>Fronta: pořadí podle dřívějšího zájmu</h2>
+  <table>
+    <tr><th>Změna <span class="pill live">23. 8.</span></th><td><code>ORDER BY first_seen DESC</code> → <code>ORDER BY (notified_at IS NOT NULL) DESC, first_seen DESC</code></td></tr>
+    <tr><th>Proč</th><td>V běžném dni je „od nejnovějších“ správně. Ale změna profilu vynuluje <b>všechna</b> skóre a přeskórovává se celá historie — a tam tohle řazení odsune dozadu přesně ty inzeráty, kvůli kterým se profil měnil.</td></tr>
+    <tr><th>Ověřeno na živých datech</th><td>Inzerát z 23. 7., který měl předtím 100/100, byl ve frontě <b>170.</b> — po změně je <b>8.</b> Ze 223 čekajících jde dopředu 42 dřív notifikovaných.</td></tr>
+    <tr><th>Bez testu, vědomě</th><td>Řadí SQL, takže to nejde ověřit čistou funkcí bez databáze — a testy s běžící infrastrukturou si projekt zakázal. Ověření proběhlo read-only dotazem nad produkční D1 <b>před</b> zápisem změny.</td></tr>
   </table>
 
   <h2>Hotové vs. zbývá</h2>
@@ -151,7 +162,8 @@
         <li class="todo">Rozdělit <code>pipeline.ts</code> (514 řádků) — <b>až po testech na švech</b></li>
         <li class="todo">Ověřit atomicitu zápisu kandidáta</li>
         <li class="todo">Staré <code>relevance 0</code> z opravené chyby vrátit do fronty</li>
-        <li class="todo"><b>Filtr role, nebo placený model</b> — skóre dnes nerozlišuje (viz výše)</li>
+        <li class="todo"><b>Filtr role v kódu</b> — rozhodnout až po dojetí fronty (viz výše)</li>
+        <li class="todo"><b>Deanonymizace i pro holdingy</b> — „Skupina ČEZ“ místo „OSC, a.s.“</li>
         <li class="todo">Testy adaptérů zdrojů (MPSV wrapper, tvary ATS)</li>
         <li class="todo">Registr agentur ze strojových dat (dnes fallback dle názvu)</li>
       </ul>
