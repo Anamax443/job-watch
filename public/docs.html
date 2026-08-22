@@ -40,7 +40,7 @@
     <a href="/">Výsledky</a>
     <a href="/settings">Nastavení</a>
     <a href="/console">Konzole</a>
-    <a href="/how">Jak to funguje</a>
+    <a href="/tests">Testy</a> <a href="/how">Jak to funguje</a>
     <a href="/docs">Dokumentace</a>
   </nav>
 </header>
@@ -142,6 +142,24 @@ wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack
   nestačí, že hlavička od Accessu dorazila, musí sedět i to, <b>komu patří</b> (allowlist
   povolených e-mailů). Důvod: kdo se dostane na server mimo Access, si takovou hlavičku pošle
   sám — a v datech jsou i <b>kontaktní osoby z inzerátů</b>, tedy osobní údaje třetích osob.</p>
+
+  <h3>Min. skóre vs. práh notifikace</h3>
+  <p>Dvě různé věci. <b>Práh notifikace</b> říká, od jakého skóre ti přijde zpráva.
+  <b>Min. skóre v přehledu</b> říká, od jakého skóre se pozice vůbec <b>zobrazí</b> ve Výsledcích.
+  Obojí je v Nastavení a ukládá se na server, takže platí na všech zařízeních. V přehledu jde
+  min. skóre dočasně přenastavit, ale neuloží se — od toho je Nastavení.</p>
+
+  <h3>Testy — stránka /tests</h3>
+  <p>Ukazuje <b>sebekontrolu invariantů na právě nasazené verzi</b>: region, autorizace, prefiltr,
+  deduplikace, normalizace odpovědi modelu, očista nastavení. Nedotýká se databáze ani AI, takže
+  projde i tehdy, když je něco jiného rozbité. Zelené CI dokazuje, že prošel commit — tahle
+  stránka dokazuje, že se stejně chová i to, co běží v provozu.</p>
+
+  <h3>Kdo je přihlášený a jak se odhlásit</h3>
+  <p>V pravé části hlavičky je účet, pod kterým jsi přihlášený, a odkaz <b>Odhlásit</b>.
+  Přihlášení drží Cloudflare Access, ne aplikace, takže odhlášení jde přes něj
+  (<code>/cdn-cgi/access/logout</code>). Žlutý vykřičník u účtu znamená, že není nastavený
+  seznam povolených adres — pak projde kterýkoli účet ověřený Accessem.</p>
 
   <h3>Personalizace — Můj profil</h3>
   <p>V Nastavení vlož svoje CV / text o sobě. AI pak hodnotí každou pozici podle shody

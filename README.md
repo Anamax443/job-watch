@@ -22,10 +22,13 @@ Cloudflare Worker "job-watch"  (+ statické UI, + D1, + cron)
  │               → enrich (deanonymizace) → notify → discover → doskórování fronty
  ├─ Web (za Cloudflare Access na jobwatch.maxferit.cz):
  │    GET  /              → Výsledky (dashboard, stavové okno běhu)
- │    GET  /settings      → Nastavení (profil, prahy, kanály, klíče)
- │    GET  /api/jobs|sources|runs|health|version  → data (JSON)
- │    POST /api/settings|run|run/stop|keys|test-notify  → akce (vyžadují Access)
- └─ Cloudflare Access: přihlášení e-mailem (jen povolený e-mail)
+ │    GET  /settings      → Nastavení (profil, prahy, min. skóre, kanály, klíče)
+ │    GET  /tests         → Sebekontrola invariantů na NASAZENÉ verzi
+ │    GET  /api/jobs|sources|runs|health|version|me|selftest  → data (JSON)
+ │    POST /api/settings|run|run/stop|keys|test-notify  → akce
+ │    (celé /api — čtení i zápis — vyžaduje ověřenou identitu, viz src/access.ts)
+ └─ Cloudflare Access: přihlášení e-mailem (jen povolený e-mail), odhlášení
+    přes /cdn-cgi/access/logout (session drží Access, ne aplikace)
 D1:
  ├─ seen_jobs   → výsledky napříč zdroji (vč. živosti active + kontaktní osoby)
  ├─ sources     → dynamicky objevené zdroje (personálky/firmy + kde inzerují)
@@ -91,6 +94,11 @@ stav běhu do `runs`.
 > 120 s — limit Workeru 30 s je **CPU** čas, a čekání na HTTP/AI do něj nespadá. Ruční běh zůstal
 > krátký (jede přes `fetch` + `waitUntil` a UI ho stejně dávkuje ve smyčce).
 
+**Min. skóre v přehledu:** `settings.minScore` — od jakého skóre se pozice **zobrazí** ve
+Výsledcích. Je to něco jiného než `notifyThreshold` (od jakého skóre se **posílá** notifikace).
+Uložené v D1, takže platí na všech zařízeních; v přehledu jde hodnotu dočasně přenastavit,
+ale neukládá se do prohlížeče (filtry Agentury/Stav ano).
+
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
 
@@ -145,7 +153,24 @@ npm run check:region  # jen filtr regionu
 | `tests/prefilter.test.ts` | co se pustí na AI skórování | propustnost přímo řídí spotřebu AI backendu |
 | `tests/score-normalize.test.ts` | normalizace odpovědi modelu | free model vrací tvary, které Claude nevrací |
 | `tests/util.test.ts` | `norm`, `stripHtml`, `truncate`, `num` | stojí na nich dedup i prefiltr |
+| `tests/settings-sanitize.test.ts` | očista vstupu do Nastavení | jediná obrana mezi cizím JSONem a tím, co řídí pipeline |
+| `tests/selftest.test.ts` | průřez invarianty (`src/selftest.ts`) | **tatáž sada běží i v nasazeném Workeru** — viz níže |
 | `scripts/region-check.ts` | verdikty regionu + strop skóre | živý incident: Praha 80/100 při nastavení „brno" |
+
+### Sebekontrola na nasazené verzi (`/tests`)
+
+Zelené CI dokazuje, že prošel **commit**. Stránka [`/tests`](https://jobwatch.maxferit.cz/tests)
+dokazuje, že invarianty platí i na tom, co **právě obsluhuje provoz** — s reálným buildem
+a reálnými bindingy.
+
+Jedna definice, dva spouštěče: `src/selftest.ts` obsahuje průřez invarianty (region, autorizace,
+prefiltr, dedup, normalizace odpovědi modelu, očista nastavení). Spouští ji **CI**
+(`tests/selftest.test.ts`) i **Worker** (`GET /api/selftest`, vrací 500, když něco selže).
+Žádná kopie testů tedy nevzniká.
+
+Kontroly se **nedotýkají D1, sítě ani AI** — proto projdou i na rozbité databázi a smí běžet
+na každý dotaz. Každá má u sebe napsané, **proč** existuje; dvě z nich jsou přímo ty chyby
+nalezené 22. 8. 2026 (viz níže).
 
 Testuje se vždy **malý dílčí celek** — jedna funkce, jeden vstup, jeden očekávaný výstup —
 a každý případ má v názvu napsané, **proč** tam je. Testy přes celý systém, které spadnou,

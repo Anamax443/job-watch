@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JobWatch — Testy</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="88">🔎</text></svg>'>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#262b36; --fg:#e8eaed; --mut:#9aa3b2; --acc:#4f9cf9; --good:#3ecf8e; --bad:#ef6b73; --warn:#f0b35b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:16px 20px; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; }
+  nav a { color:var(--acc); text-decoration:none; margin-right:14px; }
+  main { padding:20px; max-width:1100px; }
+  button { background:transparent; border:1px solid var(--line); color:var(--fg); border-radius:8px; padding:7px 14px; cursor:pointer; font:inherit; }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .verdict { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 16px; border-radius:10px; border:1px solid var(--line); background:var(--card); margin-bottom:16px; }
+  .verdict.pass { border-left:4px solid var(--good); }
+  .verdict.fail { border-left:4px solid var(--bad); }
+  .verdict .big { font-size:24px; font-weight:700; }
+  .verdict .big.ok { color:var(--good); } .verdict .big.no { color:var(--bad); }
+  .meta { color:var(--mut); font-size:13px; }
+  .meta code { background:#1b2233; border:1px solid var(--line); padding:0 5px; border-radius:5px; color:var(--fg); }
+  .intro { color:var(--mut); font-size:13.5px; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--acc); border-radius:8px; padding:12px 14px; margin-bottom:18px; }
+  .intro b { color:var(--fg); }
+  h2 { font-size:14px; margin:22px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
+  .chk { display:grid; grid-template-columns:26px 1fr; gap:10px; padding:10px 12px; background:var(--card); border:1px solid var(--line); border-radius:8px; margin-bottom:6px; }
+  .chk.bad { border-color:var(--bad); }
+  .chk .mark { font-size:15px; line-height:1.4; }
+  .chk .name { font-weight:600; }
+  .chk .why { color:var(--mut); font-size:13px; margin-top:3px; }
+  .chk .diff { font-family:Consolas,Menlo,monospace; font-size:12px; color:var(--bad); margin-top:6px; word-break:break-all; }
+  .empty { color:var(--mut); }
+  @media (max-width:640px){ main { padding:14px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 JobWatch — Testy</h1>
+  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/console">Konzole</a><a href="/tests">Testy</a> <a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
+</header>
+
+<main>
+  <div class="intro">
+    Tohle nejsou testy z buildu — <b>běží teď, uvnitř nasazené verze</b>. Zelené CI dokazuje, že
+    prošel commit; tahle stránka dokazuje, že invarianty platí i na tom, co právě obsluhuje provoz.
+    Kontroly se dotýkají jen <b>čistých funkcí</b> (region, autorizace, prefiltr, dedup, normalizace
+    odpovědi modelu, očista nastavení) — žádná databáze, síť ani AI, takže projdou i na rozbité DB.
+    Jedna definice je v <code>src/selftest.ts</code> a spouští ji jak CI, tak tahle stránka.
+    Podrobnější případy jsou v <code>tests/</code> a jedou jen v CI.
+  </div>
+
+  <div class="bar">
+    <button id="run" class="primary">↻ Spustit znovu</button>
+    <span class="meta" id="meta"></span>
+  </div>
+
+  <div id="verdict" class="verdict"><span class="meta">Načítám…</span></div>
+  <div id="groups"></div>
+</main>
+
+<script src="/tests.js"></script>
+<script src="footer.js"></script>
+</body>
+</html>

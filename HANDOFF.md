@@ -11,6 +11,41 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-22 (2) — identita v hlavičce, min. skóre do Nastavení, stránka /tests
+
+Tři drobnosti z provozu, jedna z nich koncepční.
+
+- ✅ **Kdo je přihlášený + Odhlásit** (`GET /api/me`, `public/footer.js`) — v hlavičce je účet
+  z Accessu a odkaz na odhlášení. Session drží **Access, ne aplikace**, proto se odhlašuje na
+  `/cdn-cgi/access/logout` (`ACCESS_LOGOUT_PATH`). U účtu svítí ⚠, když není nastavený
+  `ACCESS_ALLOWED_EMAILS` — ať se na nedodělek nezapomene. Bez Accessu (lokální `DEV_OPEN=1`)
+  se ukáže „lokální vývoj".
+- ✅ **Min. skóre v přehledu do Nastavení** (`settings.minScore`, default 0) — dřív to byla
+  hodnota v `localStorage`, tedy per-prohlížeč; na druhém zařízení se musela nastavovat znovu.
+  Teď je v D1. **Není to totéž co `notifyThreshold`**: ten řídí, co se *pošle*, `minScore` řídí,
+  co se *zobrazí*. V přehledu jde hodnotu dočasně přenastavit, ale neukládá se; filtry
+  Agentury/Stav zůstaly per-prohlížeč („Uložit filtry"), protože to jsou krátkodobé pohledy.
+- ✅ **Stránka `/tests` + `GET /api/selftest`** — viz níže, tohle je ta koncepční část.
+- ✅ **`sanitizeSettings` přesunuta z `index.ts` do `config.ts`** — bydlí u nastavení, hlavně ale
+  jde teď otestovat bez Workeru (`tests/settings-sanitize.test.ts`). Je to jediná obrana mezi
+  cizím JSONem z API a hodnotami, které řídí pipeline.
+
+### Proč `/tests`, když už je brána v CI
+
+Zelené CI dokazuje, že prošel **commit**. Nedokazuje, že se stejně chová **to, co právě běží** —
+build, bindingy, vars. Proto `src/selftest.ts`: **jedna definice invariantů, dva spouštěče** —
+CI (`tests/selftest.test.ts`) a nasazený Worker (`/api/selftest`, vrací 500, když něco selže).
+Žádná druhá kopie testů nevzniká.
+
+Podmínka, která to drží použitelné: kontroly se **nesmí dotknout D1, sítě ani AI**. Proto projdou
+i na rozbité databázi a smí běžet na každý dotaz. Každá kontrola nese `proc` — dvě z nich jsou
+přímo ty chyby nalezené dnes (prefiltr propouštěl vše; skóre `null` se ukládalo jako 0), takže
+se jako regrese už neprojdou tiše.
+
+**Stav kontrol:** 57 testů v CI + 14 kontrol regionu; sebekontrola má 35 invariantů.
+
+---
+
 ## 2026-08-22 — identitu ověřuje aplikace, ne jen perimetr + testovací vrstva
 
 **Podnět.** Externí posudek repa (ChatGPT, 8,2/10) uložený doslovně v repu

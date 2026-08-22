@@ -32,7 +32,7 @@
 <body>
 <header>
   <h1>⚙️ JobWatch — Nastavení</h1>
-  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/console">Konzole</a><a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
+  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/console">Konzole</a><a href="/tests">Testy</a> <a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
 </header>
 
 <main>
@@ -75,6 +75,11 @@
       <label class="lbl" for="notifyThreshold">Práh notifikace (0–100)</label>
       <input id="notifyThreshold" type="number" min="0" max="100" />
       <div class="hint">Od jakého skóre tě upozornit. AI dá každé pozici známku <b>0–100</b>, jak moc sedí na profil vedoucího IT. Např. <b>70</b> = pošle jen pozice se skóre 70 a víc. Nižší číslo = víc (i méně přesných) nálezů, vyšší = jen ty nejlepší.</div>
+    </div>
+    <div class="field">
+      <label class="lbl" for="minScore">Min. skóre v přehledu (0–100)</label>
+      <input id="minScore" type="number" min="0" max="100" />
+      <div class="hint">Od jakého skóre se pozice <b>zobrazí ve Výsledcích</b>. Netýká se notifikací — ty řídí práh vedle. <b>0</b> = ukázat vše. Uloženo na serveru, takže platí na všech zařízeních; v přehledu se dá dočasně přenastavit.</div>
     </div>
   </div>
 

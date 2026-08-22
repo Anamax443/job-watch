@@ -135,7 +135,6 @@ $('#detail').addEventListener('click', (e) => { if(e.target.id === 'detail') clo
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !$('#detail').hidden) closeDetail(); });
 let saveMsgTimer;
 $('#saveFilters').onclick = () => {
-  localStorage.setItem('jw.minScore', $('#minScore').value);
   localStorage.setItem('jw.agencyOnly', $('#agencyOnly').checked ? '1' : '0');
   localStorage.setItem('jw.activeFilter', $('#activeFilter').value);
   const msg = $('#saveMsg');
@@ -252,11 +251,20 @@ $('#stop').onclick = async () => {
   $('#stop').disabled=false; $('#status').textContent='';
   await loadRuns(); load();
 };
-const savedMin = localStorage.getItem('jw.minScore');
-if (savedMin !== null) $('#minScore').value = savedMin;
 const savedAgency = localStorage.getItem('jw.agencyOnly');
 if (savedAgency !== null) $('#agencyOnly').checked = savedAgency === '1';
 const savedActive = localStorage.getItem('jw.activeFilter');
 if (savedActive !== null) $('#activeFilter').value = savedActive;
-load();
+
+// Výchozí min. skóre vlastní Nastavení (uložené v D1), ne prohlížeč — aby se nemuselo
+// přenastavovat na každém zařízení zvlášť. Filtry Agentury/Stav zůstávají per-prohlížeč
+// („Uložit filtry"), protože to jsou krátkodobé pohledy, ne nastavení systému.
+localStorage.removeItem('jw.minScore'); // úklid po dřívější per-prohlížečové verzi
+(async () => {
+  try {
+    const s = await (await fetch('/api/settings')).json();
+    if (s && s.minScore != null) $('#minScore').value = s.minScore;
+  } catch (e) { /* nechá se výchozí 0 z HTML */ }
+  load();
+})();
 loadRuns();

@@ -1,5 +1,6 @@
 import type { Env, Settings } from './types.ts';
 import { norm } from './util.ts';
+import { AI_PROVIDER_VALUES } from './ai.ts';
 
 // Výchozí nastavení. Editovatelné v UI /settings (ukládá se do D1, klíč 'settings').
 export const DEFAULT_SETTINGS: Settings = {
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   czIscoPrefixes: ['133'],
   regionPriority: 'Jihomoravský kraj',
   notifyThreshold: 70,
+  minScore: 0,
   emailTo: '',
   telegramChatId: '',
   notifyEmail: true,
@@ -28,6 +30,35 @@ export const DEFAULT_SETTINGS: Settings = {
   profile: '',
   aiProvider: '', // '' = podle serveru (default zdarma Cloudflare Workers AI)
 };
+
+
+/**
+ * Očista vstupu z API před uložením do Nastavení. Bydlí u nastavení (ne v routeru), aby
+ * šla otestovat bez Workeru — je to jediná obrana mezi cizím JSONem a tím, co pak řídí
+ * pipeline. Neznámá pole se zahazují, čísla se zastropují, prázdné hodnoty vyhazují.
+ */
+export function sanitizeSettings(input: any): Partial<Settings> {
+  const out: Partial<Settings> = {};
+  const arr = (v: any) =>
+    Array.isArray(v) ? v.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
+  const pct = (v: any) => Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+  if (arr(input?.keywords)) out.keywords = arr(input.keywords);
+  if (arr(input?.czIscoPrefixes)) out.czIscoPrefixes = arr(input.czIscoPrefixes);
+  if (typeof input?.regionPriority === 'string') out.regionPriority = input.regionPriority.trim();
+  if (input?.notifyThreshold != null) out.notifyThreshold = pct(input.notifyThreshold);
+  if (input?.minScore != null) out.minScore = pct(input.minScore);
+  if (typeof input?.emailTo === 'string') out.emailTo = input.emailTo.trim();
+  if (typeof input?.telegramChatId === 'string') out.telegramChatId = input.telegramChatId.trim();
+  if (typeof input?.notifyEmail === 'boolean') out.notifyEmail = input.notifyEmail;
+  if (typeof input?.notifyTelegram === 'boolean') out.notifyTelegram = input.notifyTelegram;
+  if (typeof input?.notifySlack === 'boolean') out.notifySlack = input.notifySlack;
+  if (typeof input?.profile === 'string') out.profile = input.profile;
+  if (typeof input?.aiProvider === 'string') {
+    const v = input.aiProvider.trim().toLowerCase();
+    if ((AI_PROVIDER_VALUES as readonly string[]).includes(v)) out.aiProvider = v;
+  }
+  return out;
+}
 
 // --- ATS watchlist -------------------------------------------------------
 // ŽÁDNÉ statické adresy. Cíle ATS se objevují DYNAMICKY (src/discover.ts) a ukládají

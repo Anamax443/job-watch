@@ -89,6 +89,7 @@
   <table>
     <tr><th>Perimetr</th><td>Cloudflare Access na <code>jobwatch.maxferit.cz</code>, přihlášení jednorázovým PINem. <code>workers_dev = false</code> — žádná druhá, nechráněná adresa.</td></tr>
     <tr><th>Autorizace v aplikaci <span class="pill live">od 22. 8.</span></th><td>Chráněné je <b>celé <code>/api</code> včetně čtení</b> a ověřuje se <b>hodnota</b> hlavičky proti allowlistu <code>ACCESS_ALLOWED_EMAILS</code> — ne jen to, že hlavička dorazila. Viz <code>src/access.ts</code>.</td></tr>
+    <tr><th>Kdo je přihlášený</th><td>Účet z Accessu je vidět v hlavičce každé stránky spolu s odkazem <b>Odhlásit</b> (<code>/cdn-cgi/access/logout</code> — session drží Access, ne aplikace). ⚠ u účtu = allowlist není nastavený.</td></tr>
     <tr><th>Osobní údaje</th><td>V datech jsou i <b>kontaktní osoby z inzerátů</b> (jméno, e-mail, telefon z MPSV) — tedy osobní údaje <b>třetích osob</b>. Proto je čtení chráněné stejně jako zápis.</td></tr>
     <tr><th>Hlavičky</th><td>CSP, HSTS, <code>nosniff</code>, <code>X-Frame-Options: DENY</code>, Referrer-Policy, Permissions-Policy, <code>/.well-known/security.txt</code></td></tr>
     <tr><th>SQL</th><td>bind parametry — podmínky se skládají, hodnoty ne</td></tr>
@@ -106,6 +107,7 @@
     <tr><th>Co pokrývají</th><td>autorizace a allowlist · dedup / otisk / <code>contentHash</code> · prefiltr · normalizace odpovědi modelu · <code>util</code> · verdikty regionu a strop skóre</td></tr>
     <tr><th>Brána v CI</th><td><code>typecheck</code> → <code>test</code> → deploy. Když testy spadnou, <b>nenasadí se nic</b>.</td></tr>
     <tr><th>Tvar testů</th><td>Malý dílčí celek — jedna funkce, jeden vstup, jeden očekávaný výstup. Každý případ má v názvu, <b>proč</b> tam je; jeden je přímo živý incident s Prahou.</td></tr>
+    <tr><th>Sebekontrola na živé verzi <span class="pill live">novinka</span></th><td>Stránka <code>/tests</code> + <code>GET /api/selftest</code> spouští <b>35 invariantů uvnitř nasazeného Workeru</b>. Zelené CI dokazuje, že prošel commit — tohle dokazuje, že se stejně chová i to, co obsluhuje provoz. <b>Jedna definice</b> (<code>src/selftest.ts</code>), dva spouštěče (CI + Worker), žádná kopie testů. Nedotýká se D1, sítě ani AI → projde i na rozbité databázi.</td></tr>
     <tr><th>Co netestují ⏳</th><td>švy mezi moduly (že je funkce volaná se správným argumentem) a to, že zápis do D1 běží v jedné transakci</td></tr>
   </table>
 

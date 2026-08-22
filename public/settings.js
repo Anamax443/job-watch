@@ -10,6 +10,7 @@ async function load(){
   $('#regionPriority').value = current.regionPriority ?? '';
   $('#czIscoPrefixes').value = (current.czIscoPrefixes||[]).join(', ');
   $('#notifyThreshold').value = current.notifyThreshold ?? 70;
+  $('#minScore').value = current.minScore ?? 0;
   $('#emailTo').value = current.emailTo ?? '';
   $('#telegramChatId').value = current.telegramChatId ?? '';
   $('#notifyEmail').checked = !!current.notifyEmail;
@@ -25,6 +26,7 @@ $('#save').onclick = async () => {
     regionPriority: $('#regionPriority').value.trim(),
     czIscoPrefixes: $('#czIscoPrefixes').value.split(',').map(s=>s.trim()).filter(Boolean),
     notifyThreshold: parseInt($('#notifyThreshold').value,10)||0,
+    minScore: parseInt($('#minScore').value,10)||0,
     emailTo: $('#emailTo').value.trim(),
     telegramChatId: $('#telegramChatId').value.trim(),
     notifyEmail: $('#notifyEmail').checked,

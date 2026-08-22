@@ -3,17 +3,24 @@ import { runPipeline } from './pipeline.ts';
 import { notify, checkTelegram, checkEmail, type NotifyJob } from './notify.ts';
 import { checkAnthropic, messagesCreate, allText } from './anthropic.ts';
 import {
-  AI_PROVIDER_VALUES,
   WORKERS_AI_MODEL,
   ctxFrom,
   providerChain,
   webResearchEnabled,
 } from './ai.ts';
-import { loadSettings, saveSettings } from './config.ts';
+import { loadSettings, sanitizeSettings, saveSettings } from './config.ts';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
-import { ACCESS_EMAIL_HEADER, accessStatus, authorize, isProtectedPath } from './access.ts';
+import {
+  ACCESS_EMAIL_HEADER,
+  ACCESS_LOGOUT_PATH,
+  accessStatus,
+  authorize,
+  isProtectedPath,
+  type AccessVerdict,
+} from './access.ts';
+import { runSelfTest } from './selftest.ts';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -214,27 +221,6 @@ async function handleTestNotify(env: Env): Promise<Response> {
   return json({ ok: r.telegram || r.email || r.slack, ...r });
 }
 
-function sanitizeSettings(input: any): Partial<Settings> {
-  const out: Partial<Settings> = {};
-  const arr = (v: any) =>
-    Array.isArray(v) ? v.map((s: any) => String(s).trim()).filter(Boolean) : undefined;
-  if (arr(input.keywords)) out.keywords = arr(input.keywords);
-  if (arr(input.czIscoPrefixes)) out.czIscoPrefixes = arr(input.czIscoPrefixes);
-  if (typeof input.regionPriority === 'string') out.regionPriority = input.regionPriority.trim();
-  if (input.notifyThreshold != null)
-    out.notifyThreshold = Math.max(0, Math.min(100, parseInt(input.notifyThreshold, 10) || 0));
-  if (typeof input.emailTo === 'string') out.emailTo = input.emailTo.trim();
-  if (typeof input.telegramChatId === 'string') out.telegramChatId = input.telegramChatId.trim();
-  if (typeof input.notifyEmail === 'boolean') out.notifyEmail = input.notifyEmail;
-  if (typeof input.notifyTelegram === 'boolean') out.notifyTelegram = input.notifyTelegram;
-  if (typeof input.notifySlack === 'boolean') out.notifySlack = input.notifySlack;
-  if (typeof input.profile === 'string') out.profile = input.profile;
-  if (typeof input.aiProvider === 'string') {
-    const v = input.aiProvider.trim().toLowerCase();
-    if ((AI_PROVIDER_VALUES as readonly string[]).includes(v)) out.aiProvider = v;
-  }
-  return out;
-}
 
 export default {
   // Denní cron — viz [triggers] ve wrangler.toml.
@@ -266,6 +252,7 @@ async function route(
     // Dřív byla chráněná jen hrstka zapisovacích cest a kontrolovalo se pouze to, že hlavička
     // existuje. Kdo se dostal na origin mimo Access, si ji poslal sám a stáhl si /api/settings
     // (profil/CV) i /api/jobs (kontaktní osoby vč. e-mailů a telefonů). Viz src/access.ts.
+    let identita: AccessVerdict | null = null;
     if (isProtectedPath(p)) {
       const verdict = authorize({
         headerEmail: request.headers.get(ACCESS_EMAIL_HEADER),
@@ -276,6 +263,25 @@ async function route(
         console.warn(`access ${p}: ${verdict.reason} (${verdict.email ?? '—'})`);
         return json({ error: verdict.note }, verdict.status);
       }
+      identita = verdict;
+    }
+
+    // Kdo je přihlášený + kam na odhlášení. Session drží Access, ne aplikace — proto se
+    // odhlašuje na jeho endpointu a my jen ukazujeme, pod kým se to právě používá.
+    if (p === '/api/me' && request.method === 'GET') {
+      return json({
+        email: identita?.email ?? null,
+        reason: identita?.reason ?? null,
+        logoutUrl: ACCESS_LOGOUT_PATH,
+        ...accessStatus(env.ACCESS_ALLOWED_EMAILS),
+      });
+    }
+
+    // Sebekontrola invariantů PROTI NASAZENÉ VERZI (viz src/selftest.ts). Nesahá na D1,
+    // síť ani AI — jde spustit i na rozbité databázi. Stránka /tests to jen vykresluje.
+    if (p === '/api/selftest' && request.method === 'GET') {
+      const r = runSelfTest();
+      return json({ ...r, commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null }, r.ok ? 200 : 500);
     }
 
     if (p === '/api/keys' && request.method === 'GET') return json(await secretStatus(env));

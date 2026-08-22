@@ -78,7 +78,7 @@
 <body>
 <header>
   <h1>🔎 JobWatch</h1>
-  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/console">Konzole</a><a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
+  <nav><a href="/">Výsledky</a><a href="/settings">Nastavení</a><a href="/console">Konzole</a><a href="/tests">Testy</a> <a href="/how">Jak to funguje</a><a href="/docs">Dokumentace</a></nav>
   <span class="spacer"></span>
   <span id="status"></span>
   <button id="stop" class="ghost" style="display:none">⏹ Zastavit</button>
@@ -86,7 +86,7 @@
 </header>
 
 <div class="filters">
-  <label>Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
+  <label title="Výchozí hodnotu drží Nastavení (platí na všech zařízeních). Tady jde jen dočasně přefiltrovat.">Min. skóre <input id="minScore" type="number" min="0" max="100" value="0" /></label>
   <label title="Zobrazit vše, jen na portálu, nebo jen stažené z portálu (VŘ ale může běžet dál)">Stav
     <select id="activeFilter">
       <option value="all">Vše</option>

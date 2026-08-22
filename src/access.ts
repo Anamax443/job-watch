@@ -17,6 +17,9 @@
 /** Hlavička, kterou na chráněné route nastavuje Cloudflare Access. */
 export const ACCESS_EMAIL_HEADER = 'Cf-Access-Authenticated-User-Email';
 
+/** Odhlášení řeší Access na svém endpointu — aplikace žádnou session nedrží. */
+export const ACCESS_LOGOUT_PATH = '/cdn-cgi/access/logout';
+
 export type AccessReason =
   | 'ok' // e-mail je na allowlistu
   | 'ok-no-allowlist' // přihlášený, ale allowlist není nastavený (přechodný stav)

@@ -49,6 +49,9 @@ export interface Settings {
   czIscoPrefixes: string[];
   regionPriority?: string;
   notifyThreshold: number;
+  // Výchozí minimální skóre v přehledu Výsledků. Notifikace řídí notifyThreshold;
+  // tohle je jen to, co se zobrazuje — ať se práh nemusí přenastavovat v každém prohlížeči.
+  minScore: number;
   emailTo?: string;
   telegramChatId?: string;
   notifyEmail: boolean;

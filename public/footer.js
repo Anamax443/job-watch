@@ -7,6 +7,7 @@
     '#jw-footer{display:inline-flex;align-items:center;gap:7px;margin-left:auto;' +
     'font:12px/1.4 system-ui,Segoe UI,sans-serif;color:#8b97ad;white-space:nowrap}' +
     '#jw-footer code{color:#e9edf5;background:#1b2233;border:1px solid #2a3346;padding:0 5px;border-radius:5px}' +
+    '#jw-footer a{color:#4f9cf9;text-decoration:none}#jw-footer a:hover{text-decoration:underline}' +
     // Fallback pro stránky bez <header> — původní plovoucí box vpravo dole.
     '#jw-footer.jw-fixed{position:fixed;right:12px;bottom:10px;margin-left:0;' +
     'background:rgba(20,25,37,.88);border:1px solid #2a3346;padding:5px 10px;border-radius:9px;z-index:50}' +
@@ -16,7 +17,7 @@
 
   var bar = document.createElement('div');
   bar.id = 'jw-footer';
-  bar.innerHTML = '<span id="jw-live"></span><span id="jw-clock">--:--:--</span> · <span id="jw-ver">…</span> · <span id="jw-ai" title="AI backend…">AI …</span> · <span id="jw-health" title="kontrola spojení…">API …</span>';
+  bar.innerHTML = '<span id="jw-live"></span><span id="jw-clock">--:--:--</span> · <span id="jw-ver">…</span> · <span id="jw-ai" title="AI backend…">AI …</span> · <span id="jw-health" title="kontrola spojení…">API …</span> · <span id="jw-user" title="přihlášený účet">…</span>';
   // Do hlavičky (nahoře); když ji stránka nemá, spadni na plovoucí box dole.
   var header = document.querySelector('header');
   if (header) {
@@ -105,6 +106,36 @@
         aiEl.title = 'stav AI se nepodařilo načíst';
       });
   }
+  // Kdo je přihlášený + odhlášení. Session drží Cloudflare Access, ne aplikace — proto se
+  // odhlašuje na jeho endpointu (/cdn-cgi/access/logout), my jen ukazujeme, pod kým se to jede.
+  var userEl = document.getElementById('jw-user');
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  fetch('/api/me')
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (me) {
+      var logout = (me && me.logoutUrl) || '/cdn-cgi/access/logout';
+      if (me && me.email) {
+        userEl.innerHTML =
+          '👤 <code>' + esc(me.email) + '</code>' +
+          (me.allowlistConfigured ? '' : ' <span style="color:#f0b35b">⚠</span>') +
+          ' · <a href="' + logout + '">Odhlásit</a>';
+        userEl.title = me.allowlistConfigured
+          ? 'Přihlášen přes Cloudflare Access; účet je na allowlistu povolených adres.'
+          : 'Přihlášen přes Cloudflare Access, ale ACCESS_ALLOWED_EMAILS není nastavený — projde kterýkoli ověřený účet.';
+      } else {
+        userEl.innerHTML = '👤 <span style="color:#8b97ad">lokální vývoj</span>';
+        userEl.title = 'Běží bez Cloudflare Access (DEV_OPEN=1). Na produkci se tohle nikdy neukáže.';
+      }
+    })
+    .catch(function () {
+      userEl.innerHTML = '👤 <span style="color:#ef6b73">?</span>';
+      userEl.title = 'Identitu se nepodařilo načíst.';
+    });
+
   health.style.cursor = 'pointer';
   health.onclick = checkHealth;
   aiEl.style.cursor = 'pointer';
