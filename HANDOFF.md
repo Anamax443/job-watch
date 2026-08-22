@@ -5,7 +5,8 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 > **🟢 NASAZENO A BĚŽÍ:** [jobwatch.maxferit.cz](https://jobwatch.maxferit.cz) za Cloudflare
 > Access, denní cron 07:00 SEČ. Repo **`Anamax443/job-watch`** (PUBLIC), větev `main`.
-> Deploy jede z CI při pushi do `main` — **push = nasazení**.
+> Deploy jede z CI při pushi do `main` — **push = nasazení**; CI od 22. 8. 2026 hlásí pravdu
+> (brána `typecheck` → `test` → deploy).
 > Provoz je nezávislý na lokálním PC (Worker + D1 + Cron + GitHub Actions).
 
 ---
@@ -52,7 +53,7 @@ guard, druhá jako správná konverze:
    **bez** skóre se uložila jako `relevance 0`. Nulu smyčka bere jako hotovo → inzerát by se
    už nikdy nepřeskóroval. Proti přesně tomuhle se `scoreJob` o pár řádků níž vědomě brání.
 
-### ⚠️ Nález při nasazení: CI hlásí selhání, ale nasadí
+### ✅ Nález při nasazení: CI hlásilo selhání, i když nasadilo — VYŘEŠENO týž den
 
 Deploy workflow skončil **červeně**, přitom Worker se nasadil. Rozpad kroků:
 
@@ -76,10 +77,18 @@ nemá právo.
 pro zónu `maxferit.cz`. Lokální OAuth token ho má (`workers_routes (write)`), proto lokální
 `wrangler deploy` projde a CI ne.
 
-**Náprava (ruční, na dashboardu):** vygenerovat token s `Account → Workers Scripts → Edit`,
-`Account → D1 → Edit` a **`Zone → Workers Routes → Edit`** (zóna `maxferit.cz`) a přepsat jím
-GitHub secret. Do té doby platí: **červené CI ≠ nenasazeno** — vždy ověřit
-`wrangler deployments list` nebo commit v patičce UI.
+**Náprava — hotovo 22. 8. 2026.** Token `job-watch-ci-deploy` měl jen `D1 Write` +
+`Workers Scripts Write`. Doplněna třetí policy: rozsah **Specified Domains → `maxferit.cz`**,
+oprávnění **Workers Routes → Write**. Token se **needitoval rollem**, takže si zachoval hodnotu
+a GitHub secret `CLOUDFLARE_API_TOKEN` zůstal platný — nic se nepřepisovalo.
+
+Ověřeno `gh run rerun`: běh `32571766264` doběhl **zeleně** včetně kroku
+`cloudflare/wrangler-action@v3`. Od téhle chvíle platí normální pravidlo:
+**červené CI = opravdu nenasazeno.**
+
+> Ponecháno v deníku i po opravě, protože to je poučení, ne jen porucha: mezi 5. a 22. 8.
+> hlásilo CI dvakrát selhání, přitom obakrát nasadilo. Kdyby se v té době objevila skutečná
+> chyba, zapadla by do šumu. **Zelená, které se nedá věřit, je horší než žádná.**
 
 ### Zbývá / vědomě odloženo
 
@@ -92,8 +101,6 @@ GitHub secret. Do té doby platí: **červené CI ≠ nenasazeno** — vždy ov�
 - ⏳ **Staré nuly v datech** — inzeráty, které dostaly `relevance 0` kvůli chybě č. 2, zůstávají
   nulové a samy se nepřeskórují. `UPDATE seen_jobs SET relevance = NULL WHERE relevance = 0`
   by je vrátil do fronty, ale smázlo by to i legitimní nuly → napřed se podívat, kolik jich je.
-- ⏳ **Přegenerovat `CLOUDFLARE_API_TOKEN`** s právem Zone → Workers Routes → Edit, ať CI
-  hlásí pravdu (viz nález výše). Vyžaduje dashboard, nejde udělat z repa.
 - ⏳ Otevřené body na konci README (wrapper přírůstkového JSONu MPSV, tvary ATS odpovědí,
   registr agentur, detailní URL MPSV).
 

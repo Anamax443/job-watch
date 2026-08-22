@@ -50,7 +50,7 @@
     <tr><th>Repozitář</th><td>GitHub <a href="https://github.com/Anamax443/job-watch"><code>Anamax443/job-watch</code></a> (<b>PUBLIC</b>), větev <code>main</code></td></tr>
     <tr><th>Poslední velká změna</th><td><code>8823231</code> — identitu ověřuje aplikace, ne jen perimetr + testovací vrstva</td></tr>
     <tr><th>Nasazování</th><td>GitHub Actions <code>deploy.yml</code> při pushi do <code>main</code> — <b>push = nasazení</b>. Brána: <code>typecheck</code> → <code>test</code> → deploy.</td></tr>
-    <tr><th>Známý šum v CI ⏳</th><td>Deploy workflow končí <b>červeně</b>, i když se Worker nasadí: skript se nahraje, ale srovnání rout na zóně spadne na <code>Authentication error [10000]</code> — <code>CLOUDFLARE_API_TOKEN</code> nemá <b>Zone → Workers Routes → Edit</b>. Platí od 5. 8. 2026. Do nápravy: <b>červené CI ≠ nenasazeno</b>, ověřuj <code>wrangler deployments list</code> nebo commit v patičce UI.</td></tr>
+    <tr><th>Spolehlivost CI <span class="pill live">opraveno 22. 8.</span></th><td>Mezi 5. a 22. 8. končil deploy <b>červeně, i když se Worker nasadil</b> — skript se nahrál, ale srovnání rout na zóně padalo na <code>Authentication error [10000]</code>, protože token neměl právo na routy. Doplněno (<b>Specified Domains → maxferit.cz · Workers Routes → Write</b>) a ověřeno zeleným během. <b>Červené CI teď znamená opravdu nenasazeno.</b></td></tr>
     <tr><th>Cloudflare účet</th><td><code>bass443@gmail.com</code></td></tr>
   </table>
 
