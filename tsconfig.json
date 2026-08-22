@@ -11,6 +11,9 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    // Relativní importy uvádějí příponu .ts, aby šlo `src/` spustit i mimo Worker
+    // (plain `node --test`, bez bundleru) — na tom stojí testy v tests/.
+    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false
   },
   "include": ["src/**/*.ts"]

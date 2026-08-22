@@ -1,5 +1,5 @@
-import type { Env, JobPosting, Settings } from '../types';
-import { num, truncate } from '../util';
+import type { Env, JobPosting, Settings } from '../types.ts';
+import { num, truncate } from '../util.ts';
 
 // Otevřený web zdroj přes Adzuna Job API (https://developer.adzuna.com) — vrací KONKRÉTNÍ
 // jednotlivé inzeráty jako data (firma, lokalita, mzda, přímý odkaz), ne seznamy.

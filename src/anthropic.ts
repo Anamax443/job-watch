@@ -1,4 +1,4 @@
-import type { Env } from './types';
+import type { Env } from './types.ts';
 
 // Tenký klient nad Anthropic Messages API (raw fetch — idiomatic pro Cloudflare Worker).
 // Endpoint a hlavičky dle https://api.anthropic.com/v1/messages.

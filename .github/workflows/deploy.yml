@@ -21,6 +21,10 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run typecheck
+      # Brána před nasazením: mezi „na GitHubu" a „v provozu" musí stát kontrola.
+      # Testy nepotřebují Worker, D1 ani síť — čisté funkce (dedup, region, prefiltr,
+      # normalizace odpovědi modelu, autorizace). Když spadnou, nenasazuje se.
+      - run: npm test
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

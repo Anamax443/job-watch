@@ -1,18 +1,19 @@
-import type { Env, Settings } from './types';
-import { runPipeline } from './pipeline';
-import { notify, checkTelegram, checkEmail, type NotifyJob } from './notify';
-import { checkAnthropic, messagesCreate, allText } from './anthropic';
+import type { Env, Settings } from './types.ts';
+import { runPipeline } from './pipeline.ts';
+import { notify, checkTelegram, checkEmail, type NotifyJob } from './notify.ts';
+import { checkAnthropic, messagesCreate, allText } from './anthropic.ts';
 import {
   AI_PROVIDER_VALUES,
   WORKERS_AI_MODEL,
   ctxFrom,
   providerChain,
   webResearchEnabled,
-} from './ai';
-import { loadSettings, saveSettings } from './config';
-import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets';
-import { fetchWeb } from './sources/web';
-import { isCheckableUrl } from './liveness';
+} from './ai.ts';
+import { loadSettings, saveSettings } from './config.ts';
+import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
+import { fetchWeb } from './sources/web.ts';
+import { isCheckableUrl } from './liveness.ts';
+import { ACCESS_EMAIL_HEADER, accessStatus, authorize, isProtectedPath } from './access.ts';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -179,6 +180,8 @@ async function handleHealth(env: Env): Promise<Response> {
     telegram,
     email,
     slack,
+    // Stav autorizace — ať je vidět, že allowlist chybí (viz src/access.ts). Adresy se nevrací.
+    access: accessStatus(env.ACCESS_ALLOWED_EMAILS),
     enabled: { telegram: s.notifyTelegram, email: s.notifyEmail, slack: s.notifySlack },
   });
 }
@@ -259,11 +262,19 @@ async function route(
   try {
     if (p === '/.well-known/security.txt') return securityTxt();
 
-    // Citlivé akce vyžadují přihlášení přes Cloudflare Access (header s e-mailem).
-    const sensitive = ['/api/keys', '/api/run', '/api/run/stop', '/api/test-notify'];
-    if (sensitive.includes(p) || (p === '/api/settings' && request.method === 'POST')) {
-      if (!request.headers.get('Cf-Access-Authenticated-User-Email')) {
-        return json({ error: 'Vyžaduje přihlášení (Cloudflare Access).' }, 403);
+    // Celé API — ČTENÍ i ZÁPIS — vyžaduje ověřenou IDENTITU, ne jen přítomnost hlavičky.
+    // Dřív byla chráněná jen hrstka zapisovacích cest a kontrolovalo se pouze to, že hlavička
+    // existuje. Kdo se dostal na origin mimo Access, si ji poslal sám a stáhl si /api/settings
+    // (profil/CV) i /api/jobs (kontaktní osoby vč. e-mailů a telefonů). Viz src/access.ts.
+    if (isProtectedPath(p)) {
+      const verdict = authorize({
+        headerEmail: request.headers.get(ACCESS_EMAIL_HEADER),
+        allowlistRaw: env.ACCESS_ALLOWED_EMAILS,
+        devOpen: env.DEV_OPEN,
+      });
+      if (!verdict.ok) {
+        console.warn(`access ${p}: ${verdict.reason} (${verdict.email ?? '—'})`);
+        return json({ error: verdict.note }, verdict.status);
       }
     }
 

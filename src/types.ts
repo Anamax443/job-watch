@@ -99,4 +99,10 @@ export interface Env {
   WEB_SEARCH?: string;
   GIT_COMMIT?: string;
   BUILT_AT?: string;
+  // Allowlist e-mailů, které smí do aplikace (oddělovač , ; nebo mezera; "*" = kterýkoli
+  // účet ověřený Accessem). Prázdné = projde každý přihlášený — hlásí se v /api/health.
+  // Aplikace tak neověřuje jen „je za Accessem", ale KDO. Viz src/access.ts.
+  ACCESS_ALLOWED_EMAILS?: string;
+  // Bypass autorizace pro `wrangler dev` (v .dev.vars, NIKDY na produkci). Musí být přesně "1".
+  DEV_OPEN?: string;
 }

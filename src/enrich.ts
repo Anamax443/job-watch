@@ -1,6 +1,6 @@
-import type { Env, JobPosting, EnrichResult } from './types';
-import { messagesCreate, allText, extractJson } from './anthropic';
-import { truncate } from './util';
+import type { Env, JobPosting, EnrichResult } from './types.ts';
+import { messagesCreate, allText, extractJson } from './anthropic.ts';
+import { truncate } from './util.ts';
 
 // Deanonymizace: u agenturního inzerátu najdi PŮVODCE.
 // Sonnet 4.6 + web_search/web_fetch — vybere distinktivní věty, vyhledá je,

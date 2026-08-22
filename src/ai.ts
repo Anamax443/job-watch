@@ -1,4 +1,4 @@
-import type { Env, Settings } from './types';
+import type { Env, Settings } from './types.ts';
 
 /**
  * Přepínatelný AI backend „dle úhrady" — stejný princip jako FIO-import.

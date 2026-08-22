@@ -1,5 +1,5 @@
-import type { Env, JobPosting, ScoreResult, EnrichResult, AtsTarget } from './types';
-import { norm, sha256hex } from './util';
+import type { Env, JobPosting, ScoreResult, EnrichResult, AtsTarget } from './types.ts';
+import { norm, sha256hex } from './util.ts';
 
 // D1 perzistence + cross-source dedup.
 

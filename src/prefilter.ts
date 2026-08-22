@@ -1,5 +1,5 @@
-import type { JobPosting, Settings } from './types';
-import { norm } from './util';
+import type { JobPosting, Settings } from './types.ts';
+import { norm } from './util.ts';
 
 // Levný filtr před LLM: projde inzerát, když sedí CZ-ISCO prefix NEBO klíčové slovo.
 // (ATS inzeráty nemají CZ-ISCO → projdou přes klíčová slova v titulu/popisu.)
@@ -16,7 +16,13 @@ function iscoMatch(czIsco: string | undefined, prefixes: string[]): boolean {
 
 function keywordMatch(job: JobPosting, keywords: string[]): boolean {
   const hay = norm(`${job.title} ${job.description ?? ''}`);
-  return keywords.some((k) => k && hay.includes(norm(k)));
+  return keywords.some((k) => {
+    // Test `k &&` nestačil: klíčové slovo ze samých mezer je truthy, ale norm(k) je ""
+    // a `hay.includes('')` je vždy true → filtr by tiše propustil ÚPLNĚ VŠECHNO na AI
+    // skórování (a spálil denní rozpočet). Rozhoduje délka po normalizaci, ne surová hodnota.
+    const needle = norm(k);
+    return needle.length > 0 && hay.includes(needle);
+  });
 }
 
 export function prefilter(jobs: JobPosting[], settings: Settings): JobPosting[] {

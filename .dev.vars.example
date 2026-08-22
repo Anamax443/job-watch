@@ -24,3 +24,8 @@ ADZUNA_APP_KEY=
 
 # Serper.dev (alternativa – Google seznamy; už se nepoužívá pro web zdroj)
 SERPER_API_KEY=
+
+# Lokální vývoj: `wrangler dev` nemá Cloudflare Access, takže by celé /api vracelo 403.
+# DEV_OPEN=1 autorizaci pro lokální běh vypne. NIKDY to nenastavuj na produkci
+# (na produkci se autorizace řídí varem ACCESS_ALLOWED_EMAILS ve wrangler.toml).
+DEV_OPEN=1

@@ -1,5 +1,5 @@
-import type { Env, JobPosting, Settings } from '../types';
-import { num } from '../util';
+import type { Env, JobPosting, Settings } from '../types.ts';
+import { num } from '../util.ts';
 
 // Deterministický zdroj jobs.cz (LMC): stáhne veřejnou listovací stránku hledání
 // a vytáhne z ní KONKRÉTNÍ inzeráty (každý jako /rpd/<id> detail), ne seznam.

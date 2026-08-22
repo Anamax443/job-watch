@@ -1,6 +1,6 @@
-import type { Env, JobPosting } from '../types';
-import { getMeta, setMeta } from '../config';
-import { num, truncate } from '../util';
+import type { Env, JobPosting } from '../types.ts';
+import { getMeta, setMeta } from '../config.ts';
+import { num, truncate } from '../util.ts';
 
 // Zdroj: otevřená data ÚP ČR / MPSV — denní přírůstky volných míst.
 // Soubor: volna-mista-prirustek-YYYY-MM-DD.json (publikováno v pracovní dny).

@@ -1,8 +1,8 @@
-import type { Env, JobPosting, ScoreResult } from './types';
-import { messagesCreate, firstText, extractJson } from './anthropic';
-import { providerChain, runWorkersJson } from './ai';
-import { applyRegionGate } from './region';
-import { truncate } from './util';
+import type { Env, JobPosting, ScoreResult } from './types.ts';
+import { messagesCreate, firstText, extractJson } from './anthropic.ts';
+import { providerChain, runWorkersJson } from './ai.ts';
+import { applyRegionGate } from './region.ts';
+import { truncate } from './util.ts';
 
 // Relevance scoring přes levný model (haiku) + structured outputs (JSON-only).
 
@@ -65,9 +65,23 @@ function buildSystem(profile: string, region?: string, threshold?: number): stri
   );
 }
 
-/** Sjednotí výstup obou backendů (Workers AI vrací čísla občas jako string). */
-function normalize(parsed: any): ScoreResult | null {
-  const rel = Number(parsed?.relevance);
+/**
+ * Sjednotí výstup obou backendů (Workers AI vrací čísla občas jako string).
+ * Exportované kvůli testům — je to čistá funkce nad odpovědí modelu, tedy to nejsnáz
+ * testovatelné místo celé AI vrstvy (tests/score-normalize.test.ts).
+ */
+export function normalizeScore(parsed: any): ScoreResult | null {
+  // POZOR na Number(): Number(null), Number(''), Number(false) i Number([]) je 0 — odpověď
+  // BEZ skóre by se tak uložila jako relevance 0. To je přesně stav, kterému se scoreJob brání
+  // (0 smyčka bere jako hotové → inzerát se už nikdy nepřeskóruje a uvízne). Bereme proto jen
+  // skutečné číslo nebo neprázdný číselný string (Workers AI vrací '85').
+  const raw = parsed?.relevance;
+  const rel =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string' && raw.trim() !== ''
+        ? Number(raw)
+        : NaN;
   if (!Number.isFinite(rel)) return null;
   const sen: ScoreResult['seniority'] = ['lead', 'senior', 'other'].includes(parsed?.seniority)
     ? parsed.seniority
@@ -147,7 +161,7 @@ export async function scoreJob(
         // Workers AI (Llama) — JSON přes prompt, viz src/ai.ts.
         parsed = await runWorkersJson(env.AI as Ai, system, user, 400);
       }
-      const out = normalize(parsed);
+      const out = normalizeScore(parsed);
       // Region NEnechávej na modelu: zastropuj skóre podle skutečné lokality (src/region.ts).
       if (out) return gateByRegion(out, job, opts);
       // Odpověď dorazila, ale nedá se použít (chybí číselná relevance) — u free modelu se to

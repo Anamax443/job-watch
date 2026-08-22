@@ -1,6 +1,6 @@
-import type { Env } from './types';
-import { messagesCreate, allText, extractJson } from './anthropic';
-import { sourceKnown, insertSource } from './store';
+import type { Env } from './types.ts';
+import { messagesCreate, allText, extractJson } from './anthropic.ts';
+import { sourceKnown, insertSource } from './store.ts';
 
 // Dynamický screening: pro nově viděnou agenturu/firmu najde na internetu, KDE
 // zveřejňuje pracovní nabídky (ATS / kariérní stránka), detekuje platformu a uloží

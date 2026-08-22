@@ -127,6 +127,44 @@ k běhu nepoužívá. Stav, naučené zdroje i nastavení žijí v D1.
 
 ---
 
+## Testy
+
+Testy jsou **bez závislostí a bez infrastruktury** — vestavěný `node --test` nad čistými
+funkcemi, spustitelné jedním příkazem:
+
+```bash
+npm test            # tests/**/*.test.ts + scripts/region-check.ts
+npm run check:region  # jen filtr regionu
+```
+
+| Soubor | Co hlídá | Proč |
+|---|---|---|
+| `tests/access.test.ts` | autorizace, allowlist, chráněné cesty | perimetr už jednou selhal (workers.dev) |
+| `tests/dedup.test.ts` | `dedupKey`, `contentHash`, otisk vět | rozbitý dedup = lavina duplicitních zpráv, a tiše |
+| `tests/prefilter.test.ts` | co se pustí na AI skórování | propustnost přímo řídí spotřebu AI backendu |
+| `tests/score-normalize.test.ts` | normalizace odpovědi modelu | free model vrací tvary, které Claude nevrací |
+| `tests/util.test.ts` | `norm`, `stripHtml`, `truncate`, `num` | stojí na nich dedup i prefiltr |
+| `scripts/region-check.ts` | verdikty regionu + strop skóre | živý incident: Praha 80/100 při nastavení „brno" |
+
+Testuje se vždy **malý dílčí celek** — jedna funkce, jeden vstup, jeden očekávaný výstup —
+a každý případ má v názvu napsané, **proč** tam je. Testy přes celý systém, které spadnou,
+ale neřeknou kde, se sem nepřidávají.
+
+Aby to šlo spustit i mimo Worker, uvádějí relativní importy v `src/` příponu `.ts`
+(`allowImportingTsExtensions` v `tsconfig.json`). Bundler i `node` tak čtou stejné soubory.
+
+**Co testy zatím nehlídají:** switche mezi moduly (že je funkce volaná se správným argumentem)
+a to, že zápis do D1 běží v jedné transakci. Na to jsou potřeba jiné testy a v `pipeline.ts`
+zatím nejsou.
+
+**Nálezy, které tyhle testy odhalily při psaní** (obojí opraveno):
+1. klíčové slovo ze samých mezer prošlo testem `k &&`, ale `norm(k)` je `""` a
+   `hay.includes('')` je vždy `true` → prefiltr by pustil na AI skórování **úplně všechno**;
+2. `Number(null)` je `0`, takže odpověď modelu **bez** skóre se uložila jako `relevance 0` —
+   a nula se ve smyčce bere jako hotovo, takže by se inzerát už nikdy nepřeskóroval.
+
+---
+
 ## Setup
 
 ```bash
@@ -145,10 +183,19 @@ wrangler secret put SLACK_WEBHOOK_URL   # volitelné — Slack Incoming Webhook
 #   Dashboard → Email Service → Email Sending → Onboard Domain (maxferit.cz)
 wrangler secret put ADZUNA_APP_ID       # web zdroj (konkrétní inzeráty) — developer.adzuna.com
 wrangler secret put ADZUNA_APP_KEY
+
+# 2b) KDO smí do aplikace — doplň svůj e-mail z politiky Cloudflare Access
+#     do ACCESS_ALLOWED_EMAILS ve wrangler.toml [vars] a nasaď. Dokud je prázdný,
+#     projde každý přihlášený a /api/health to hlásí (viz „Autorizaci dělá i aplikace").
 # Klíče lze nově spravovat i přes UI (Nastavení → Klíče a přístupy), uloží se do D1.
 
 # 3) Lokální běh
 npm run dev                           # UI na http://localhost:8787
+#    `wrangler dev` nemá Access → bez DEV_OPEN=1 v .dev.vars vrací celé /api 403.
+
+# 3b) Kontroly (nepotřebují Worker, D1 ani síť)
+npm run typecheck
+npm test                              # unit testy + kontrola filtru regionu
 
 # 4) Deploy
 npm run deploy                        # nebo z cloudu: GitHub Action deploy.yml (push do main)
@@ -186,9 +233,30 @@ UI běží na vlastní doméně **`jobwatch.maxferit.cz`** chráněné **Cloudfl
 > Zápisy chráněné byly (hlavička `Cf-Access-Authenticated-User-Email`), čtení ne. Ověřeno živě
 > 2026-08-05, vypnuto týmž dnem. Jediná cesta dovnitř je custom doména za Accessem.
 
-Citlivé endpointy (`/api/keys`, `/api/run`, `/api/run/stop`, `/api/test-notify`,
-`POST /api/settings`) navíc v kódu vyžadují hlavičku `Cf-Access-Authenticated-User-Email`,
-takže fungují jen přes přihlášený Access (ne přímo přes workers.dev).
+### Autorizaci dělá i aplikace, nejen perimetr (`src/access.ts`)
+
+> **„Je za Accessem" ≠ „aplikace ověřila identitu".** Dřív platilo obojí jen zpola: hlídala se
+> hrstka *zapisovacích* cest a kontrolovala se pouze **přítomnost** hlavičky
+> `Cf-Access-Authenticated-User-Email`. Čtecí API (`/api/settings` s profilem/CV, `/api/jobs`
+> s kontaktními osobami včetně e-mailů a telefonů, `/api/runs`, `/api/sources`) nekontrolovala
+> **nic** — celá obrana stála na tom, že se na origin nedá dostat jinudy. Ten předpoklad tu
+> už jednou padl (workers.dev, 5. 8. 2026, viz níže), a kdo se na origin dostane mimo Access,
+> si hlavičku pošle sám.
+>
+> Teď platí:
+> - chráněné je **celé `/api` — čtení i zápis** (`isProtectedPath`); ven zůstává jen
+>   `/.well-known/security.txt` (RFC 9116) a statické UI, které samo o sobě data nenese,
+> - ověřuje se **hodnota** hlavičky proti allowlistu `ACCESS_ALLOWED_EMAILS` (var ve
+>   `wrangler.toml`; oddělovač `,` `;` nebo mezera, `*` = kterýkoli účet ověřený Accessem),
+> - **prázdný allowlist = přechodný stav**: přihlášený projde (aby chybějící var neuzamkl
+>   vlastníka venku), ale `/api/health` to hlásí jako nedodělek → `access.allowlistConfigured`.
+>   Adresy se ven nevrací nikdy, jen počet.
+>
+> V datech jsou i osobní údaje **třetích osob** (kontaktní osoba z MPSV — jméno, e-mail,
+> telefon), takže tu nejde jen o vlastní profil; proto je čtení chráněné stejně jako zápis.
+>
+> Modul je záměrně **bez importů** (jako `src/region.ts`) → testovatelný mimo Worker:
+> `npm test` (`tests/access.test.ts`, mj. případ „ručně poslaná hlavička z cizího účtu").
 
 ---
 

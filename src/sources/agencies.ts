@@ -1,5 +1,5 @@
-import type { Env, JobPosting } from '../types';
-import { AGENCY_REGISTRY_URL, getMeta, isAgencyByName, setMeta } from '../config';
+import type { Env, JobPosting } from '../types.ts';
+import { AGENCY_REGISTRY_URL, getMeta, isAgencyByName, setMeta } from '../config.ts';
 
 // Klasifikace "personální agentura" napříč zdroji.
 // Primárně: IČO zaměstnavatele je v registru agentur práce (MPSV).

@@ -1,5 +1,5 @@
-import type { Env, JobPosting, Settings } from './types';
-import { stripHtml, truncate } from './util';
+import type { Env, JobPosting, Settings } from './types.ts';
+import { stripHtml, truncate } from './util.ts';
 
 // Notifikace přes Telegram + Microsoft Graph (e-mail). Každý kanál vypínatelný v settings.
 

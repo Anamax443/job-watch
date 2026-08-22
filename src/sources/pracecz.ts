@@ -1,5 +1,5 @@
-import type { Env, JobPosting, Settings } from '../types';
-import { stripHtml } from '../util';
+import type { Env, JobPosting, Settings } from '../types.ts';
+import { stripHtml } from '../util.ts';
 
 // Zdroj prace.cz (LMC, sesterský k jobs.cz): stáhne listovku hledání a vytáhne
 // konkrétní inzeráty (/nabidka/<uuid>). POZOR: hledání na prace.cz je VOLNÉ

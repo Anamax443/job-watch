@@ -1,5 +1,5 @@
-import type { Env, Settings } from './types';
-import { norm } from './util';
+import type { Env, Settings } from './types.ts';
+import { norm } from './util.ts';
 
 // Výchozí nastavení. Editovatelné v UI /settings (ukládá se do D1, klíč 'settings').
 export const DEFAULT_SETTINGS: Settings = {

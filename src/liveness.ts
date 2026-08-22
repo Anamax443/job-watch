@@ -1,4 +1,4 @@
-import type { Env } from './types';
+import type { Env } from './types.ts';
 
 // Ověření živosti inzerátu. U portálů s detailní URL (jobs.cz /rpd/<id>, prace.cz
 // /nabidka/<uuid>) vrací zrušený inzerát HTTP 404 (ověřeno živě), aktivní 200.

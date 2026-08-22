@@ -65,3 +65,9 @@ MAX_NOTIFY_FROM_QUEUE_PER_RUN = "10"
 WEB_SEARCH = "true"
 # Odesílatel e-mailových notifikací (Cloudflare Email Sending). Doména musí být onboardovaná.
 EMAIL_FROM = "jobwatch@maxferit.cz"
+# Kdo smí do aplikace. Aplikace neověřuje jen „je za Accessem", ale KTERÝ účet — samotná
+# přítomnost hlavičky Cf-Access-Authenticated-User-Email není důkaz identity (viz src/access.ts).
+# Oddělovač , ; nebo mezera; "*" = kterýkoli účet ověřený Accessem.
+# PRÁZDNÉ = projde každý přihlášený a /api/health to hlásí jako nedodělek — doplň e-mail
+# z politiky Cloudflare Access, ať kontrola skutečně platí.
+ACCESS_ALLOWED_EMAILS = "bass443@gmail.com"

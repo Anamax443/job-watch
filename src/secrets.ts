@@ -1,5 +1,5 @@
-import type { Env } from './types';
-import { getMeta, setMeta } from './config';
+import type { Env } from './types.ts';
+import { getMeta, setMeta } from './config.ts';
 
 // Správa klíčů/přístupů editovatelná z UI (uloženo v D1 meta pod 'secret:NAME').
 // Kód čte přednostně hodnotu z D1, jinak spadne na Worker secret (env). Tím jde

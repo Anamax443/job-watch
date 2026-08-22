@@ -1,6 +1,6 @@
-import type { Env, JobPosting, AtsTarget } from '../types';
-import { loadAtsTargets, markSourceChecked } from '../store';
-import { stripHtml, truncate } from '../util';
+import type { Env, JobPosting, AtsTarget } from '../types.ts';
+import { loadAtsTargets, markSourceChecked } from '../store.ts';
+import { stripHtml, truncate } from '../util.ts';
 
 // Generický adaptér nad veřejnými JSON API náborových systémů (ATS).
 // Cíle se NEberou ze statické konfigurace — čtou se z D1 `sources` (dynamicky objevené

@@ -1,19 +1,19 @@
-import type { Env, JobPosting } from './types';
-import { loadSettings } from './config';
-import { resolveEnv } from './secrets';
-import { fetchMpsv } from './sources/mpsv';
-import { fetchAts } from './sources/ats';
-import { fetchWeb } from './sources/web';
-import { fetchJobsCz } from './sources/jobscz';
-import { fetchPraceCz } from './sources/pracecz';
-import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies';
-import { prefilter } from './prefilter';
-import { scoreJob } from './score';
-import { enrichOriginator } from './enrich';
-import { discoverSources, type SourceCandidate } from './discover';
-import { effectiveProvider, providerChain, providerLabel, webResearchEnabled } from './ai';
-import { recheckLiveness, isCheckableUrl } from './liveness';
-import { notify } from './notify';
+import type { Env, JobPosting } from './types.ts';
+import { loadSettings } from './config.ts';
+import { resolveEnv } from './secrets.ts';
+import { fetchMpsv } from './sources/mpsv.ts';
+import { fetchAts } from './sources/ats.ts';
+import { fetchWeb } from './sources/web.ts';
+import { fetchJobsCz } from './sources/jobscz.ts';
+import { fetchPraceCz } from './sources/pracecz.ts';
+import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
+import { prefilter } from './prefilter.ts';
+import { scoreJob } from './score.ts';
+import { enrichOriginator } from './enrich.ts';
+import { discoverSources, type SourceCandidate } from './discover.ts';
+import { effectiveProvider, providerChain, providerLabel, webResearchEnabled } from './ai.ts';
+import { recheckLiveness, isCheckableUrl } from './liveness.ts';
+import { notify } from './notify.ts';
 import {
   contentHash,
   fingerprintHash,
@@ -31,8 +31,8 @@ import {
   parkJobs,
   countUnscored,
   markDuplicate,
-} from './store';
-import { applyRegionGate } from './region';
+} from './store.ts';
+import { applyRegionGate } from './region.ts';
 
 export interface RunStats {
   fetched: number;
