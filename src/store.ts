@@ -235,7 +235,13 @@ export async function loadUnscored(env: Env, limit: number, offset = 0): Promise
             url, description, is_agency, notified_at
      FROM seen_jobs
      WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)
-     ORDER BY first_seen DESC
+     -- Co UŽ JEDNOU prošlo prahem, se přeskóruje první; teprve pak zbytek od nejnovějších.
+     -- Proč: v běžném dni je správné brát nejdřív čerstvé nálezy. Jenže změna profilu vynuluje
+     -- VŠECHNA skóre a přeskórovává se celá historie — a tam řazení „od nejnovějších" odsune
+     -- dozadu právě ty inzeráty, kvůli kterým se profil měnil. Ověřeno 23. 8. 2026 na živých
+     -- datech: inzerát z 23. 7., který měl předtím 100/100, byl ve frontě 170. — s tímhle
+     -- řazením je 8. (42 dřív notifikovaných z 223 čekajících jde dopředu).
+     ORDER BY (notified_at IS NOT NULL) DESC, first_seen DESC
      LIMIT ?1 OFFSET ?2`,
   )
     .bind(limit, offset)

@@ -11,6 +11,44 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-23 — profil v Nastavení přepsán na zadání; fronta řadí podle dřívějšího zájmu
+
+**Profil místo životopisu.** V Nastavení byl dosud nalepený životopis **plus průvodní dopis
+pro Mejzlík** — tedy dopis jedné konkrétní firmě, podle kterého se hodnotily všechny ostatní
+inzeráty. Chybělo v něm, **co uživatel hledá** a hlavně **co nechce**. Nahrazeno zadáním:
+cílová role, vylučovací kritéria, silné stránky, přiznané mezery, podmínky.
+
+**Změřený dopad.** Před změnou mělo **12 ze 13** inzerátů nad prahem přesně 100 — model
+neuměl odstupňovat. Po změně (z 59 přeskórovaných): **ani jedna stovka**, jediný nad prahem
+dostal **80** se zdůvodněním „*menší nedostatky v oblasti zkušeností s Linuxem a mezinárodními
+korporacemi*". Zamítnutí nově citují zadání: „*není vedoucí IT, projektový manažer bez vedení
+IT týmu*", „*jedná se o junior roli*".
+
+> **Důsledek pro plán: filtr role v kódu se odkládá.** Nález z 22. 8. („skórování nerozlišuje")
+> vedl k úvaze postavit obdobu `region.ts` nad titulem. Ukázalo se, že příčina nebyla jen ve
+> slabém modelu — **profil neříkal, co uživatel nechce**. Levnější oprava zabrala. Rozhodnout
+> o filtru v kódu **až po dojetí fronty**, podle čísel, ne podle dojmu.
+
+**Fronta se řadí podle dřívějšího zájmu** (`loadUnscored` v `src/store.ts`). Bylo
+`ORDER BY first_seen DESC`, je `ORDER BY (notified_at IS NOT NULL) DESC, first_seen DESC`.
+
+Proč: v běžném dni je „od nejnovějších" správně. Ale změna profilu vynuluje **všechna** skóre
+a přeskórovává se celá historie — a tam tohle řazení odsune dozadu přesně ty inzeráty, kvůli
+kterým se profil měnil. Ověřeno na živých datech: inzerát z 23. 7., který měl předtím 100/100
+(Vedoucí IT oddělení, Skupina ČEZ / OSC, Brno-Ponava), byl ve frontě **170.** — s novým řazením
+je **8.** Ze 223 čekajících jde dopředu 42 dřív notifikovaných.
+
+**Bez testu, vědomě.** Řadí SQL, takže to nejde ověřit čistou funkcí bez databáze — a testy
+s běžící infrastrukturou si tenhle projekt zakázal ([METODIKA § 6](https://github.com/Anamax443/sebeanalyza)).
+Ověření proto proběhlo dotazem nad produkční D1 (read-only) **před** zápisem změny; čísla výše
+jsou z něj. Patří to do stejné kategorie jako „švy mezi moduly", které testy nehlídají.
+
+**Nový otevřený bod: skupiny se nedeanonymizují.** Inzerát je na jobs.cz vedený pod
+„Skupina ČEZ", skutečný zaměstnavatel (OSC, a.s.) je až v textu. Deanonymizace se dnes spouští
+jen podle `is_agency`, takže u holdingů se nepoužije, přestože jde o tentýž problém.
+
+---
+
 ## 2026-08-22 (3) — nález z produkčních dat: skórování nerozlišuje
 
 Při kontrole živé D1 (read-only dotazy přes `wrangler d1 execute --remote`) vyšlo najevo, že
@@ -194,9 +232,11 @@ Ověřeno `gh run rerun`: běh `32571766264` doběhl **zeleně** včetně kroku
 - ⏳ **Staré nuly v datech** — inzeráty, které dostaly `relevance 0` kvůli chybě č. 2, zůstávají
   nulové a samy se nepřeskórují. `UPDATE seen_jobs SET relevance = NULL WHERE relevance = 0`
   by je vrátil do fronty, ale smázlo by to i legitimní nuly → napřed se podívat, kolik jich je.
-- ⏳ **Skórování nerozlišuje** (viz nález z 22. 8. výše) — 12 ze 13 inzerátů nad prahem má
-  přesně 100, včetně testerské role od agentury. Rozhodnout mezi filtrem role v kódu
-  a přepnutím na placeného Haiku. **Nejvyšší priorita**: bez toho nemá práh ani pořadí smysl.
+- ⏳ **Filtr role v kódu — rozhodnout až po dojetí fronty.** Nález z 22. 8. („skórování
+  nerozlišuje") z velké části vyřešila oprava profilu 23. 8.; stovky zmizely. Až se přeskóruje
+  celá fronta, porovnat rozložení a teprve pak rozhodnout, jestli je kódový filtr ještě potřeba.
+- ⏳ **Deanonymizace i pro holdingy**, nejen pro agentury — „Skupina ČEZ" místo „OSC, a.s.".
+  Stejný mechanismus, jiný spouštěč než `is_agency`.
 - ⏳ Otevřené body na konci README (wrapper přírůstkového JSONu MPSV, tvary ATS odpovědí,
   registr agentur, detailní URL MPSV).
 
