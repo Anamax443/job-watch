@@ -52,6 +52,35 @@ guard, druhá jako správná konverze:
    **bez** skóre se uložila jako `relevance 0`. Nulu smyčka bere jako hotovo → inzerát by se
    už nikdy nepřeskóroval. Proti přesně tomuhle se `scoreJob` o pár řádků níž vědomě brání.
 
+### ⚠️ Nález při nasazení: CI hlásí selhání, ale nasadí
+
+Deploy workflow skončil **červeně**, přitom Worker se nasadil. Rozpad kroků:
+
+| Krok | Výsledek |
+|---|---|
+| `npm ci`, `typecheck`, **`npm test`** | ✅ prošlo (brána s testy jela poprvé a funguje) |
+| `wrangler deploy` — upload skriptu | ✅ „Uploaded job-watch (6.03 sec)" |
+| `wrangler deploy` — srovnání rout na zóně | ❌ `A request to the Cloudflare API (/zones/…/workers/routes) failed. Authentication error [code: 10000]` |
+
+**Ověřeno, že nová verze opravdu běží:** `wrangler deployments list` ukazuje deployment
+z `2026-08-22T11:56:01Z` na **100 %**. Perimetr drží — `GET /api/version` bez přihlášení
+vrací 302 na Access login, stejně tak požadavek s ručně podvrženou hlavičkou.
+
+**Není to nová vada, je pre-existující.** Předchozí běh (`31005784540`, 5. 8. 12:30, commit
+`17b8962` — fronta) selhal **úplně stejně** a taky se přitom nasadil (deployment 12:31:03).
+Poslední zeleně dokončený CI deploy je `2cb3240` z 5. 8. 11:28 — tedy ten, který vypnul
+`workers_dev`. Od té chvíle wrangler při každém nasazení srovnává routy na zóně a token na to
+nemá právo.
+
+**Příčina:** GitHub secret `CLOUDFLARE_API_TOKEN` nemá oprávnění **Zone → Workers Routes → Edit**
+pro zónu `maxferit.cz`. Lokální OAuth token ho má (`workers_routes (write)`), proto lokální
+`wrangler deploy` projde a CI ne.
+
+**Náprava (ruční, na dashboardu):** vygenerovat token s `Account → Workers Scripts → Edit`,
+`Account → D1 → Edit` a **`Zone → Workers Routes → Edit`** (zóna `maxferit.cz`) a přepsat jím
+GitHub secret. Do té doby platí: **červené CI ≠ nenasazeno** — vždy ověřit
+`wrangler deployments list` nebo commit v patičce UI.
+
 ### Zbývá / vědomě odloženo
 
 - ⏳ **Klíče plaintextem v D1** (`src/secrets.ts`) — a D1 hodnota **přebíjí** Worker secret.
@@ -63,6 +92,8 @@ guard, druhá jako správná konverze:
 - ⏳ **Staré nuly v datech** — inzeráty, které dostaly `relevance 0` kvůli chybě č. 2, zůstávají
   nulové a samy se nepřeskórují. `UPDATE seen_jobs SET relevance = NULL WHERE relevance = 0`
   by je vrátil do fronty, ale smázlo by to i legitimní nuly → napřed se podívat, kolik jich je.
+- ⏳ **Přegenerovat `CLOUDFLARE_API_TOKEN`** s právem Zone → Workers Routes → Edit, ať CI
+  hlásí pravdu (viz nález výše). Vyžaduje dashboard, nejde udělat z repa.
 - ⏳ Otevřené body na konci README (wrapper přírůstkového JSONu MPSV, tvary ATS odpovědí,
   registr agentur, detailní URL MPSV).
 
