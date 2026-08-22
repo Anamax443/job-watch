@@ -10,6 +10,7 @@ dohledá **původce**, ověří **živost inzerátu** (aktivní/zrušené), zach
 - **Zdroje:** MPSV (celý trh ČR) · **Adzuna Job API** (konkrétní inzeráty z webu) · ATS firem
 - **AI backend „dle úhrady" (`src/ai.ts`):** default **zdarma Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct-fp8`) pro skórování; volitelně placený **Claude** `claude-haiku-4-5`. Deanonymizace/screening (`claude-sonnet-4-6` + web_search/web_fetch) umí jen Claude → při zdarma/off se přeskočí. Přepíná se v Nastavení / var `AI_PROVIDER`.
 - **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
+- **Stav projektu:** [`STATUS.html`](STATUS.html) (snapshot k předložení) · [`HANDOFF.md`](HANDOFF.md) (deník stavu)
 
 ---
 

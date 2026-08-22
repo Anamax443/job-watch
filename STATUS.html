@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — Status</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="88">🔎</text></svg>'>
+<style>
+  :root{--bg:#0c0f15;--panel:#141925;--panel2:#1b2233;--line:#2a3346;--fg:#e9edf5;--mut:#8b97ad;--acc:#4f9cf9;--good:#3ecf8e;--warn:#f0b35b;--danger:#e5766b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.65 system-ui,'Segoe UI',Roboto,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:0 22px 80px}
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,#111725,#0c0f15)}
+  header .wrap{padding:26px 22px}
+  h1{margin:0;font-size:1.9rem;letter-spacing:.01em}
+  .sub{color:var(--mut);font-size:.95rem;margin-top:.3rem}
+  h2{font-size:1.25rem;margin:2rem 0 .7rem;padding-top:.6rem;border-top:1px solid var(--line)}
+  .pill{display:inline-block;padding:.15rem .7rem;border-radius:999px;font-size:.78rem;font-weight:700}
+  .prep{background:#4a3a1f;color:#f0d6a8;border:1px solid #6b5324}
+  .live{background:#12351f;color:#8ff0b8;border:1px solid #276b45}
+  a{color:var(--acc)}
+  code{background:var(--panel2);border:1px solid var(--line);padding:.1rem .4rem;border-radius:5px;font-size:.88em}
+  table{border-collapse:collapse;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:.62rem .9rem;border-bottom:1px solid var(--line);vertical-align:top;font-size:.95rem}
+  th{width:32%;color:var(--mut);font-weight:600}
+  tr:last-child th,tr:last-child td{border-bottom:0}
+  ul{margin:.4rem 0 0;padding-left:1.2rem}li{margin:.28rem 0}
+  .ok::before{content:"✅ "}.todo::before{content:"⏳ "}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem}
+  .card.todo-card{border-left:4px solid var(--warn)}
+  .note{background:#13241d;border:1px solid #27543f;border-radius:10px;padding:.7rem 1rem;color:#bfe8d4;margin:.8rem 0}
+  .note.warnbox{background:#2a2115;border-color:#6b5324;color:#f0d6a8}
+  footer{color:var(--mut);font-size:.85rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:1rem}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}th{width:42%}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>🔎 JobWatch — Status nasazení</h1>
+  <div class="sub">Denní monitor volných míst pro vedoucí IT · snapshot k 22. 8. 2026</div>
+</div></header>
+
+<div class="wrap">
+
+  <h2>Přehled</h2>
+  <table>
+    <tr><th>Stav</th><td><span class="pill live">NASAZENO · BĚŽÍ</span> &nbsp; denní cron 07:00 SEČ, provoz nezávislý na lokálním PC</td></tr>
+    <tr><th>Adresa</th><td><a href="https://jobwatch.maxferit.cz">jobwatch.maxferit.cz</a> — za Cloudflare Access (jen povolený e-mail)</td></tr>
+    <tr><th>Repozitář</th><td>GitHub <a href="https://github.com/Anamax443/job-watch"><code>Anamax443/job-watch</code></a> (<b>PUBLIC</b>), větev <code>main</code></td></tr>
+    <tr><th>Poslední velká změna</th><td><code>8823231</code> — identitu ověřuje aplikace, ne jen perimetr + testovací vrstva</td></tr>
+    <tr><th>Nasazování</th><td>GitHub Actions <code>deploy.yml</code> při pushi do <code>main</code> — <b>push = nasazení</b>. Brána: <code>typecheck</code> → <code>test</code> → deploy.</td></tr>
+    <tr><th>Cloudflare účet</th><td><code>bass443@gmail.com</code></td></tr>
+  </table>
+
+  <div class="note"><b>K čemu to je:</b> každý den projít trh práce, vybrat pozice typu <b>vedoucí IT / IT manažer /
+  Solution Architect</b>, nechat je ohodnotit <b>proti konkrétnímu profilu</b> (CV v Nastavení), u agenturních inzerátů
+  dohledat původce, ověřit, jestli inzerát ještě žije, zachytit kontaktní osobu — a nové nálezy poslat na
+  Telegram / e-mail / Slack.</div>
+
+  <h2>Architektura &amp; infrastruktura</h2>
+  <table>
+    <tr><th>Runtime</th><td>Cloudflare Worker <code>job-watch</code> + Cron + statické UI (Workers Assets, <code>run_worker_first</code>)</td></tr>
+    <tr><th>Databáze (D1)</th><td><code>job-watch</code> — <code>seen_jobs</code> (výsledky, živost, kontakty), <code>sources</code> (dynamicky objevené zdroje), <code>meta</code> (nastavení + kurzor), <code>runs</code> (stav běhů)</td></tr>
+    <tr><th>AI backend</th><td>default <b>zdarma</b> Cloudflare Workers AI (<code>llama-3.1-8b-instruct-fp8</code>) pro skórování; volitelně placený <code>claude-haiku-4-5</code>. Deanonymizace agentur (<code>claude-sonnet-4-6</code> + web_search) umí jen Claude.</td></tr>
+    <tr><th>Notifikace</th><td>Telegram · e-mail přes <b>Cloudflare Email Sending</b> (bez SMTP) · Slack webhook</td></tr>
+    <tr><th>Mimo Worker</th><td>GitHub Actions: <code>mpsv-liveness.yml</code> (plný export ~184 MB — Worker to v běhu neunese), <code>seed.yml</code>, <code>mpsv-backfill-location.yml</code></td></tr>
+  </table>
+
+  <h2>Zdroje inzerátů</h2>
+  <table>
+    <tr><th>MPSV / ÚP ČR</th><td>oficiální otevřená data, celý trh ČR, denní přírůstky — jádro. Lokalita se skládá ze <b>strukturované</b> adresy (<code>adresaText</code> je null u ~99 % záznamů).</td></tr>
+    <tr><th>ATS firem</th><td>Recruitee / Greenhouse / Lever / Ashby / SmartRecruiters — cíle <b>dynamicky objevené</b> a uložené v D1, žádné statické adresy</td></tr>
+    <tr><th>Web (Adzuna)</th><td>konkrétní inzeráty přes Adzuna Job API — firma, lokalita, mzda, přímý odkaz</td></tr>
+    <tr><th>jobs.cz / prace.cz</th><td>listovky LMC; detail je fetchovatelný → živost i archiv textu inzerátu</td></tr>
+  </table>
+
+  <h2>Rozhodnutí, na kterých to stojí</h2>
+  <ul>
+    <li class="ok"><b>O regionu rozhoduje kód, ne model</b> (<code>src/region.ts</code>). Slabý free model instrukci v promptu prokazatelně ignoroval — pražský inzerát dostal 80/100 při nastavení „brno". Skóre se teď deterministicky zastropuje a důvod jde do zdůvodnění (<code>⛔</code>/<code>⚠️</code>).</li>
+    <li class="ok"><b>Co se nestihne ohodnotit, se uloží</b> (fronta, <code>relevance NULL</code>). Předtím denní běh reálně ohodnotil <b>3 z 91</b> kandidátů a zbytek zahodil, protože se přírůstek MPSV stahuje jen jednou a kurzor se posunul.</li>
+    <li class="ok"><b>Selhání nikdy neuloží nulu</b> — vrací <code>null</code>, jinak by smyčka brala 0 jako hotovo a inzerát by uvízl navždy.</li>
+    <li class="ok"><b>Živost přes stavový kód detailu</b>, ne hledáním slova „ukončeno" v HTML — text stránky umí lhát.</li>
+    <li class="ok"><b>Dedup na třech úrovních</b> — <code>dedupKey</code>, <code>contentHash</code>, otisk nejdelších vět. Stejná nabídka chodí přes MPSV, ATS i agregátor a několikrát v čase.</li>
+  </ul>
+
+  <h2>Bezpečnost</h2>
+  <table>
+    <tr><th>Perimetr</th><td>Cloudflare Access na <code>jobwatch.maxferit.cz</code>, přihlášení jednorázovým PINem. <code>workers_dev = false</code> — žádná druhá, nechráněná adresa.</td></tr>
+    <tr><th>Autorizace v aplikaci <span class="pill live">od 22. 8.</span></th><td>Chráněné je <b>celé <code>/api</code> včetně čtení</b> a ověřuje se <b>hodnota</b> hlavičky proti allowlistu <code>ACCESS_ALLOWED_EMAILS</code> — ne jen to, že hlavička dorazila. Viz <code>src/access.ts</code>.</td></tr>
+    <tr><th>Osobní údaje</th><td>V datech jsou i <b>kontaktní osoby z inzerátů</b> (jméno, e-mail, telefon z MPSV) — tedy osobní údaje <b>třetích osob</b>. Proto je čtení chráněné stejně jako zápis.</td></tr>
+    <tr><th>Hlavičky</th><td>CSP, HSTS, <code>nosniff</code>, <code>X-Frame-Options: DENY</code>, Referrer-Policy, Permissions-Policy, <code>/.well-known/security.txt</code></td></tr>
+    <tr><th>SQL</th><td>bind parametry — podmínky se skládají, hodnoty ne</td></tr>
+    <tr><th>Známá slabina ⏳</th><td>API klíče lze uložit z UI do D1 (<code>src/secrets.ts</code>) a <b>D1 hodnota přebíjí Worker secret</b>. Hodnota se ven nikdy nevrací (jen <code>set</code>/<code>source</code>), ale uložení zůstává plaintextem. Neopraveno.</td></tr>
+  </table>
+
+  <div class="note warnbox"><b>Poučení, které je v repu zapsané:</b> „je za Accessem" ≠ „aplikace ověřila identitu".
+  Dokud bylo zapnuté <code>workers.dev</code>, existovala druhá, nechráněná adresa téhož Workeru a přes ni šla
+  čtecí API stáhnout bez přihlášení (ověřeno živě 5. 8. 2026, vypnuto týž den). Proto autorizace nově nestojí
+  jen na perimetru.</div>
+
+  <h2>Kvalita a kontroly</h2>
+  <table>
+    <tr><th>Testy</th><td><b>45 testů</b> vestavěným <code>node --test</code> + <b>14 kontrol</b> filtru regionu. <b>Žádná nová závislost</b>, žádná infrastruktura — <code>npm test</code>.</td></tr>
+    <tr><th>Co pokrývají</th><td>autorizace a allowlist · dedup / otisk / <code>contentHash</code> · prefiltr · normalizace odpovědi modelu · <code>util</code> · verdikty regionu a strop skóre</td></tr>
+    <tr><th>Brána v CI</th><td><code>typecheck</code> → <code>test</code> → deploy. Když testy spadnou, <b>nenasadí se nic</b>.</td></tr>
+    <tr><th>Tvar testů</th><td>Malý dílčí celek — jedna funkce, jeden vstup, jeden očekávaný výstup. Každý případ má v názvu, <b>proč</b> tam je; jeden je přímo živý incident s Prahou.</td></tr>
+    <tr><th>Co netestují ⏳</th><td>švy mezi moduly (že je funkce volaná se správným argumentem) a to, že zápis do D1 běží v jedné transakci</td></tr>
+  </table>
+
+  <div class="note"><b>Dvě tiché chyby, které testy odhalily hned při psaní</b> — ani jedna by nespadla a ani jedna
+  nejde vidět při čtení kódu: <b>(1)</b> klíčové slovo ze samých mezer prošlo testem <code>k &amp;&amp;</code>, ale po
+  normalizaci je prázdné a <code>includes("")</code> je vždy pravda → prefiltr pouštěl na AI skórování <b>všechno</b>;
+  <b>(2)</b> <code>Number(null)</code> je <code>0</code>, takže odpověď modelu <b>bez</b> skóre se ukládala jako
+  <code>relevance 0</code> — a nula znamená „hotovo", takže by se inzerát už nikdy nepřeskóroval. Obojí opraveno.</div>
+
+  <h2>Hotové vs. zbývá</h2>
+  <div class="grid">
+    <div class="card">
+      <strong>✅ Hotové a v provozu</strong>
+      <ul>
+        <li class="ok">Denní cron, pipeline, fronta s dobíháním</li>
+        <li class="ok">Deterministický filtr regionu</li>
+        <li class="ok">Cross-source dedup + otisk inzerátu</li>
+        <li class="ok">Živost inzerátu (portály + MPSV přes CI)</li>
+        <li class="ok">Deanonymizace agentur, kontaktní osoby</li>
+        <li class="ok">Telegram / e-mail / Slack</li>
+        <li class="ok">Autorizace v aplikaci + allowlist</li>
+        <li class="ok">45 testů + brána v CI</li>
+      </ul>
+    </div>
+    <div class="card todo-card">
+      <strong>⏳ Zbývá / vědomě odloženo</strong>
+      <ul>
+        <li class="todo">Klíče plaintextem v D1 → Secret Store, nebo zrušit</li>
+        <li class="todo">Rozdělit <code>pipeline.ts</code> (514 řádků) — <b>až po testech na švech</b></li>
+        <li class="todo">Ověřit atomicitu zápisu kandidáta</li>
+        <li class="todo">Staré <code>relevance 0</code> z opravené chyby vrátit do fronty</li>
+        <li class="todo">Testy adaptérů zdrojů (MPSV wrapper, tvary ATS)</li>
+        <li class="todo">Registr agentur ze strojových dat (dnes fallback dle názvu)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Externí hodnocení</h2>
+  <table>
+    <tr><th>22. 8. 2026</th><td><b>8,2/10</b> (architektura 8,5 · produkční robustnost 7,5). Nejlépe hodnocené: kombinace LLM pro fuzzy úsudek a <b>deterministických guardrails</b> pro invarianty. Nejhůř: chybějící testy (4,5) — proto tahle změna.</td></tr>
+    <tr><th>Ověření</th><td>Všechna konkrétní tvrzení posudku prošla kontrolou proti kódu. Rozbor a vlastní známka <b>8,3/10</b> jsou v repu <a href="https://github.com/Anamax443/sebeanalyza"><code>Anamax443/sebeanalyza</code></a> → <code>hodnoceni/job-watch.md</code>; posudek doslovně v <code>externi/</code>.</td></tr>
+  </table>
+
+  <footer>
+    Součást rolling dokumentace projektu JobWatch. Detaily: <code>README.md</code>, deník stavu: <code>HANDOFF.md</code>.
+    Repo: <a href="https://github.com/Anamax443/job-watch">github.com/Anamax443/job-watch</a> ·
+    Živě: <a href="https://jobwatch.maxferit.cz">jobwatch.maxferit.cz</a>
+  </footer>
+
+</div>
+</body>
+</html>

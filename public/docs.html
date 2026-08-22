@@ -138,8 +138,10 @@ wrangler secret put SLACK_WEBHOOK_URL     # volitelné — Slack
   <p>Stavové okno na dashboardu ukazuje živý log běhu; v patičce tikají hodinky a je tam číslo nasazené verze.</p>
   <h3>Ochrana přístupu</h3>
   <p>UI běží na <b>jobwatch.maxferit.cz</b> za <b>Cloudflare Access</b> — přihlášení jednorázovým
-  PINem na povolený e-mail. Citlivé akce (klíče, spuštění běhu, uložení nastavení) vyžadují
-  ověřenou identitu z Accessu.</p>
+  PINem na povolený e-mail. <b>Celé API — čtení i zápis — navíc ověřuje sama aplikace:</b>
+  nestačí, že hlavička od Accessu dorazila, musí sedět i to, <b>komu patří</b> (allowlist
+  povolených e-mailů). Důvod: kdo se dostane na server mimo Access, si takovou hlavičku pošle
+  sám — a v datech jsou i <b>kontaktní osoby z inzerátů</b>, tedy osobní údaje třetích osob.</p>
 
   <h3>Personalizace — Můj profil</h3>
   <p>V Nastavení vlož svoje CV / text o sobě. AI pak hodnotí každou pozici podle shody
