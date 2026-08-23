@@ -60,6 +60,14 @@ MAX_DISCOVERY_PER_RUN = "5"
 MAX_SCORES_PER_RUN = "150"
 # Strop notifikací odeslaných z fronty na jeden běh (dohánění historie ať neudělá lavinu zpráv).
 MAX_NOTIFY_FROM_QUEUE_PER_RUN = "10"
+# Kolik inzerátů za běh přeověřit na živost. Default v kódu je 60 a to je PŘÍLIŠ:
+# Worker má strop na počet podřízených požadavků v jednom vyvolání a každá kontrola živosti
+# jeden spotřebuje. Běh 23. 8. 2026 utratil 60 požadavků na živost, pak stáhl zdroje a ohodnotil
+# 8 inzerátů — a doskórování fronty už spadlo na „Too many subrequests by single Worker
+# invocation". Fronta tak nebyla schopná klesat (223 → 213 za dva běhy, z toho ani jeden
+# z 42 dřív notifikovaných). Skutečný limit tedy není MAX_SCORES_PER_RUN, ale rozpočet
+# podřízených požadavků. Inzeráty neumírají tak rychle, aby se muselo ověřovat 60 denně.
+MAX_LIVENESS_CHECKS_PER_RUN = "15"
 # Otevřené hledání „jako na Googlu" přes Serper.dev (rychlé). Funguje jen když je
 # nastaven secret SERPER_API_KEY; jinak se web zdroj přeskočí. "false" = úplně vypnout.
 WEB_SEARCH = "true"

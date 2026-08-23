@@ -140,6 +140,18 @@
     <tr><th>Bez testu, vědomě</th><td>Řadí SQL, takže to nejde ověřit čistou funkcí bez databáze — a testy s běžící infrastrukturou si projekt zakázal. Ověření proběhlo read-only dotazem nad produkční D1 <b>před</b> zápisem změny.</td></tr>
   </table>
 
+  <h2>Rozpočet podřízených požadavků — proč fronta neklesala</h2>
+  <div class="note warnbox"><b>Nález 23. 8. 2026.</b> Worker má strop na počet <b>podřízených požadavků
+  v jednom vyvolání</b> a denní běh ho vyčerpá dřív, než se dostane k dohánění fronty. Rozpočet spolykalo
+  <b>60 kontrol živosti</b>, pak stažení zdrojů — a na skórování zbylo na 8 inzerátů, načež přišlo
+  <code>Too many subrequests by single Worker invocation</code>. Fronta klesla za dva běhy jen z 223 na 213.</div>
+  <table>
+    <tr><th>Skutečný limit</th><td>Ne <code>MAX_SCORES_PER_RUN</code> (150) — ten se nikdy nevyčerpá, protože Worker spadne dřív. Vypadalo to jako pomalé skórování, byl to <b>hladovějící rozpočet</b>.</td></tr>
+    <tr><th>Oprava</th><td><code>MAX_LIVENESS_CHECKS_PER_RUN = "15"</code> (default v kódu byl 60, ve varech nebyl nastavený vůbec). Uvolní ~45 požadavků na skórování; ověřování živosti zpomalí, nezmizí.</td></tr>
+    <tr><th>Kdyby to nestačilo ⏳</th><td>Přesunout kontrolu živosti do vlastního běhu — stejně, jako je to už udělané u MPSV přes GitHub Action.</td></tr>
+    <tr><th>Nedoběhlé ověření</th><td>Změna řazení fronty z 22. 8. je <b>zatím ověřená jen nad daty</b> (170. → 8. místo), ne v provozu — nikdy se nespustila, protože rozpočet došel dřív.</td></tr>
+  </table>
+
   <h2>Hotové vs. zbývá</h2>
   <div class="grid">
     <div class="card">
@@ -164,6 +176,8 @@
         <li class="todo">Staré <code>relevance 0</code> z opravené chyby vrátit do fronty</li>
         <li class="todo"><b>Filtr role v kódu</b> — rozhodnout až po dojetí fronty (viz výše)</li>
         <li class="todo"><b>Deanonymizace i pro holdingy</b> — „Skupina ČEZ“ místo „OSC, a.s.“</li>
+        <li class="todo"><b>Adzuna klíče nenastavené</b> — web zdroj se přeskakuje úplně</li>
+        <li class="todo"><b>ATS registr zůstává prázdný</b> — firmy objevuje jen screening přes Claude, a ten je v režimu zdarma vypnutý</li>
         <li class="todo">Testy adaptérů zdrojů (MPSV wrapper, tvary ATS)</li>
         <li class="todo">Registr agentur ze strojových dat (dnes fallback dle názvu)</li>
       </ul>

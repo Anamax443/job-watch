@@ -11,6 +11,52 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-23 (2) — fronta neklesala: došel rozpočet podřízených požadavků, ne čas
+
+**Nález.** Po změně řazení fronty (viz níže) se čekalo, že cron přeskóruje nejdřív 42 dřív
+notifikovaných inzerátů. Nestalo se to: mezi 22. a 23. 8. klesla fronta z **223 na 213**
+a **ani jeden ze 42** ji neopustil.
+
+**Příčina nebyla v řazení — to se ke slovu vůbec nedostalo.** Z logu běhu `#117` (cron, 06:00):
+
+```
+🔓 Živost: ověřeno 60 · na portálu 11 · nově staženo z portálu 1
+⚠️ skóre nevzniklo — workers-ai: Too many subrequests by single Worker invocation
+⏸ Fronta: tři dávky po sobě bez výsledku — zbytek dožene další běh.
+📋 …ohodnoceno 8 · ve frontě čeká 215 inzerátů
+```
+
+Worker má strop na počet **podřízených požadavků v jednom vyvolání** a běh ho vyčerpá dřív,
+než se dostane k frontě. Rozpočet spotřebuje takhle: ~10 na stažení zdrojů, **60 na ověření
+živosti**, pár na stažení detailu, a teprve zbytek zbude na skórování. Došlo na 8 inzerátů,
+pak přišlo `Too many subrequests` — a protože fronta vyhodnotí tři neúspěšné dávky po sobě
+jako „dost", zastavila se.
+
+> **Skutečný limit není `MAX_SCORES_PER_RUN` (150), ale rozpočet podřízených požadavků.**
+> Ten strop se nikdy nevyčerpá, protože Worker spadne dřív. Vypadalo to jako pomalé skórování,
+> byl to hladovějící rozpočet.
+
+**Oprava:** `MAX_LIVENESS_CHECKS_PER_RUN = "15"` ve `wrangler.toml` (default v kódu je 60,
+ve varech dosud nastavený nebyl). Uvolní to ~45 požadavků na skórování. Inzeráty neumírají
+tak rychle, aby se muselo ověřovat šedesát denně — a ověřování zpomalí, ne zmizí.
+
+**Poctivě k předchozímu záznamu:** změna řazení fronty z 22. 8. je správná, ale **dosud nebyla
+ověřená v provozu** — nikdy se nespustila. Ověřená byla jen dotazem nad daty (170. → 8. místo).
+Jestli funguje i naživo, se pozná až po prvním běhu, ve kterém fronta dostane rozpočet.
+
+**Co sledovat po příštím cronu:**
+- klesne fronta výrazněji než o 10?
+- zmizí z ní dřív notifikované inzeráty (dnes 42)?
+- objeví se `Too many subrequests` znovu? Pokud ano, snížit živost dál nebo ji přesunout do
+  vlastního běhu, jak už je to udělané u MPSV přes GitHub Action.
+
+**Vedlejší zjištění z téhož logu** — dvě věci jsou vypnuté a nemusí to být záměr:
+- `📡 web/Adzuna: klíče ADZUNA_APP_ID/KEY nenastaveny → přeskočeno` — web zdroj neběží vůbec
+- `📡 ATS: 0 cílů v registru sources` — firmy objevuje jen screening přes Claude, a ten je
+  v režimu zdarma vypnutý, takže se registr nikdy nenaplní a ATS zdroj je trvale prázdný
+
+---
+
 ## 2026-08-23 — profil v Nastavení přepsán na zadání; fronta řadí podle dřívějšího zájmu
 
 **Profil místo životopisu.** V Nastavení byl dosud nalepený životopis **plus průvodní dopis
