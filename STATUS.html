@@ -38,7 +38,7 @@
 <body>
 <header><div class="wrap">
   <h1>🔎 JobWatch — Status nasazení</h1>
-  <div class="sub">Denní monitor volných míst pro vedoucí IT · snapshot k 22. 8. 2026</div>
+  <div class="sub">Denní monitor volných míst pro vedoucí IT · snapshot k 30. 8. 2026</div>
 </div></header>
 
 <div class="wrap">
@@ -152,6 +152,30 @@
     <tr><th>Nedoběhlé ověření</th><td>Změna řazení fronty z 22. 8. je <b>zatím ověřená jen nad daty</b> (170. → 8. místo), ne v provozu — nikdy se nespustila, protože rozpočet došel dřív.</td></tr>
   </table>
 
+  <h2>Audit proti build předpisu (30. 8. 2026)</h2>
+  <p>JobWatch je první projekt prověřený obecným build předpisem z repa
+  <a href="https://github.com/Anamax443/ai-agenti"><code>Anamax443/ai-agenti</code></a>
+  (fáze F0–F8, každá s bránou). Vývojový diagram dnešního běhu i navržené opravy:
+  <a href="BEH-AGENTA.html"><code>BEH-AGENTA.html</code></a>.</p>
+
+  <table>
+    <tr><th>F3 · deterministická páteř</th><td><span class="pill live">obstálo</span> <code>region.ts</code> rozhoduje o regionu místo modelu; fronta se nezasekne na vadném řádku a zastaví se s důvodem.</td></tr>
+    <tr><th>F5 · limity a identita</th><td><span class="pill live">obstálo</span> Stropy odvozené z reálných incidentů, autorizace ověřená testy, <code>workers_dev = false</code>.</td></tr>
+    <tr><th>F7 · nasazení</th><td><span class="pill live">obstálo</span> Verze v patičce, <code>/tests</code> běží na nasazené verzi, brána v CI.</td></tr>
+    <tr><th>F6 · vypínač a hlášení</th><td><span class="pill prep">nález</span> Vypínač nezastavuje běh, pád nikoho neupozorní. Runbook chybí.</td></tr>
+    <tr><th>F4 · model a evaly</th><td><span class="pill prep">nález</span> Cizí text bez obalu, prompt bez verze, žádná evaluační sada.</td></tr>
+    <tr><th>F1 · ověření jádra</th><td><span class="pill prep">nález</span> Přesnost skórování nemá číslo — chyby se našly až v provozu.</td></tr>
+  </table>
+
+  <div class="note warnbox">
+    <b>Tři nálezy, zatím neopravené.</b>
+    <b>1)</b> <code>POST /api/run/stop</code> uzavře jen záznam běhu; pipeline žádný stop příznak nečte a běží dál.
+    <b>2)</b> Pád běhu skončí v logu — <code>notify()</code> se volá jen na leady, takže „nic nenašel" a „spadlo to" vypadají zvenčí stejně.
+    <b>3)</b> Text inzerátu je cizí vstup a jde do modelu bez obalu; <code>enrich.ts</code> navíc pouští model na cizí weby.
+    Škodu zatím drží na uzdě jen to, že model vrací pouhé číslo a <code>region.ts</code> ho stejně zastropuje.
+    Podrobně v <code>HANDOFF.md</code>.
+  </div>
+
   <h2>Hotové vs. zbývá</h2>
   <div class="grid">
     <div class="card">
@@ -170,6 +194,10 @@
     <div class="card todo-card">
       <strong>⏳ Zbývá / vědomě odloženo</strong>
       <ul>
+        <li class="todo"><b>Hlášení o pádu běhu</b> — dnes končí v logu, nikdo se to nedozví</li>
+        <li class="todo"><b>Vypínač, který skutečně zastaví</b> — příznak čtený mezi dávkami</li>
+        <li class="todo"><b>Obal cizího textu inzerátu</b> — dnes jde do promptu bez ochrany</li>
+        <li class="todo"><b>Evaly a verze promptu</b> — změnu promptu není proti čemu měřit</li>
         <li class="todo">Klíče plaintextem v D1 → Secret Store, nebo zrušit</li>
         <li class="todo">Rozdělit <code>pipeline.ts</code> (514 řádků) — <b>až po testech na švech</b></li>
         <li class="todo">Ověřit atomicitu zápisu kandidáta</li>
@@ -191,7 +219,7 @@
   </table>
 
   <footer>
-    Součást rolling dokumentace projektu JobWatch. Detaily: <code>README.md</code>, deník stavu: <code>HANDOFF.md</code>.
+    Součást rolling dokumentace projektu JobWatch. Detaily: <code>README.md</code>, deník stavu: <code>HANDOFF.md</code>, diagram běhu: <a href="BEH-AGENTA.html"><code>BEH-AGENTA.html</code></a>.
     Repo: <a href="https://github.com/Anamax443/job-watch">github.com/Anamax443/job-watch</a> ·
     Živě: <a href="https://jobwatch.maxferit.cz">jobwatch.maxferit.cz</a>
   </footer>
