@@ -1,4 +1,4 @@
-import type { Env, JobPosting } from './types.ts';
+import type { Env, JobPosting, ScoreResult } from './types.ts';
 import { loadSettings } from './config.ts';
 import { resolveEnv } from './secrets.ts';
 import { fetchMpsv } from './sources/mpsv.ts';
@@ -8,7 +8,7 @@ import { fetchJobsCz } from './sources/jobscz.ts';
 import { fetchPraceCz } from './sources/pracecz.ts';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
 import { prefilter, roleMatch, regionRejected } from './prefilter.ts';
-import { clearStop, stopRequested } from './store.ts';
+import { clearStop, stopRequested, bulkUpdateScores } from './store.ts';
 import { PROMPT_VERSION } from './prompts.ts';
 import { sendTelegram, AI_DISCLOSURE } from './notify.ts';
 import { scoreJob } from './score.ts';
@@ -444,7 +444,9 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         run.log('⏹️ Zastaveno na žádost (tlačítko Stop) — fronta zůstává, dožene ji další běh.');
         break;
       }
-      const batch = await loadUnscored(env, 3, queueOffset);
+      // Dávka 8 místo 3: jedno čtení fronty obslouží víc inzerátů, takže se strop
+      // podřízených požadavků nespotřebuje na režii.
+      const batch = await loadUnscored(env, 8, queueOffset);
       if (!batch.length) break;
       let progressed = 0;
 
@@ -454,17 +456,26 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       // modelu: rozhodne o nich kód. Dostanou skóre 0 s důvodem — ne NULL, aby z fronty
       // opravdu odešly, a ne smazání, aby zůstala historie.
       const rejected = batch.filter((j) => !roleMatch(j, settings) || regionRejected(j, settings));
-      for (const j of rejected) {
-        const proc = !roleMatch(j, settings)
-          ? 'mimo hledanou roli'
-          : `mimo kraj (${checkRegion(j, settings.regionPriority).note})`;
-        await updateScore(env, j.id, {
-          relevance: 0,
-          seniority: 'other',
-          reason: `⛔ Vyřazeno filtrem bez AI: ${proc}.`,
-        });
-        progressed++;
-        stats.prefiltered = (stats.prefiltered ?? 0) + 1;
+      if (rejected.length) {
+        // JEDNÍM zápisem, ne po jednom: volání D1 se počítají do stropu podřízených
+        // požadavků Workeru a vyřazení by jinak snědlo rozpočet, který má patřit skórování.
+        await bulkUpdateScores(
+          env,
+          rejected.map((j) => ({
+            id: j.id,
+            score: {
+              relevance: 0,
+              seniority: 'other' as const,
+              reason: `⛔ Vyřazeno filtrem bez AI: ${
+                !roleMatch(j, settings)
+                  ? 'mimo hledanou roli'
+                  : `mimo kraj (${checkRegion(j, settings.regionPriority).note})`
+              }.`,
+            },
+          })),
+        );
+        progressed += rejected.length;
+        stats.prefiltered = (stats.prefiltered ?? 0) + rejected.length;
       }
       const toScore = batch.filter((j) => !rejected.includes(j));
       if (!toScore.length) {
@@ -473,6 +484,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         continue;
       }
       aiCalls += toScore.length;
+      const zapsat: { id: string; score: ScoreResult }[] = [];
       await Promise.all(
         toScore.map(async (job) => {
           try {
@@ -483,7 +495,8 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
               onFail: onScoreFail(job.id),
             });
             if (!sc) return;
-            await updateScore(env, job.id, sc);
+            // Zápis se odloží a udělá se jednou za dávku (viz bulkUpdateScores níže).
+            zapsat.push({ id: job.id, score: sc });
             progressed++;
             if (sc.relevance < settings.notifyThreshold || job.notifiedAt) return;
             const head = `${sc.relevance} | ${job.title} — ${job.employer}`;
@@ -532,6 +545,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         run.log(`⏸ Fronta: tři dávky po sobě bez výsledku${lastFail ? ` (${lastFail})` : ''} — zbytek dožene další běh.`);
         break;
       }
+      await bulkUpdateScores(env, zapsat);
       if (backlog % 18 === 0) await run.flush(stats);
     }
     if (queueOffset && dryBatches < 3) {

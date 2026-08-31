@@ -11,6 +11,36 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — propustnost: zápis do D1 po jednom žral rozpočet Workeru
+
+**Diagnóza.** Worker má strop na počet podřízených požadavků na jedno vyvolání — na free
+plánu **50** — a **volání D1 se do něj počítají**, ne jen HTTP. Rozpad na jeden ohodnocený
+inzerát ve frontě byl: `loadUnscored` 0,33 + model 1,0 + `updateScore` 1,0 + `run.flush` 0,33
+= **2,7 požadavku**. Fixní režie běhu (stahování zdrojů ~10, živost 5) sebere 15, zbývá 35,
+a 35 ÷ 2,7 = **13 inzerátů**. Přesně to, co běhy dlouhodobě dělaly (10–15).
+
+Strop `MAX_SCORES_PER_RUN = 150` se tedy nikdy neuplatnil — omezoval jiný, nepojmenovaný limit.
+
+**Nejhorší kus byl můj vlastní z dnešního odpoledne:** deterministické vyřazení fronty
+zapisovalo `updateScore` **po jednom řádku**. Na 300 nesmyslů ve frontě by to spotřebovalo
+celý rozpočet na úklid a na skórování by nezbylo nic.
+
+**Oprava — `bulkUpdateScores()`.** `DB.batch()` je jeden round-trip, takže dávka 40 zápisů
+stojí **jeden** podřízený požadavek místo čtyřiceti. Zapojeno na obě místa (vyřazení
+i skóre), dávka fronty zvětšena z 3 na 8, ať se amortizuje i čtení.
+
+| | před | po |
+|---|---|---|
+| požadavků na inzerát | 2,7 | **1,3** |
+| ohodnocených na běh | ~13 | **~27** |
+
+**Kde je tvrdé dno.** Jeden inzerát = jedno volání modelu, to snížit nejde. Strop free plánu
+tedy drží propustnost pod ~35/běh **ať se kód optimalizuje jakkoli**. Kdo chce víc, musí
+na **Workers Paid (5 USD/měsíc)**, kde je strop 1 000 požadavků — teprve tam začne platit
+`MAX_SCORES_PER_RUN = 150` jako skutečný limit. Je to rozhodnutí o penězích, ne o kódu.
+
+---
+
 ## 2026-08-31 — F0 + F1: návrhový list a změřené jádro (NAVRH.md)
 
 Doplněno zpětně — agent běží od 14. 6. 2026, takže návrhový list nevznikl před stavbou.

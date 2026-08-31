@@ -283,6 +283,36 @@ export async function countUnscored(env: Env): Promise<number> {
   return r?.n ?? 0;
 }
 
+/**
+ * Zapíše skóre VÍCE inzerátům jedním podřízeným požadavkem.
+ *
+ * Proč to existuje: Worker má strop na počet podřízených požadavků na jedno vyvolání
+ * (na free plánu 50) a **volání D1 se do něj počítají**. Zápis po jednom stál 1 požadavek
+ * za inzerát, takže se rozpočet utratil dřív, než se stihlo skórovat. Změřeno 31. 8. 2026:
+ * fixní režie běhu ~15 požadavků, zbylých ~35 dělených 2,7 na inzerát = 13 ohodnocených —
+ * přesně to, co běhy dlouhodobě dělaly. `DB.batch()` je jeden round-trip, takže dávka
+ * čtyřiceti stojí jeden požadavek místo čtyřiceti.
+ */
+export async function bulkUpdateScores(
+  env: Env,
+  items: { id: string; score: ScoreResult }[],
+): Promise<number> {
+  if (!items.length) return 0;
+  const stmt = env.DB.prepare(
+    'UPDATE seen_jobs SET relevance = ?2, seniority = ?3, reason = ?4, rescore = 0 WHERE id = ?1',
+  );
+  const CHUNK = 40;
+  let n = 0;
+  for (let i = 0; i < items.length; i += CHUNK) {
+    const part = items
+      .slice(i, i + CHUNK)
+      .map((x) => stmt.bind(x.id, x.score.relevance, x.score.seniority, x.score.reason));
+    await env.DB.batch(part);
+    n += part.length;
+  }
+  return n;
+}
+
 /** Zapíše jen skóre (doskórování fronty — bez změny ostatních polí / notifikace). */
 export async function updateScore(env: Env, id: string, score: ScoreResult): Promise<void> {
   // rescore = 0: čerstvé skóre je proti aktuálnímu profilu, značka „neaktuální" padá.
