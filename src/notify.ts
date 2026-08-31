@@ -21,8 +21,12 @@ function fmtDescription(j: JobPosting, max: number): string | null {
   return d ? truncate(d, max) : null;
 }
 
+/** Označení, že zprávu sestavil automat. Vyžaduje brána F5 build předpisu i AI Act. */
+export const AI_DISCLOSURE =
+  '🤖 Tuto zprávu sestavil automat JobWatch; hodnocení pochází z jazykového modelu.';
+
 // `descLimit` = kolik znaků textu inzerátu vzít (e-mail unese víc, Telegram/Slack krátký výcuc).
-function buildText(j: NotifyJob, descLimit = 700): string {
+export function buildText(j: NotifyJob, descLimit = 700): string {
   const lines = [`🔔 ${j.title}`, `🏢 ${j.employer}${j.isAgency ? ' (agentura)' : ''}`];
   if (j.realEmployer)
     lines.push(`🎯 Původce: ${j.realEmployer}${j.realEmployerUrl ? ` — ${j.realEmployerUrl}` : ''}`);
@@ -37,6 +41,9 @@ function buildText(j: NotifyJob, descLimit = 700): string {
   else lines.push('📄 Text inzerátu: zdroj neuvedl žádný popis');
   lines.push(`🔗 ${j.url ?? '(bez odkazu)'}`);
   lines.push(`zdroj: ${j.source}`);
+  // Odchozí zpráva musí přiznat, že ji sestavil automat — podmínka brány F5 build předpisu
+  // z ai-agenti a požadavek AI Actu. Patří na konec: je to údaj o zprávě, ne o inzerátu.
+  lines.push(AI_DISCLOSURE);
   return lines.join('\n');
 }
 

@@ -11,6 +11,47 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — F6: vypínač opravdu vypíná, pád jde člověku, zprávy přiznávají AI
+
+Retrofit proti build předpisu z `ai-agenti`. Projekt je starší než ten framework, takže se
+nepřestavuje — dodělává se po kusech tak, aby agent mezitím nepřestal fungovat.
+
+**Nález 1 — vypínač nevypínal.** `POST /api/run/stop` dělal jediné: `UPDATE runs SET
+finished_at`. Zavřel *záznam* o běhu, ne běh. Pipeline žádný příznak nečetla (`grep -i stop`
+v ní vracel nula výskytů) a dál skórovala i odesílala notifikace. Tlačítko lhalo.
+
+- Příznak žije v `meta` pod klíčem `run_stop` — **schválně bez migrace**, vypínač nemá čekat
+  na zásah do ostré databáze.
+- Běh ho čte před každou dávkou kandidátů i v každém kole fronty, a přeskočí ověřování živosti.
+- Zastavený běh se v logu i souhrnu hlásí jako ⏹️, ne jako ✅. Rozdíl mezi „dokončeno"
+  a „zastaveno" musí být vidět.
+- Na začátku běhu se příznak maže, jinak by staré zmáčknutí zabilo ten příští běh.
+- **Past, do které jsem málem spadl:** smyčka „Spustit teď" volá tentýž endpoint s `?auto=1`
+  po každé dávce. Kdyby příznak vstal i tam, zastavila by sama sebe. Zvedá se jen bez `auto`.
+
+**Nález 2 — pád běhu byl tichý.** `catch` zapsal chybu do logu a vyhodil ji dál; `notify()`
+se volalo jen na leady. „Dnes nic nenašel" a „dnes to spadlo" tedy vypadaly zvenčí identicky
+a agent mohl být týden mrtvý. Teď jde z `catch` zpráva do Telegramu s chybou a s tím,
+co běh stihl. Selhání toho hlášení nepřebije původní chybu.
+
+**Brána F5 — označení AI.** Odchozí notifikace nenesly informaci, že je psal automat.
+Přibyl `AI_DISCLOSURE` na konci každé zprávy; vyžaduje to předpis i AI Act.
+
+**Volná mluva rozšířena o to, jak se lidi opravdu ptají.** Živý dotaz v 17:04 zněl
+„Najdeš mi nějaké fleky?" — formální slovník („pozice", „inzeráty") ho nechytil a bot
+odpověděl, že nerozumí. Doplněny hovorové tvary (flek, job, práce, „máš pro mě něco").
+Zároveň: „najdeš" **nespouští běh**, vrací výpis — kdo se ptá na výsledek, má ho dostat hned,
+ne čekat minuty na běh.
+
+**Kontroly.** 4 nové testy (celkem **130**), mezi nimi ta věta o flecích a kontrola,
+že notifikace přiznává automat.
+
+**Co z předpisu pořád chybí:** F0 (návrhový list), F1 (změřené jádro), F4 (verze promptu
+a evaluační sada), F7 (souběžný běh nové verze naslepo). Kritická cesta předpisu je
+F0 → F1 → F3 → F5 a z ní stojí F3 a nově F5 a F6.
+
+---
+
 ## 2026-08-31 — z Telegramu jde běh i spustit (/beh, /stav)
 
 Doteď uměl bot jen číst. Přibylo:

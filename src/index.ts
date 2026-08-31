@@ -13,7 +13,7 @@ import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
-import { BULK_MAX, buildJobsFilter, bulkSetScore, sanitizeIds } from './store.ts';
+import { BULK_MAX, buildJobsFilter, bulkSetScore, requestStop, sanitizeIds } from './store.ts';
 import { HEARTBEAT_KEY, pollTelegram } from './telegram.ts';
 
 /** Výraz cronu vyhrazený pro vybírání zpráv z Telegramu (viz wrangler.toml). */
@@ -432,9 +432,16 @@ async function route(
       ctx.waitUntil(runPipeline(env, 'manual'));
       return json({ started: true });
     }
+    // Stop musí zastavit BĚH, ne jen jeho záznam. Do 31. 8. 2026 tenhle endpoint dělal
+    // jediné: UPDATE runs SET finished_at. Pipeline žádný příznak nečetla a dál skórovala
+    // i odesílala notifikace — tlačítko lhalo. Teď se zvedne příznak v meta, který si běh
+    // čte v každé dávce (viz stopRequested v store.ts).
     if (p === '/api/run/stop' && request.method === 'POST') {
       // ?auto=1 = automatické ukončení dávky ze smyčky (časový limit), ne ruční Stop uživatele.
       const auto = url.searchParams.get('auto') === '1';
+      // Příznak zvedej JEN u ručního Stopu. Smyčka „Spustit teď" volá tenhle endpoint
+      // s auto=1 po každé dávce — kdyby se příznak zvedl i tam, zastavila by sama sebe.
+      if (!auto) await requestStop(env);
       const msg = auto
         ? '⏱ Dávka ukončena časovým limitem — normální u „Spustit teď": další dávka pokračuje tam, kde tato skončila, nic se neztrácí.'
         : '⏹ zastaveno uživatelem';

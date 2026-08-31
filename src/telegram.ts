@@ -102,9 +102,18 @@ export function guessIntent(raw: string | undefined | null): Command | null {
   if (!hay) return null;
   const has = (...needles: string[]) => needles.some((n) => hay.includes(n));
 
-  if (has('spust', 'rozjed', 'projed', 'aktualizuj', 'zkontroluj', 'podivej se po', 'najdi nove'))
+  // Spuštění chce SLOVESO, které o něj vysloveně žádá. „Najdeš mi nějaké fleky?" sem
+  // nepatří, i když zní jako hledání: běh trvá minuty, kdežto výpis toho, co už je
+  // ohodnocené, je hned. Ptá-li se člověk na výsledek, má ho dostat, ne čekání.
+  if (has('spust', 'rozjed', 'projed', 'aktualizuj', 'zkontroluj', 'obnov data', 'podivej se po'))
     return { kind: 'run' };
-  if (has('inzerat', 'pozic', 'nabidk', 'mista', 'prace pro me', 'co mas', 'ukaz'))
+  // Podstatná jména i hovorové tvary. Živý dotaz z 31. 8. 2026 zněl „Najdeš mi nějaké
+  // fleky?" — formální slovník („pozice", „inzeráty") ho nechytil a bot musel odpovědět,
+  // že nerozumí. Tak se lidi neptají.
+  if (
+    has('inzerat', 'pozic', 'nabidk', 'flek', 'mista', 'misto', 'prace', 'praci', 'job', 'prilezitost') ||
+    has('najdes', 'najdi', 'hledas', 'sezen', 'co mas', 'mas neco', 'mas pro me', 'ukaz', 'posli', 'koukni')
+  )
     return {
       kind: 'positions',
       minScore: extractThreshold(hay),

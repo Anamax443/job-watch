@@ -462,6 +462,42 @@ export function buildJobsFilter(f: JobsFilter): { where: string; binds: unknown[
 /** Kolik řádků smí jeden hromadný zásah změnit. Strop je proti překlepu, ne proti zátěži. */
 export const BULK_MAX = 500;
 
+// --- Vypínač běhu ----------------------------------------------------------
+
+/**
+ * Klíč v `meta`: požadavek na zastavení běhu.
+ *
+ * Do 31. 8. 2026 tlačítko Stop provedlo jediné — `UPDATE runs SET finished_at`. Zavřelo
+ * *záznam* o běhu, ne běh: pipeline žádný příznak nečetla a dál skórovala i odesílala
+ * notifikace, jen o tom nebyl zápis. Tlačítko tedy lhalo. Build předpis z ai-agenti to má
+ * jako podmínku brány F6: „Agent se zastaví jedním úkonem a ověřil jsi to."
+ *
+ * Schválně v `meta`, ne nový sloupec: vypínač nemá čekat na migraci ostré databáze.
+ */
+export const STOP_KEY = 'run_stop';
+
+/** Požádá běh o zastavení. Hodnota je čas, ať je v databázi vidět kdy. */
+export async function requestStop(env: Env): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2",
+  )
+    .bind(STOP_KEY, new Date().toISOString())
+    .run();
+}
+
+/** Zruší požadavek. Volá se na začátku běhu, ať staré zmáčknutí nezabije ten příští. */
+export async function clearStop(env: Env): Promise<void> {
+  await env.DB.prepare('DELETE FROM meta WHERE key = ?').bind(STOP_KEY).run();
+}
+
+/** Byl vypínač zmáčknutý? Čte se v každé dávce, proto jeden krátký dotaz. */
+export async function stopRequested(env: Env): Promise<boolean> {
+  const r = await env.DB.prepare('SELECT value FROM meta WHERE key = ?')
+    .bind(STOP_KEY)
+    .first<{ value: string }>();
+  return !!r?.value;
+}
+
 /**
  * Očistí seznam id z požadavku. Čistá funkce.
  *

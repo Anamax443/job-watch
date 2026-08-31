@@ -69,3 +69,16 @@ test('nesmysl v URL padá na default místo chyby — query si upravuje i člov�
 test('záporný offset se nebere — SQLite by na OFFSET -1 vrátil celý zbytek', () => {
   assert.equal(pageParams(null, '-5').offset, 0);
 });
+
+// --- Označení AI v odchozí zprávě -------------------------------------------
+test('notifikace přiznává, že ji sestavil automat', async () => {
+  // Podmínka brány F5 build předpisu z ai-agenti a požadavek AI Actu. Bez toho odchází
+  // ven zpráva, která vypadá jako od člověka.
+  const { buildText, AI_DISCLOSURE } = await import('../src/notify.ts');
+  const text = buildText({
+    id: 'x:1', source: 'mpsv', title: 'Vedoucí IT', employer: 'Firma', isAgency: false,
+    relevance: 85, reason: 'sedí na profil',
+  } as any);
+  assert.ok(text.includes(AI_DISCLOSURE), 'v textu notifikace chybí označení AI');
+  assert.match(AI_DISCLOSURE, /automat/i);
+});

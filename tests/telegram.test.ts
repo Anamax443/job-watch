@@ -199,3 +199,25 @@ test('pozdrav není příkaz — bot nemá skákat do každé zprávy', () => {
 test('diakritika ani velká písmena nevadí', () => {
   assert.deepEqual(guessIntent('SPUSŤ TO'), { kind: 'run' });
 });
+
+test('živý dotaz „Najdeš mi nějaké fleky?" — takhle se lidi ptají', () => {
+  // 31. 8. 2026 17:04: formální slovník („pozice", „inzeráty") tuhle větu nechytil
+  // a bot musel odpovědět, že nerozumí.
+  assert.deepEqual(guessIntent('Najdeš mi nějaké fleky?'), {
+    kind: 'positions',
+    minScore: null,
+    sinceDays: null,
+  });
+});
+
+test('hovorové tvary pro práci projdou', () => {
+  for (const veta of ['máš pro mě něco?', 'ukaž joby', 'nějaká práce?', 'co máš za příležitosti']) {
+    assert.equal(guessIntent(veta)?.kind, 'positions', veta);
+  }
+});
+
+test('„najdeš" NEspouští běh — výpis je hned, běh trvá minuty', () => {
+  // Kdo se ptá na výsledek, má ho dostat, ne čekání.
+  assert.equal(guessIntent('najdeš mi něco?')?.kind, 'positions');
+  assert.equal(guessIntent('spusť to')?.kind, 'run');
+});

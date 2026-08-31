@@ -8,6 +8,8 @@ import { fetchJobsCz } from './sources/jobscz.ts';
 import { fetchPraceCz } from './sources/pracecz.ts';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
 import { prefilter, roleMatch, regionRejected } from './prefilter.ts';
+import { clearStop, stopRequested } from './store.ts';
+import { sendTelegram, AI_DISCLOSURE } from './notify.ts';
 import { scoreJob } from './score.ts';
 import { enrichOriginator } from './enrich.ts';
 import { discoverSources, type SourceCandidate } from './discover.ts';
@@ -103,6 +105,9 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   const runStart = Date.now(); // pro absolutní strop celého běhu (viz deadline níže)
   env = await resolveEnv(env); // klíče přednostně z D1 (UI), jinak Worker secrets
   const settings = await loadSettings(env);
+  // Starý požadavek na zastavení nesmí zabít ten příští běh.
+  await clearStop(env);
+  let stopped = false;
   const stats: RunStats = {
     fetched: 0,
     candidates: 0,
@@ -302,6 +307,11 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       }
     };
     for (let b = 0; b < candidates.length; b += BATCH) {
+      if (await stopRequested(env)) {
+        stopped = true;
+        run.log('⏹️ Zastaveno na žádost (tlačítko Stop) — rozpracované se neztrácí, dožene to další běh.');
+        break;
+      }
       if (Date.now() > deadline) {
         run.log(`⏱️ Časový limit běhu — zpracováno ${stats.scored}, zbytek doženu příště.`);
         break;
@@ -342,7 +352,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     // 4b) živost inzerátů — u jobs.cz/prace.cz detail 404 = inzerát stažen z portálu (VŘ může
     //     běžet dál, jen zmizel placený inzerát). Přednost mají
     //     nejdéle neověřené (vypadlé z listovky). Levné HTTP → dávkově, do deadline.
-    if (Date.now() < deadline) {
+    if (!stopped && Date.now() < deadline) {
       // Hromadné ověření dělá GitHub Action portal-liveness — v CI není strop podřízených
       // požadavků, takže projde všechny aktivní portálové inzeráty každý den. V běhu zůstává
       // malá dávka na čerstvé nálezy: recheckLiveness řadí dosud neověřené první, takže
@@ -425,7 +435,12 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     let queueHeld = 0;
     let queueOffset = 0; // o kolik zaseknutých řádků je potřeba se ve frontě posunout
     let dryBatches = 0; // dávky po sobě bez jediného skóre
-    while (Date.now() < deadline && aiCalls < maxScores) {
+    while (!stopped && Date.now() < deadline && aiCalls < maxScores) {
+      if (await stopRequested(env)) {
+        stopped = true;
+        run.log('⏹️ Zastaveno na žádost (tlačítko Stop) — fronta zůstává, dožene ji další běh.');
+        break;
+      }
       const batch = await loadUnscored(env, 3, queueOffset);
       if (!batch.length) break;
       let progressed = 0;
@@ -549,11 +564,40 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       `📋 Souhrn: staženo ${stats.fetched} inzerátů (${perSource}), po filtru ${stats.candidates} relevantních · ` +
         `ohodnoceno ${stats.scored} · ${leads}${pending}`,
     );
-    run.log('✅ Hotovo — běh proběhl v pořádku (detaily po zdrojích viz 📡 řádky výše).');
+    run.log(
+      stopped
+        ? '⏹️ Běh ukončen na žádost. Co se nestihlo, čeká ve frontě — nic se nezahodilo.'
+        : '✅ Hotovo — běh proběhl v pořádku (detaily po zdrojích viz 📡 řádky výše).',
+    );
     await run.flush(stats, true);
   } catch (e: any) {
     run.log(`❌ Chyba: ${e?.message ?? e}`);
     await run.flush(stats, true);
+    // Pád musí dojít ČLOVĚKU, ne jen do logu. Do 31. 8. 2026 se notifikace posílala jen na
+    // leady, takže „dnes nic nenašel" a „dnes to spadlo" vypadaly zvenčí identicky — agent
+    // mohl být týden mrtvý a nikdo by to nepoznal. Podmínka brány F6 build předpisu.
+    try {
+      const chatId = settings.telegramChatId;
+      if (chatId && env.TELEGRAM_BOT_TOKEN) {
+        await sendTelegram(
+          env,
+          chatId,
+          `❌ JobWatch: běh (${trigger}) spadl.
+
+${e?.message ?? e}
+
+` +
+            `Stihl: staženo ${stats.fetched} · ohodnoceno ${stats.scored} · notifikováno ${stats.notified}.
+` +
+            `Podrobnosti v Běhy na jobwatch.maxferit.cz.
+
+${AI_DISCLOSURE}`,
+        );
+      }
+    } catch (notifyErr) {
+      // Selhání hlášení nesmí přebít původní chybu — ta je ta důležitá.
+      console.warn('Hlášení pádu se nepodařilo odeslat:', notifyErr);
+    }
     throw e;
   }
 
