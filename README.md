@@ -137,6 +137,25 @@ Výskyt v živé listovce rovnou nastaví `active=1`.
 plný export, uložené MPSV inzeráty, které v něm už nejsou, označí `active=0`. Spouští se v CI
 nezávisle na PC (secret `CLOUDFLARE_API_TOKEN`); ručně přes „Run workflow".
 
+### Příkazy z Telegramu (`src/telegram.ts`)
+
+Do bota jde napsat **`/pozice`** a přijde výpis pozic, které jsou pořád na portálu a mají
+skóre nad prahem. Práh se bere z Nastavení, nebo se dá napsat rovnou: **`/pozice 50`**.
+Dál `/help`. Ve skupině Telegram k příkazu připojuje jméno bota (`/pozice@Bot 60`) — parser to
+odřízne, stejně jako zvládne velké písmeno a překlep v čísle (spadne na práh z Nastavení,
+ne na chybu).
+
+**Proč dotazování a ne webhook:** celý `jobwatch.maxferit.cz` je za Cloudflare Access, takže
+Telegram by se na žádnou cestu nedovolal — i `/` vrací 302 na přihlášení. Webhook by znamenal
+**Bypass politiku v Access**, tedy vědomou díru v ochraně. Worker se proto ptá sám:
+cron `*/5 * * * *` → `getUpdates` → odpověď. **Žádný veřejný endpoint nevzniká**, cenou je
+latence do 5 minut. Rozlišení obou rozvrhů je podle výrazu cronu ve `scheduled` (src/index.ts).
+
+**Oprávnění:** odpovídá se **jen** na `chat_id` z Nastavení. Zpráva odjinud se zahodí a jde do
+logu Workeru — odpověď neznámému chatu by z bota udělala veřejné čtení výsledků včetně
+kontaktních osob. Zprávy starší než 10 minut se přeskakují (`isFresh`): Telegram drží
+nedoručené až 24 h a odpověď na včerejší dotaz „jaké jsou aktuální pozice" je k ničemu.
+
 ### Kontaktní osoba
 
 Aby šlo oslovit **konkrétního člověka i po skončení výběrového řízení**, ukládá se ke

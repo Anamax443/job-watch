@@ -11,6 +11,44 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — Telegram umí odpovídat: /pozice vrátí aktuální nabídky
+
+**Zadání.** Umět si z Telegramu vyžádat výpis aktuálních pozic — co odpovídá min. skóre
+(s možností napsat práh přímo do zprávy) a co je pořád na portálu.
+
+**Rozhodnutí, které to určilo.** Celý `jobwatch.maxferit.cz` je za Cloudflare Access; ověřeno,
+že i `/` vrací 302 na přihlášení. Telegram se tedy webhookem nedovolá, leda by v Access vznikla
+**Bypass politika** — vědomá díra v ochraně. Zvoleno **dotazování**: cron `*/5 * * * *` volá
+`getUpdates`. Žádný veřejný endpoint, Access se nesahá; cenou je latence do 5 minut.
+
+**Co přibylo.**
+
+- `src/telegram.ts`: `/pozice`, `/pozice 50`, `/help`. Výpis bere `buildJobsFilter` se stavem
+  „na portálu" — tentýž filtr, jaký používá web, aby Telegram a Výsledky neříkaly každý něco jiného.
+- `wrangler.toml`: druhý cron. `scheduled` rozlišuje rozvrhy podle výrazu cronu.
+- `sendTelegram` v `notify.ts` vyexportováno (dřív privátní) — odesílá se stejnou cestou
+  jako notifikace, ne druhou vlastní.
+
+**Obrana.**
+
+- **Oprávnění:** odpovídá se jen na `chat_id` z Nastavení. Cizí zpráva se zahodí a jde do logu.
+  Bez toho by kdokoli, kdo najde bota, četl výsledky včetně kontaktních osob.
+- **Stáří (`isFresh`, 10 min):** Telegram drží nedoručené zprávy až 24 h. Po výpadku by se
+  jinak naráz vysypaly odpovědi na půl dne staré příkazy. Původní návrh měl místo toho
+  „při prvním spuštění přeskoč všechno", jenže to by spolklo úplně první příkaz uživatele —
+  filtr stáří řeší obojí a funguje hned.
+- **Useknutý výpis:** posílá se max. 15 pozic a zpráva přizná, kolik dalších zbývá.
+
+**Kontroly.** 15 testů v `tests/telegram.test.ts` (celkem **102**) + 4 kontroly ve skupině
+„Telegram" na `/tests`. Pokrývají tvary, které reálně chodí z mobilu: `/pozice@Bot 60`,
+`/POZICE  40`, překlep v čísle, běžná věta (nesmí se odpovídat na všechno).
+
+**Neověřeno provozem.** Odchozí směr je prověřený (notifikace chodí), příchozí ne — na to je
+potřeba poslat botovi zprávu z oprávněného chatu. Po nasazení: napsat `/pozice` a do 5 minut
+má přijít odpověď; v `meta` se pak objeví klíč `telegram_update_id`.
+
+---
+
 ## 2026-08-31 — Min. skóre tiše vyhazovalo i frontu; přibyl přepínač „i historie"
 
 **Jak se to našlo.** Po nasazení stránkování hlásil přehled pořád „nic". Příčina nebyla ve

@@ -8,7 +8,11 @@ workers_dev = false
 
 # Denní běh: 07:00 SEČ / 06:00 UTC. MPSV publikuje přírůstky v pracovní dny.
 [triggers]
-crons = ["0 6 * * *"]
+# "0 6 * * *" = denní běh agenta. "*/5 * * * *" = vybírání příkazů z Telegramu:
+# aplikace je za Cloudflare Access, takže webhook by znamenal Bypass politiku (díru v ochraně).
+# Worker se proto ptá sám přes getUpdates — žádný veřejný endpoint nevzniká, cenou je latence
+# do 5 minut. Rozlišení podle výrazu cronu je v `scheduled` v src/index.ts.
+crons = ["0 6 * * *", "*/5 * * * *"]
 
 # Statické UI (Výsledky + Nastavení) servírované stejným Workerem.
 [assets]

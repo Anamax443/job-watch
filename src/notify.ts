@@ -40,7 +40,7 @@ function buildText(j: NotifyJob, descLimit = 700): string {
   return lines.join('\n');
 }
 
-async function sendTelegram(env: Env, chatId: string, text: string): Promise<boolean> {
+export async function sendTelegram(env: Env, chatId: string, text: string): Promise<boolean> {
   try {
     const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',

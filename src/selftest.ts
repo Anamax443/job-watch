@@ -20,6 +20,7 @@ import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
 import { buildJobsFilter } from './store.ts';
+import { formatPositions, parseCommand } from './telegram.ts';
 import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
 
@@ -200,6 +201,13 @@ export function runSelfTest(): SelfTestResult {
   check(U, 'norm sjednotí diakritiku a mezery', 'Stojí na tom dedup i prefiltr.', 'vedouci it oddeleni', norm('  Vedoucí   IT ODDĚLENÍ '));
   check(U, 'truncate krátí jen když je potřeba', 'Zbytečná výpustka mate čtenáře notifikace.', ['abc…', 'abc'], [truncate('abcdef', 3), truncate('abc', 3)]);
   check(U, 'num propustí jen konečná čísla', 'Mzda ze zdroje bývá string nebo nesmysl.', [60000, undefined], [num('60000'), num('nedohodou')]);
+
+  // --- Příkazy z Telegramu ---------------------------------------------------
+  const TG = 'Telegram';
+  check(TG, 'Ve skupině se odřízne @jmenobota', 'Telegram jméno bota k příkazu připojuje sám; jinak by /pozice@Bot nebyl poznat.', { kind: 'positions', minScore: 60 }, parseCommand('/pozice@JobWatchBot 60'));
+  check(TG, 'Překlep v čísle vezme práh z Nastavení', 'Příkaz se píše do mobilu. Prázdný výpis by vypadal jako „nic nenašel".', { kind: 'positions', minScore: null }, parseCommand('/pozice sedmdesát'));
+  check(TG, 'Běžná věta není příkaz', 'Bot nesmí odpovídat na všechno, co v chatu padne.', null, parseCommand('ahoj, co je nového?'));
+  check(TG, 'Useknutý výpis přizná, kolik chybí', 'Bez toho se 15 vypsaných z 40 čte jako „tohle je všechno".', true, formatPositions([{ title: 'T', employer: 'E', real_employer: null, location: null, relevance: 80, source: 'jobs.cz', url: null }], 70, 40).includes('a další 39'));
 
   // --- Filtr výpisu ----------------------------------------------------------
   const FV = 'Filtr výpisu';

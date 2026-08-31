@@ -14,6 +14,10 @@ import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
 import { buildJobsFilter } from './store.ts';
+import { pollTelegram } from './telegram.ts';
+
+/** Výraz cronu vyhrazený pro vybírání zpráv z Telegramu (viz wrangler.toml). */
+const TELEGRAM_CRON = '*/5 * * * *';
 import {
   ACCESS_EMAIL_HEADER,
   ACCESS_LOGOUT_PATH,
@@ -221,7 +225,21 @@ async function handleTestNotify(env: Env): Promise<Response> {
 
 export default {
   // Denní cron — viz [triggers] ve wrangler.toml.
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  // Dva rozvrhy v jednom Workeru: denní běh agenta a časté vybírání zpráv z Telegramu.
+  // Rozlišuje se výrazem cronu — kdyby přibyl další, ať je poznat, který je který.
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === TELEGRAM_CRON) {
+      ctx.waitUntil(
+        (async () => {
+          const renv = await resolveEnv(env); // token může být z D1 (UI), ne jen Worker secret
+          const settings = await loadSettings(renv);
+          const r = await pollTelegram(renv, settings);
+          // Logovat jen když se něco dělo — jinak by 288 běhů denně zaplavilo log.
+          if (r.prislo) console.log(`Telegram: přišlo ${r.prislo}, vyřízeno ${r.vyrizeno}, cizích ${r.cizich}, starých ${r.stare}`);
+        })(),
+      );
+      return;
+    }
     ctx.waitUntil(runPipeline(env, 'cron'));
   },
 

@@ -64,7 +64,7 @@
     <tr><th>Runtime</th><td>Cloudflare Worker <code>job-watch</code> + Cron + statické UI (Workers Assets, <code>run_worker_first</code>)</td></tr>
     <tr><th>Databáze (D1)</th><td><code>job-watch</code> — <code>seen_jobs</code> (výsledky, živost, kontakty), <code>sources</code> (dynamicky objevené zdroje), <code>meta</code> (nastavení + kurzor), <code>runs</code> (stav běhů)</td></tr>
     <tr><th>AI backend</th><td>default <b>zdarma</b> Cloudflare Workers AI (<code>llama-3.1-8b-instruct-fp8</code>) pro skórování; volitelně placený <code>claude-haiku-4-5</code>. Deanonymizace agentur (<code>claude-sonnet-4-6</code> + web_search) umí jen Claude.</td></tr>
-    <tr><th>Notifikace</th><td>Telegram · e-mail přes <b>Cloudflare Email Sending</b> (bez SMTP) · Slack webhook</td></tr>
+    <tr><th>Notifikace</th><td>Telegram (i <b>příkazy zpět</b>: <code>/pozice</code>) · e-mail přes <b>Cloudflare Email Sending</b> (bez SMTP) · Slack webhook</td></tr>
     <tr><th>Mimo Worker</th><td>GitHub Actions: <code>portal-liveness.yml</code> (živost jobs.cz/prace.cz — Worker má strop na podřízené požadavky, v CI ne), <code>mpsv-liveness.yml</code> (plný export ~184 MB — Worker to v běhu neunese), <code>seed.yml</code>, <code>mpsv-backfill-location.yml</code></td></tr>
   </table>
 
@@ -103,7 +103,7 @@
 
   <h2>Kvalita a kontroly</h2>
   <table>
-    <tr><th>Testy</th><td><b>84 testů</b> vestavěným <code>node --test</code> + <b>14 kontrol</b> filtru regionu. <b>Žádná nová závislost</b>, žádná infrastruktura — <code>npm test</code>.</td></tr>
+    <tr><th>Testy</th><td><b>102 testů</b> vestavěným <code>node --test</code> + <b>14 kontrol</b> filtru regionu. <b>Žádná nová závislost</b>, žádná infrastruktura — <code>npm test</code>.</td></tr>
     <tr><th>Co pokrývají</th><td>autorizace a allowlist · dedup / otisk / <code>contentHash</code> · prefiltr · normalizace odpovědi modelu · <code>util</code> · verdikty regionu a strop skóre</td></tr>
     <tr><th>Brána v CI</th><td><code>typecheck</code> → <code>test</code> → deploy. Když testy spadnou, <b>nenasadí se nic</b>.</td></tr>
     <tr><th>Tvar testů</th><td>Malý dílčí celek — jedna funkce, jeden vstup, jeden očekávaný výstup. Každý případ má v názvu, <b>proč</b> tam je; jeden je přímo živý incident s Prahou.</td></tr>
@@ -188,7 +188,7 @@
         <li class="ok">Deanonymizace agentur, kontaktní osoby</li>
         <li class="ok">Telegram / e-mail / Slack</li>
         <li class="ok">Autorizace v aplikaci + allowlist</li>
-        <li class="ok">84 testů + brána v CI</li>
+        <li class="ok">102 testů + brána v CI</li>
       </ul>
     </div>
     <div class="card todo-card">
