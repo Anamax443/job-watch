@@ -11,6 +11,45 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — prefiltr byl děravý: „CIO" chytalo „stacionář", jobs.cz mělo propustku
+
+**Jak se to našlo.** Po zapnutí „i historie" se v seznamu objevili manipulační dělníci,
+seřizovači lisů a Praha. Nešlo o filtr výpisu — do fronty se ty inzeráty **opravdu ukládaly**.
+Tři nezávislé díry v `src/prefilter.ts`:
+
+1. **Klíčové slovo se hledalo jako podřetězec.** `hay.includes(norm(k))` — a `norm('CIO')` je
+   `cio`, což sedí uvnitř slova sta-**cio**-nář. Prošli tak pracovníci v sociálních službách
+   („přímá péče v denním stacionáři") a obsluha **stacio**nárních strojů.
+   Změřeno: **69 ze 139** nezpracovaných inzerátů MPSV mimo obor chytlo právě `%cio%`.
+2. **`j.source === 'jobs.cz'` byla propustka** — celá listovka šla rovnou na AI na
+   předpoklad „dotaz to předfiltroval sám". Nepředfiltroval: **139** nezpracovaných inzerátů
+   z jobs.cz je mimo obor (skladníci, seřizovači, operátoři výroby).
+3. **Region nebyl filtr, ale strop skóre.** `applyRegionGate` zastropuje až PO ohodnocení,
+   takže inzerát, na který nezbyl rozpočet, zůstal ve frontě bez skóre — a v historii se
+   ukazovala Praha. Tvrdá kritéria patří do kódu a patří na vstup, ne až za model.
+
+**Oprava (vstup).**
+
+- `keywordHit()` porovnává na hranici slova (`(^|[^a-z0-9])needle([^a-z0-9]|$)`), ne podřetězcem.
+- `jobs.cz` posuzován jako každý jiný zdroj; propustku má už jen `web:` (tam dotaz filtruje).
+- `regionRejected()` zahazuje prokazatelné `out` hned na vstupu. `unknown` a `remote`
+  zůstávají — ATS inzeráty lokalitu často neuvádějí a nemá se přijít o lead kvůli prázdnému poli.
+
+**Oprava (co už v databázi leží).** 299 inzerátů ve frontě, z toho ~264 mimo roli a 116 mimo
+kraj. Řeší je dojíždění fronty: **před** voláním modelu se na každou položku pustí `roleMatch`
+a `regionRejected` a co neprojde, dostane **skóre 0 s důvodem** — ne NULL (jinak by z fronty
+neodešlo) a ne smazání (historie zůstává). Nestojí to jediný dotaz na AI a loguje se zvlášť
+řádkem 🧹, ať se to nepočítá jako práce modelu.
+
+**Vedlejší efekt, který je vlastně hlavní:** fronta se tím propadne z 299 na řádově desítky.
+Dnešní běh stihl ohodnotit 15 inzerátů a spadl na „Too many subrequests" — ověřeno v logu
+běhu z 31. 8. 06:00. Rozpočet Workeru půjde konečně na inzeráty, které dávají smysl.
+
+**Kontroly.** 4 nové testy v `tests/prefilter.test.ts` (celkem **106**), mimo jiné živý případ
+„Pracovník v sociálních službách — přímá péče v denním stacionáři" → neprojde, a „CIO" → projde.
+
+---
+
 ## 2026-08-31 — Telegram umí odpovídat: /pozice vrátí aktuální nabídky
 
 **Zadání.** Umět si z Telegramu vyžádat výpis aktuálních pozic — co odpovídá min. skóre

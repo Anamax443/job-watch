@@ -7,7 +7,7 @@ import { fetchWeb } from './sources/web.ts';
 import { fetchJobsCz } from './sources/jobscz.ts';
 import { fetchPraceCz } from './sources/pracecz.ts';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
-import { prefilter } from './prefilter.ts';
+import { prefilter, roleMatch, regionRejected } from './prefilter.ts';
 import { scoreJob } from './score.ts';
 import { enrichOriginator } from './enrich.ts';
 import { discoverSources, type SourceCandidate } from './discover.ts';
@@ -32,7 +32,7 @@ import {
   countUnscored,
   markDuplicate,
 } from './store.ts';
-import { applyRegionGate } from './region.ts';
+import { applyRegionGate, checkRegion } from './region.ts';
 
 export interface RunStats {
   fetched: number;
@@ -42,6 +42,7 @@ export interface RunStats {
   notified: number;
   discovered: number;
   livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
+  prefiltered?: number; // kolik jich z fronty vyřadil kód (mimo obor/kraj) bez jediného dotazu na AI
   // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
   // UI podle toho spouští další dávky, dokud není 0 (viz index.js — „doskórování").
   candidatesPending?: number;
@@ -428,9 +429,34 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       const batch = await loadUnscored(env, 3, queueOffset);
       if (!batch.length) break;
       let progressed = 0;
-      aiCalls += batch.length;
+
+      // Deterministické vyřazení PŘED AI. Ve frontě leží i to, co tam napadalo, dokud byl
+      // prefiltr děravý (klíčové slovo „CIO" chytalo „stacionář", jobs.cz mělo propustku
+      // a region se řešil až stropem skóre po ohodnocení). Takové inzeráty nemá cenu posílat
+      // modelu: rozhodne o nich kód. Dostanou skóre 0 s důvodem — ne NULL, aby z fronty
+      // opravdu odešly, a ne smazání, aby zůstala historie.
+      const rejected = batch.filter((j) => !roleMatch(j, settings) || regionRejected(j, settings));
+      for (const j of rejected) {
+        const proc = !roleMatch(j, settings)
+          ? 'mimo hledanou roli'
+          : `mimo kraj (${checkRegion(j, settings.regionPriority).note})`;
+        await updateScore(env, j.id, {
+          relevance: 0,
+          seniority: 'other',
+          reason: `⛔ Vyřazeno filtrem bez AI: ${proc}.`,
+        });
+        progressed++;
+        stats.prefiltered = (stats.prefiltered ?? 0) + 1;
+      }
+      const toScore = batch.filter((j) => !rejected.includes(j));
+      if (!toScore.length) {
+        // Dávka byla celá k vyřazení — pokračuj hned další, tohle nestálo ani jeden dotaz na AI.
+        dryBatches = 0;
+        continue;
+      }
+      aiCalls += toScore.length;
       await Promise.all(
-        batch.map(async (job) => {
+        toScore.map(async (job) => {
           try {
             const sc = await scoreJob(env, job, settings.profile, {
               region: settings.regionPriority,
@@ -496,6 +522,13 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     if (backlog) {
       stats.scored += backlog;
       run.log(`📊 Doskórováno z fronty: ${backlog}${queueNotified ? ` · z toho ${queueNotified} nových leadů odesláno` : ''}`);
+    }
+    // Vyřazení kódem se loguje zvlášť: nestálo ani jeden dotaz na AI a je to jiná událost
+    // než „ohodnoceno". Bez toho by se ve statistice tvářilo jako práce modelu.
+    if (stats.prefiltered) {
+      run.log(
+        `🧹 Z fronty vyřazeno filtrem (bez AI): ${stats.prefiltered} — mimo hledanou roli nebo mimo kraj. Zůstávají v databázi se skóre 0 a důvodem.`,
+      );
     }
     if (queueHeld) {
       run.log(`🔕 Fronta: ${queueHeld} leadů nad prahem čeká na odeslání (strop ${notifyCap} zpráv na běh) — pošle je další běh.`);
