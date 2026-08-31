@@ -11,6 +11,35 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — F0 + F1: návrhový list a změřené jádro (NAVRH.md)
+
+Doplněno zpětně — agent běží od 14. 6. 2026, takže návrhový list nevznikl před stavbou.
+Popisuje, co skutečně stojí v kódu, a čísla jsou **změřená na produkčních datech**
+(458 inzerátů, 47 doběhlých běhů od 1. 8.), ne odhadnutá.
+
+**F0:** uzavřený seznam 8 scénářů, tabulka model × kód (pravidlo „nejsi-li si jistý, je to
+kód" — modelu zůstalo jediné: skóre relevance), režimy bran podle vratnosti akce, limity,
+identita. Napsané taky to, **kdy je agent hotový** měřitelně — a že to zatím ověřené není.
+
+**F1 — čas.** Průměr běhu 41,4 s, nejdelší 120,0 s (přesně nastavený strop), 47/47 doběhlo.
+
+**F1 — cena.** Prompt 2 954 znaků, popis inzerátu průměrně 855 (max 3 518). Na výchozím
+free backendu (Workers AI) agent **neplatí nic**. Při přepnutí na Claude Haiku 4.5 vychází
+inzerát na ~0,0019 USD, tedy ~3,7 USD (~82 Kč) měsíčně při 1 950 inzerátech. Tokeny
+odhadnuté z počtu znaků poměrem 3:1 — je to odhad, ne měření přes `count_tokens`.
+
+**F1 — přesnost.** Deterministické jádro **26/26 = 100 %**. Skórování modelem
+**NEZMĚŘENO** — modelová část evalů potřebuje klíč, který v CI není. **Brána F1 tedy
+neplatí** a je to v NAVRH.md napsané jako slepé místo, ne vynechané.
+
+**Nález, který stojí za celý F1:** strop `MAX_SCORES_PER_RUN = 150` se nikdy nevyčerpá,
+protože dřív dojde rozpočet podřízených požadavků Workeru — běh z 31. 8. 06:00 spadl na
+„Too many subrequests" po 15 ohodnocených. **Skutečná propustnost je ~15/den, ne 150/den.**
+Každé plánování, které se opíralo o to druhé číslo, bylo mimo; fronta 300 inzerátů se
+dohání týdny, ne dva dny.
+
+---
+
 ## 2026-08-31 — F4: prompt nese verzi, evaluační sada z reálných inzerátů
 
 - `src/prompts.ts` — prompty přestěhované z `score.ts` na jedno místo, texty beze změny.
