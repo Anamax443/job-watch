@@ -13,6 +13,7 @@ import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
+import { buildJobsFilter } from './store.ts';
 import {
   ACCESS_EMAIL_HEADER,
   ACCESS_LOGOUT_PATH,
@@ -107,21 +108,11 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
   const agencyOnly = url.searchParams.get('agency') === '1';
   // active: 'all' (default) | 'active' (aktivní/neověřené) | 'inactive' (zrušené)
   const active = url.searchParams.get('active') ?? 'all';
+  // history=1 → pustit i inzeráty bez skóre. Bez toho je jakýkoli min. práh vyhodí (NULL).
+  const history = url.searchParams.get('history') === '1';
   const { limit, offset } = pageParams(url.searchParams.get('limit'), url.searchParams.get('offset'));
 
-  const conds = ['duplicate_of IS NULL'];
-  const binds: unknown[] = [];
-  if (minScore > 0) {
-    conds.push('relevance >= ?');
-    binds.push(minScore);
-  }
-  if (agencyOnly) conds.push('is_agency = 1');
-  // Zrušené = potvrzené 404 (active=0). Aktivní = vše, co není potvrzeně zrušené
-  // (active=1 i dosud neověřené NULL) — ať se nic nezobrazí předčasně jako mrtvé.
-  if (active === 'inactive') conds.push('active = 0');
-  else if (active === 'active') conds.push('(active IS NULL OR active = 1)');
-
-  const where = conds.join(' AND ');
+  const { where, binds } = buildJobsFilter({ minScore, agencyOnly, active, history });
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
             url, description, is_agency, relevance, seniority, reason, real_employer, real_employer_url,

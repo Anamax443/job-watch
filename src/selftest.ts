@@ -19,6 +19,7 @@ import { prefilter } from './prefilter.ts';
 import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
+import { buildJobsFilter } from './store.ts';
 import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
 
@@ -199,6 +200,12 @@ export function runSelfTest(): SelfTestResult {
   check(U, 'norm sjednotí diakritiku a mezery', 'Stojí na tom dedup i prefiltr.', 'vedouci it oddeleni', norm('  Vedoucí   IT ODDĚLENÍ '));
   check(U, 'truncate krátí jen když je potřeba', 'Zbytečná výpustka mate čtenáře notifikace.', ['abc…', 'abc'], [truncate('abcdef', 3), truncate('abc', 3)]);
   check(U, 'num propustí jen konečná čísla', 'Mzda ze zdroje bývá string nebo nesmysl.', [60000, undefined], [num('60000'), num('nedohodou')]);
+
+  // --- Filtr výpisu ----------------------------------------------------------
+  const FV = 'Filtr výpisu';
+  check(FV, 'Min. skóre bez „i historie" zahodí nehodnocené', 'Skóre je NULL a na NULL neplatí porovnání — 31. 8. 2026 to z 458 inzerátů ukázalo 3.', 'duplicate_of IS NULL AND relevance >= ?', buildJobsFilter({ minScore: 70, agencyOnly: false, active: 'all', history: false }).where);
+  check(FV, '„i historie" pustí nehodnocené vedle těch nad prahem', 'Tudy se dostaneš na frontu i na inzeráty, kterým skóre smazala změna profilu.', 'duplicate_of IS NULL AND (relevance >= ? OR relevance IS NULL)', buildJobsFilter({ minScore: 70, agencyOnly: false, active: 'all', history: true }).where);
+  check(FV, 'Neznámý stav se ignoruje, nevrací prázdno', 'Hodnota chodí z URL, kterou si upravuje i člověk.', 'duplicate_of IS NULL', buildJobsFilter({ minScore: 0, agencyOnly: false, active: 'nesmysl', history: false }).where);
 
   // --- Stránkování výsledků --------------------------------------------------
   const PG = 'Stránkování';

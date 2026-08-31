@@ -98,10 +98,11 @@ async function load(append){
   const min = $('#minScore').value || 0;
   const ag = $('#agencyOnly').checked ? '1' : '0';
   const act = $('#activeFilter').value || 'all';
+  const hist = $('#history').checked ? '1' : '0';
   if(!append) shown = 0;
   $('#status').textContent = 'Načítám…';
   $('#more').disabled = true;
-  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}&offset=${shown}`);
+  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}&history=${hist}&offset=${shown}`);
   const res = await r.json();
   const jobs = res.jobs || [];
   total = res.total ?? jobs.length;
@@ -140,6 +141,7 @@ $('#refresh').onclick = () => load(false);
 $('#minScore').onchange = () => load(false);
 $('#agencyOnly').onchange = () => load(false);
 $('#activeFilter').onchange = () => load(false);
+$('#history').onchange = () => load(false);
 $('#more').onclick = () => load(true);
 
 // Klik na název pozice / „zobrazit inzerát" → detail inzerátu (archiv). Delegace přes tbody.
@@ -156,6 +158,7 @@ let saveMsgTimer;
 $('#saveFilters').onclick = () => {
   localStorage.setItem('jw.agencyOnly', $('#agencyOnly').checked ? '1' : '0');
   localStorage.setItem('jw.activeFilter', $('#activeFilter').value);
+  localStorage.setItem('jw.history', $('#history').checked ? '1' : '0');
   const msg = $('#saveMsg');
   msg.hidden = false;
   clearTimeout(saveMsgTimer);
@@ -274,6 +277,8 @@ const savedAgency = localStorage.getItem('jw.agencyOnly');
 if (savedAgency !== null) $('#agencyOnly').checked = savedAgency === '1';
 const savedActive = localStorage.getItem('jw.activeFilter');
 if (savedActive !== null) $('#activeFilter').value = savedActive;
+const savedHistory = localStorage.getItem('jw.history');
+if (savedHistory !== null) $('#history').checked = savedHistory === '1';
 
 // Výchozí min. skóre vlastní Nastavení (uložené v D1), ne prohlížeč — aby se nemuselo
 // přenastavovat na každém zařízení zvlášť. Filtry Agentury/Stav zůstávají per-prohlížeč

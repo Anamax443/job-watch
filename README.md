@@ -106,6 +106,13 @@ podle skóre, zbytek podle data nálezu. Hlavička píše `X z Y` a pod tabulkou
 starší"**; dokud se stránkovat nedalo, viselo tam jen „200 pozic" a 258 starších záznamů
 (14. 6. – 13. 8. 2026) bylo z UI nedosažitelných, ačkoli v databázi celou dobu byly.
 
+**Přepínač „i historie (bez skóre)"** (`/api/jobs?history=1`) je v liště filtrů vedle „jen
+agentury" a ukládá se do prohlížeče. Bez něj **jakékoli** Min. skóre vyhodí i inzeráty, které
+skóre nemají (`relevance IS NULL`) — na NULL neplatí žádné porovnání, takže práh 1 filtruje
+stejně tvrdě jako práh 100. Živě 31. 8. 2026: Min. skóre 70 z Nastavení ukázalo **3 pozice
+z 458**; s přepínačem **302**. Nehodnocených je 299 — 145 čeká ve frontě, **154 se
+nepřeskóruje nikdy**, protože jsou stažené z portálu a `loadUnscored` bere jen živé.
+
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
 

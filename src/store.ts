@@ -392,3 +392,39 @@ export async function markSourceChecked(env: Env, id: number, ok: boolean): Prom
     .bind(id, ok ? 1 : 0)
     .run();
 }
+
+// --- Filtr výpisu Výsledků -------------------------------------------------
+
+export interface JobsFilter {
+  /** Min. skóre z lišty filtrů (0 = neomezovat). */
+  minScore: number;
+  agencyOnly: boolean;
+  /** 'all' | 'active' (na portálu / neověřené) | 'inactive' (staženo z portálu) */
+  active: string;
+  /** true = pustit i inzeráty BEZ skóre (fronta + historie po změně profilu). */
+  history: boolean;
+}
+
+/**
+ * Podmínky pro výpis Výsledků. Čistá funkce, ať jde otestovat bez D1.
+ *
+ * Podstatné je chování nehodnocených: skóre je NULL a na NULL neplatí žádné porovnání,
+ * takže `relevance >= 1` je vyhodí stejně spolehlivě jako `relevance >= 100`. Přehled tím
+ * tiše schovával 299 z 458 inzerátů — mezi nimi 12, o kterých už jednou přišla notifikace
+ * a které se navíc samy nepřeskórují (jsou stažené z portálu a `loadUnscored` je nebere).
+ * Proto je „i historie" vlastní podmínka, ne jen jiné číslo v poli Min. skóre.
+ */
+export function buildJobsFilter(f: JobsFilter): { where: string; binds: unknown[] } {
+  const conds = ['duplicate_of IS NULL'];
+  const binds: unknown[] = [];
+  if (f.minScore > 0) {
+    conds.push(f.history ? '(relevance >= ? OR relevance IS NULL)' : 'relevance >= ?');
+    binds.push(f.minScore);
+  }
+  if (f.agencyOnly) conds.push('is_agency = 1');
+  // Zrušené = potvrzené 404 (active=0). Aktivní = vše, co není potvrzeně zrušené
+  // (active=1 i dosud neověřené NULL) — ať se nic nezobrazí předčasně jako mrtvé.
+  if (f.active === 'inactive') conds.push('active = 0');
+  else if (f.active === 'active') conds.push('(active IS NULL OR active = 1)');
+  return { where: conds.join(' AND '), binds };
+}

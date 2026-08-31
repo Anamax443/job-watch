@@ -11,6 +11,46 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — Min. skóre tiše vyhazovalo i frontu; přibyl přepínač „i historie"
+
+**Jak se to našlo.** Po nasazení stránkování hlásil přehled pořád „nic". Příčina nebyla ve
+stránkování: přehled si při načtení předvyplní Min. skóre z Nastavení (`settings.minScore = 70`,
+public/index.js:283), takže se ptal na `relevance >= 70` → **3 pozice z 458**.
+
+**Podstata.** 299 z 458 inzerátů nemá skóre vůbec (`relevance IS NULL`) a na NULL neplatí
+žádné porovnání — práh 1 je vyhodí stejně spolehlivě jako práh 100. Zpětná vazba přitom
+chyběla: seznam prostě byl krátký.
+
+**Konkrétní oběť** (dotaz uživatele „ale co třeba varnet?"): `jobscz:2001272748` — „Vedoucí IT",
+**VARNET a.s.**, Brno – Horní Heršpice, nalezeno 15. 6. 2026 a **týž den odnotifikováno**.
+Dnes má `relevance NULL` (skóre smazala změna profilu, `UPDATE seen_jobs SET relevance = NULL`
+v src/index.ts) a `active = 0` (stažen z portálu). V přehledu tedy nebyl vidět a **nikdy se
+sám nepřeskóruje**: `loadUnscored` bere jen `active IS NULL OR active = 1`.
+
+Není sám. Notifikovaných inzerátů je 60, z toho **12 přišlo o skóre a všech 12 je `active=0`** —
+mimo dosah fronty. Celkem je takových 154 (a 145 nehodnocených ve frontě, ta jede dál).
+Ironie: řazení fronty z 23. 8. („co už jednou prošlo prahem, přeskórovat první") bylo psané
+právě pro tyhle inzeráty, ale nedosáhne na ně, protože se do fronty vůbec nedostanou.
+
+**Oprava.**
+
+- `buildJobsFilter()` v `src/store.ts` — podmínky výpisu vytažené jako čistá funkce.
+  S `history` je práh `(relevance >= ? OR relevance IS NULL)` místo `relevance >= ?`.
+- Checkbox **„i historie (bez skóre)"** v liště filtrů vedle „jen agentury", ukládá se
+  tlačítkem Uložit do prohlížeče (`jw.history`), API parametr `history=1`.
+- Kontroly: 9 testů v `tests/jobs-filter.test.ts` (celkem **84**) + 3 ve skupině
+  „Filtr výpisu" na `/tests`, ať to jde ověřit i na nasazené verzi.
+
+**Ověřeno nad ostrými daty** (jen SELECT): práh 70 sám → **3**; práh 70 + historie → **302**;
+totéž se stavem „na portálu" → **148**. Varnet mezi nimi je.
+
+**Zbývá rozhodnout.** Vyřazení `active=0` z fronty šetří AI rozpočet, ale zároveň trvale
+zmrazí archiv — a aplikace přitom schválně ukládá kontaktní osobu, „aby šlo oslovit i po
+skončení výběrového řízení". Buď pustit do fronty aspoň dřív notifikované (12 kusů, jednorázově
+levné), nebo přiznat, že po změně profilu je archiv bez skóre napořád.
+
+---
+
 ## 2026-08-31 — na starší inzeráty se z UI nedalo dostat, ačkoli v D1 byly
 
 **Nález.** `/api/jobs` mělo natvrdo `LIMIT 200` bez offsetu a UI parametr `limit` vůbec
