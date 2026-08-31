@@ -141,6 +141,13 @@ nezávisle na PC (secret `CLOUDFLARE_API_TOKEN`); ručně přes „Run workflow"
 
 Do bota jde napsat **`/pozice`** a přijde výpis pozic, které jsou pořád na portálu a mají
 skóre nad prahem. Práh se bere z Nastavení, nebo se dá napsat rovnou: **`/pozice 50`**.
+**Příkazy psát nemusíš.** Věta se rozebere kódem (`guessIntent`): „chtěl bych nové inzeráty
+se skóre nad 80" → výpis s prahem 80 jen z posledních 7 dní, „spusť to" → běh, „jak to dopadlo"
+→ stav. Sloveso spuštění schválně vyhrává nad podstatným jménem, aby „spusť hledání pozic"
+znamenalo běh. **Model se do toho nepouští:** podle build předpisu z `ai-agenti` je nový prompt
+změna, která potřebuje evaluační sadu, a ta zatím neexistuje — rozhodovat o spuštění běhu podle
+netestovaného promptu je moc. Čemu kód nerozumí, na to bot odpoví nápovědou, ne mlčením.
+
 Z chatu jde běh i **spustit**: `/beh` (pojistka proti dvojímu spuštění — když už jeden jede,
 odpoví kdy začal), a `/stav` vrátí, jak dopadl poslední běh. `/start`, který Telegram posílá sám
 při prvním otevření chatu, schválně **nespouští** nic — vrací nápovědu.

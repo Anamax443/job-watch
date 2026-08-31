@@ -4,7 +4,18 @@
 // a formátování je jediné, co uživatel z celé aplikace v Telegramu uvidí.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPositions, formatRun, helpText, isFresh, parseCommand, type PositionRow } from '../src/telegram.ts';
+import {
+  RECENT_DAYS,
+  extractThreshold,
+  formatPositions,
+  formatRun,
+  guessIntent,
+  helpText,
+  isFresh,
+  parseCommand,
+  type PositionRow,
+} from '../src/telegram.ts';
+import { norm } from '../src/util.ts';
 
 const row = (p: Partial<PositionRow> = {}): PositionRow => ({
   title: 'Vedoucí IT',
@@ -18,28 +29,28 @@ const row = (p: Partial<PositionRow> = {}): PositionRow => ({
 });
 
 test('/pozice bez čísla vezme práh z Nastavení', () => {
-  assert.deepEqual(parseCommand('/pozice'), { kind: 'positions', minScore: null });
+  assert.deepEqual(parseCommand('/pozice'), { kind: 'positions', minScore: null, sinceDays: null });
 });
 
 test('/pozice 60 vezme práh ze zprávy', () => {
-  assert.deepEqual(parseCommand('/pozice 60'), { kind: 'positions', minScore: 60 });
+  assert.deepEqual(parseCommand('/pozice 60'), { kind: 'positions', minScore: 60, sinceDays: null });
 });
 
 test('ve skupině chodí /pozice@JobWatchBot — jméno bota se musí odříznout', () => {
-  assert.deepEqual(parseCommand('/pozice@JobWatchBot 60'), { kind: 'positions', minScore: 60 });
+  assert.deepEqual(parseCommand('/pozice@JobWatchBot 60'), { kind: 'positions', minScore: 60, sinceDays: null });
 });
 
 test('velké písmeno ani mezery navíc příkaz nerozbijí — píše se to do mobilu', () => {
-  assert.deepEqual(parseCommand('  /POZICE   40 '), { kind: 'positions', minScore: 40 });
+  assert.deepEqual(parseCommand('  /POZICE   40 '), { kind: 'positions', minScore: 40, sinceDays: null });
 });
 
 test('překlep v čísle spadne na práh z Nastavení, ne na chybu', () => {
-  assert.deepEqual(parseCommand('/pozice sedmdesát'), { kind: 'positions', minScore: null });
+  assert.deepEqual(parseCommand('/pozice sedmdesát'), { kind: 'positions', minScore: null, sinceDays: null });
 });
 
 test('skóre se zastropuje na 0–100 — jinak by dotaz vrátil prázdno', () => {
-  assert.deepEqual(parseCommand('/pozice 900'), { kind: 'positions', minScore: 100 });
-  assert.deepEqual(parseCommand('/pozice -5'), { kind: 'positions', minScore: 0 });
+  assert.deepEqual(parseCommand('/pozice 900'), { kind: 'positions', minScore: 100, sinceDays: null });
+  assert.deepEqual(parseCommand('/pozice -5'), { kind: 'positions', minScore: 0, sinceDays: null });
 });
 
 test('běžná věta není příkaz — na chat se nesmí odpovídat na všechno', () => {
@@ -144,4 +155,47 @@ test('rozbitá statistika nesmí shodit odpověď — hlavička stačí', () => 
 
 test('žádný běh v historii se řekne rovnou, ne prázdnou zprávou', () => {
   assert.match(formatRun(null), /Zatím neproběhl/);
+});
+
+// --- Volná mluva ------------------------------------------------------------
+// Proč: příkazy s lomítkem si nikdo nepamatuje. Rozhoduje o tom kód, ne model — „spusť"
+// nesmí viset na tom, jestli se jazykový model zrovna trefil.
+
+test('živá věta uživatele: „hele chtěl bych ty nový inzeráty se score větší 80"', () => {
+  assert.deepEqual(guessIntent('hele chtěl bych ty nový inzeráty se score větší 80'), {
+    kind: 'positions',
+    minScore: 80,
+    sinceDays: RECENT_DAYS,
+  });
+});
+
+test('bez slova o novosti se čas neomezuje', () => {
+  assert.deepEqual(guessIntent('ukaž mi pozice nad 60'), {
+    kind: 'positions',
+    minScore: 60,
+    sinceDays: null,
+  });
+});
+
+test('číslo u skóre má přednost před jiným číslem ve větě', () => {
+  // Bez té přednosti by se z „za 7 dní" stal práh 7 a výpis by nabobtnal.
+  assert.equal(extractThreshold(norm('nabídky za 7 dní se skóre nad 80')), 80);
+});
+
+test('sloveso spuštění vyhrává nad podstatným jménem', () => {
+  // „spusť hledání pozic" je běh, ne výpis — jinak by se tlačítko nedalo vyslovit.
+  assert.deepEqual(guessIntent('spusť mi hledání pozic'), { kind: 'run' });
+});
+
+test('dotaz na výsledek běhu se pozná', () => {
+  assert.deepEqual(guessIntent('jak to dopadlo?'), { kind: 'status' });
+});
+
+test('pozdrav není příkaz — bot nemá skákat do každé zprávy', () => {
+  assert.equal(guessIntent('ahoj'), null);
+  assert.equal(guessIntent(''), null);
+});
+
+test('diakritika ani velká písmena nevadí', () => {
+  assert.deepEqual(guessIntent('SPUSŤ TO'), { kind: 'run' });
 });

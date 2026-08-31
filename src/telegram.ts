@@ -8,6 +8,7 @@
 
 import type { Env, Settings } from './types.ts';
 import { getMeta, setMeta } from './config.ts';
+import { norm } from './util.ts';
 import { sendTelegram } from './notify.ts';
 import { buildJobsFilter } from './store.ts';
 
@@ -28,7 +29,7 @@ export const HEARTBEAT_KEY = 'telegram_poll_at';
 export const MAX_ITEMS = 15;
 
 export type Command =
-  | { kind: 'positions'; minScore: number | null }
+  | { kind: 'positions'; minScore: number | null; sinceDays: number | null }
   | { kind: 'run' }
   | { kind: 'status' }
   | { kind: 'help' }
@@ -48,12 +49,12 @@ export function parseCommand(raw: string | undefined | null): Command | null {
 
   if (cmd === 'pozice' || cmd === 'jobs') {
     const arg = rest[0];
-    if (arg === undefined) return { kind: 'positions', minScore: null };
+    if (arg === undefined) return { kind: 'positions', minScore: null, sinceDays: null };
     const n = parseInt(arg, 10);
     // Nesmysl v argumentu vezme práh z Nastavení, místo aby příkaz spadl. Kdo píše
     // do mobilu, překlepne se — a prázdný výpis by vypadal jako „nic nenašel".
-    if (!Number.isFinite(n)) return { kind: 'positions', minScore: null };
-    return { kind: 'positions', minScore: Math.min(Math.max(n, 0), 100) };
+    if (!Number.isFinite(n)) return { kind: 'positions', minScore: null, sinceDays: null };
+    return { kind: 'positions', minScore: Math.min(Math.max(n, 0), 100), sinceDays: null };
   }
   if (cmd === 'beh' || cmd === 'run' || cmd === 'spustit') return { kind: 'run' };
   if (cmd === 'stav' || cmd === 'status') return { kind: 'status' };
@@ -61,6 +62,58 @@ export function parseCommand(raw: string | undefined | null): Command | null {
   // /start posílá Telegram sám při prvním otevření chatu — nesmí spustit běh, jen nápovědu.
   if (cmd === 'start') return { kind: 'help' };
   return { kind: 'unknown', text: cmd };
+}
+
+/** Kolik dní zpět znamená „nové". */
+export const RECENT_DAYS = 7;
+
+/**
+ * Vytáhne z věty práh skóre. Čistá funkce.
+ *
+ * Přednost má číslo, které stojí u slova o skóre nebo u porovnání („skóre větší 80",
+ * „nad 60", „od 50", „aspoň 70"). Teprve když takové není, bere se první číslo 0–100.
+ * Bez té přednosti by „nové inzeráty za 7 dní se skóre 80" vzalo sedmičku.
+ */
+export function extractThreshold(hay: string): number | null {
+  const near = hay.match(
+    /(?:skore|score|nad|od|vetsi|vic|min|minimalne|alespon|aspon)\s*(?:nez\s*)?(\d{1,3})/,
+  );
+  const any = hay.match(/(?:^|[^0-9])(\d{1,3})(?:[^0-9]|$)/);
+  const raw = near?.[1] ?? any?.[1];
+  if (raw === undefined) return null;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n > 100) return null;
+  return n;
+}
+
+/**
+ * Věta psaná volně → záměr. Čistá funkce, žádný model.
+ *
+ * Rozhoduje kód, ne AI: „spusť" nesmí záviset na tom, jestli se zrovna trefil jazykový model.
+ * Model se sem zatím nepouští vůbec — podle build předpisu z ai-agenti je nový prompt změna,
+ * která potřebuje evaluační sadu, a ta v tomhle projektu ještě není. Až bude, dá se model
+ * přidat jako záloha za tuhle funkci; i pak by směl jen vybrat štítek, akci volí kód.
+ *
+ * Pořadí je záměrné: sloveso spuštění vyhrává nad podstatným jménem, aby „spusť hledání
+ * pozic" znamenalo běh, ne výpis.
+ */
+export function guessIntent(raw: string | undefined | null): Command | null {
+  const hay = norm(raw ?? '');
+  if (!hay) return null;
+  const has = (...needles: string[]) => needles.some((n) => hay.includes(n));
+
+  if (has('spust', 'rozjed', 'projed', 'aktualizuj', 'zkontroluj', 'podivej se po', 'najdi nove'))
+    return { kind: 'run' };
+  if (has('inzerat', 'pozic', 'nabidk', 'mista', 'prace pro me', 'co mas', 'ukaz'))
+    return {
+      kind: 'positions',
+      minScore: extractThreshold(hay),
+      sinceDays: has('nov', 'cerstv', 'dnes', 'tento tyden', 'posledni') ? RECENT_DAYS : null,
+    };
+  if (has('jak to dopadlo', 'jak dopadl', 'stav', 'status', 'co je noveho', 'bezel'))
+    return { kind: 'status' };
+  if (has('pomoc', 'napoved', 'co umis', 'jak na to')) return { kind: 'help' };
+  return null;
 }
 
 /** Na jak starou zprávu se ještě odpovídá (sekundy). Cron chodí po 5 minutách. */
@@ -95,11 +148,19 @@ export interface PositionRow {
  * `total` je počet, kterému filtr odpovídá celkem — když je větší než počet vypsaných,
  * musí to být ve zprávě vidět. Mlčky useknutý seznam se čte jako „tohle je všechno".
  */
-export function formatPositions(rows: PositionRow[], minScore: number, total: number): string {
+export function formatPositions(
+  rows: PositionRow[],
+  minScore: number,
+  total: number,
+  sinceDays: number | null = null,
+): string {
+  // Omezení musí být ve zprávě vidět. Kdo se ptal na „nové", nesmí si krátký výpis
+  // splést s tím, že agent nic nenašel.
+  const kdy = sinceDays ? ` (nalezené za posledních ${sinceDays} dní)` : '';
   if (!rows.length) {
-    return `📋 Žádná pozice se skóre ≥ ${minScore}, která je na portálu.\nZkus nižší práh: /pozice 50`;
+    return `📋 Žádná pozice se skóre ≥ ${minScore}${kdy}, která je na portálu.\nZkus nižší práh: /pozice 50`;
   }
-  const lines = [`📋 ${total} pozic se skóre ≥ ${minScore}, na portálu:`];
+  const lines = [`📋 ${total} pozic se skóre ≥ ${minScore}${kdy}, na portálu:`];
   for (const r of rows) {
     const zam = r.real_employer ? `${r.employer} → ${r.real_employer}` : r.employer;
     lines.push('');
@@ -157,6 +218,9 @@ export function helpText(defaultMin: number): string {
     '/stav — jak dopadl poslední běh',
     '/help — tenhle výpis',
     '',
+    'Nemusíš psát příkazy — stačí věta, třeba „chtěl bych nové inzeráty se skóre nad 80"',
+    'nebo „spusť to" či „jak to dopadlo".',
+    '',
     'Vypisují se jen inzeráty, které na portálu pořád jsou. Odpověď chodí do 5 minut —',
     'JobWatch se na Telegram ptá sám, protože aplikace je schovaná za Cloudflare Access.',
   ].join('\n');
@@ -172,6 +236,7 @@ interface TgUpdate {
 async function loadPositions(
   env: Env,
   minScore: number,
+  sinceDays: number | null,
 ): Promise<{ rows: PositionRow[]; total: number }> {
   // Stav „na portálu" = active=1 i dosud neověřené (NULL); potvrzeně stažené (0) ne.
   // `history: false` schválně: na dotaz „aktuální pozice" nemá smysl posílat inzeráty
@@ -181,6 +246,7 @@ async function loadPositions(
     agencyOnly: false,
     active: 'active',
     history: false,
+    sinceDays,
   });
   const rows = await env.DB.prepare(
     `SELECT title, employer, real_employer, location, relevance, source, url
@@ -264,12 +330,22 @@ export async function pollTelegram(
       console.warn(`Telegram: zpráva z neoprávněného chatu ${from} zahozena`);
       continue;
     }
-    const cmd = parseCommand(u.message?.text);
-    if (!cmd) continue; // běžná věta, ne příkaz
+    // Lomítkový příkaz, jinak rozbor volné věty kódem. Model se sem schválně NEPOUŠTÍ:
+    // podle build předpisu z ai-agenti je nový prompt změna, která potřebuje evaluační sadu,
+    // a ta zatím neexistuje. Rozhodovat o spuštění běhu podle netestovaného promptu je moc.
+    const cmd = parseCommand(u.message?.text) ?? guessIntent(u.message?.text);
+    if (!cmd) {
+      // Mlčení by vypadalo jako porucha. Radši přiznat, že větě nebylo rozumět.
+      await sendTelegram(env, chatId, `🤷 Tomuhle jsem nerozuměl.
+
+${helpText(settings.minScore ?? 0)}`);
+      out.vyrizeno++;
+      continue;
+    }
     if (cmd.kind === 'positions') {
       const min = cmd.minScore ?? settings.minScore ?? 0;
-      const { rows, total } = await loadPositions(env, min);
-      await sendTelegram(env, chatId, formatPositions(rows, min, total));
+      const { rows, total } = await loadPositions(env, min, cmd.sinceDays);
+      await sendTelegram(env, chatId, formatPositions(rows, min, total, cmd.sinceDays));
     } else if (cmd.kind === 'run') {
       // Pojistka proti dvojímu spuštění: běh trvá minuty a dotazování chodí po pěti,
       // takže netrpělivé druhé /beh by rozjelo dva běhy proti téže databázi.

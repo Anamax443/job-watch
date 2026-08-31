@@ -411,6 +411,8 @@ export interface JobsFilter {
   history: boolean;
   /** Hledaný text v názvu, zaměstnavateli nebo lokalitě (prázdné = nehledat). */
   q?: string;
+  /** Jen inzeráty nalezené za posledních N dní (null = neomezovat). */
+  sinceDays?: number | null;
 }
 
 /**
@@ -444,6 +446,13 @@ export function buildJobsFilter(f: JobsFilter): { where: string; binds: unknown[
     );
     const like = `%${q}%`;
     binds.push(like, like, like, like);
+  }
+  // „Nové" se počítá od prvního nálezu, ne od data u zdroje: inzerát visící na portálu
+  // půl roku je pro nás nový tehdy, když jsme ho poprvé uviděli.
+  const dny = f.sinceDays;
+  if (typeof dny === 'number' && Number.isFinite(dny) && dny > 0) {
+    conds.push("first_seen >= datetime('now', ?)");
+    binds.push(`-${Math.floor(dny)} days`);
   }
   return { where: conds.join(' AND '), binds };
 }

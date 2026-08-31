@@ -20,7 +20,7 @@ import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
 import { buildJobsFilter, sanitizeIds, BULK_MAX } from './store.ts';
-import { formatPositions, parseCommand } from './telegram.ts';
+import { formatPositions, guessIntent, parseCommand } from './telegram.ts';
 import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
 
@@ -208,10 +208,16 @@ export function runSelfTest(): SelfTestResult {
   check(RH, 'Co není pole, není výběr', 'Tělo požadavku je cizí JSON, i když chodí z vlastního UI.', [], sanitizeIds('a,b'));
   check(RH, 'Strop hromadného zásahu platí', 'Hromadná akce má být to, co člověk vybral, ne omylem celá databáze.', BULK_MAX, sanitizeIds(Array.from({ length: BULK_MAX + 10 }, (_, i) => 'id' + i)).length);
 
+  // --- Volná mluva v Telegramu -----------------------------------------------
+  const VM = 'Volná mluva';
+  check(VM, 'Věta bez lomítka se rozebere kódem', 'Živý dotaz uživatele 31. 8. 2026; příkazy s lomítkem si nikdo nepamatuje.', { kind: 'positions', minScore: 80, sinceDays: 7 }, guessIntent('hele chtěl bych ty nový inzeráty se score větší 80'));
+  check(VM, 'Sloveso spuštění vyhrává nad podstatným jménem', '„spusť hledání pozic" musí být běh, ne výpis.', { kind: 'run' }, guessIntent('spusť mi hledání pozic'));
+  check(VM, 'Pozdrav není příkaz', 'Bot nemá skákat do každé zprávy v chatu.', null, guessIntent('ahoj'));
+
   // --- Příkazy z Telegramu ---------------------------------------------------
   const TG = 'Telegram';
-  check(TG, 'Ve skupině se odřízne @jmenobota', 'Telegram jméno bota k příkazu připojuje sám; jinak by /pozice@Bot nebyl poznat.', { kind: 'positions', minScore: 60 }, parseCommand('/pozice@JobWatchBot 60'));
-  check(TG, 'Překlep v čísle vezme práh z Nastavení', 'Příkaz se píše do mobilu. Prázdný výpis by vypadal jako „nic nenašel".', { kind: 'positions', minScore: null }, parseCommand('/pozice sedmdesát'));
+  check(TG, 'Ve skupině se odřízne @jmenobota', 'Telegram jméno bota k příkazu připojuje sám; jinak by /pozice@Bot nebyl poznat.', { kind: 'positions', minScore: 60, sinceDays: null }, parseCommand('/pozice@JobWatchBot 60'));
+  check(TG, 'Překlep v čísle vezme práh z Nastavení', 'Příkaz se píše do mobilu. Prázdný výpis by vypadal jako „nic nenašel".', { kind: 'positions', minScore: null, sinceDays: null }, parseCommand('/pozice sedmdesát'));
   check(TG, 'Běžná věta není příkaz', 'Bot nesmí odpovídat na všechno, co v chatu padne.', null, parseCommand('ahoj, co je nového?'));
   check(TG, 'Useknutý výpis přizná, kolik chybí', 'Bez toho se 15 vypsaných z 40 čte jako „tohle je všechno".', true, formatPositions([{ title: 'T', employer: 'E', real_employer: null, location: null, relevance: 80, source: 'jobs.cz', url: null }], 70, 40).includes('a další 39'));
 
