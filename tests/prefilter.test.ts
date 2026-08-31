@@ -38,12 +38,20 @@ test('web hledání jde rovnou na AI — dotaz je předfiltroval sám', () => {
   assert.equal(prefilter([job({ source: 'web:adzuna', title: 'Skladník' })], S).length, 1);
 });
 
-test('jobs.cz už výjimku nemá — listovka vracela i skladníky a seřizovače', () => {
-  // Do 31. 8. 2026 platilo `j.source === 'jobs.cz'` jako propustka, na předpoklad
-  // „listovka je předfiltrovaná dotazem". Nebyla: 139 nezpracovaných inzerátů z jobs.cz
-  // bylo mimo obor. Posuzuje se tedy jako každý jiný zdroj.
-  assert.equal(prefilter([job({ source: 'jobs.cz', title: 'Skladník' })], S).length, 0);
-  assert.equal(prefilter([job({ source: 'jobs.cz', title: 'Vedoucí IT' })], S).length, 1);
+test('jobs.cz propustku MÁ — jinak vypadnou reálné leady', () => {
+  // 31. 8. 2026 jsem tuhle propustku na pár hodin zrušil kvůli číslu, které bylo špatně
+  // spočítané (viz komentář u roleMatch). Měření na 458 reálných záznamech: bez propustky
+  // vypadne 16 relevantních brněnských inzerátů, mezi nimi ARKYS „IT Specialista /
+  // Architekt — Druhý muž IT" se skóre 80. Titulky z portálu skoro nikdy neznějí jako
+  // klíčové slovo ze seznamu, takže test klíčových slov je na ně krátký.
+  assert.equal(prefilter([job({ source: 'jobs.cz', title: 'IT Specialista / Architekt – Druhý muž IT' })], S).length, 1);
+  assert.equal(prefilter([job({ source: 'jobs.cz', title: 'Manažer kybernetické bezpečnosti' })], S).length, 1);
+});
+
+test('propustka NEplatí na kraj — Praha z jobs.cz neprojde', () => {
+  // Šum, kvůli kterému se propustka rušila, ve skutečnosti odřízne filtr regionu.
+  const R = { ...S, regionPriority: 'brno' } as unknown as Settings;
+  assert.equal(prefilter([job({ source: 'jobs.cz', title: 'Vedoucí IT', location: 'Praha', region: 'Hlavní město Praha' })], R).length, 0);
 });
 
 test('klíčové slovo se hledá jako celé slovo — „CIO" nesmí chytit „stacionář"', () => {

@@ -11,6 +11,46 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — OPRAVA VLASTNÍ CHYBY: zpřísnění prefiltru vyhazovalo reálné leady
+
+**Co se stalo.** Odpoledne jsem zrušil propustku `j.source === 'jobs.cz'` v prefiltru
+s odůvodněním, že „z listovky napadalo 139 inzerátů mimo obor". **To číslo bylo špatně
+spočítané.** Vzniklo dotazem na záznamy bez `CzIsco/133` — jenže inzeráty z jobs.cz nemají
+CZ-ISCO **vůbec**, takže se do toho čísla vešly úplně všechny. Ze 139 „důkazů" nezůstalo nic.
+
+**Co by to stálo.** Měření na všech 458 reálných záznamech pomocí skutečné funkce `roleMatch`:
+bez propustky by vypadlo **16 relevantních brněnských inzerátů**, mezi nimi
+
+- „IT Specialista / Architekt — Druhý muž IT" (ARKYS, Brno) — **skóre 80**
+- „IT Product Owner, Manager – Order Management" (Atlas Copco, Brno) — 60
+- „Manažer kybernetické bezpečnosti" (SZPI, Brno)
+- „Senior IT konzultant" (bezva IT partner, Brno)
+- „Správce ICT" (Masarykova univerzita, Brno)
+- „IT projektový/á manažer/ka" (RegioJet, Brno)
+
+Titulky z portálu skoro nikdy neznějí jako klíčové slovo ze seznamu, takže test klíčových
+slov je na ně krátký. Horší než jen nezobrazení: dnešní deterministické vyřazení fronty by
+jim při nejbližším běhu dalo **skóre 0** s důvodem „mimo hledanou roli".
+
+**Oprava.** Propustka pro `jobs.cz` obnovena. Po opravě vypadnou kvůli roli už jen 4 záznamy
+a všechny jsou zároveň mimo kraj nebo skutečně mimo obor (Assistant Director of Finance,
+Developer v Praze).
+
+**Co z toho platí dál.** Šum z MPSV, kvůli kterému se zpřísňovalo, měl jinou příčinu —
+hledání klíčového slova podřetězcem („CIO" ve slově sta-CIO-nář). Ta oprava zůstává, stejně
+jako tvrdý filtr regionu; **Prahu z jobs.cz odřízne kraj, ne role**, a to je ten správný
+mechanismus.
+
+**Poučení do předpisu.** Tohle je přesně to, co má chytat fáze F1 („změř jádro na reálném
+vzorku") a F4 (evaluační sada). Chyba přežila jen proto, že se změna opřela o SQL agregát
+místo o průchod skutečnou funkcí nad skutečnými daty. Kontrola je teď v `tests/prefilter.test.ts`
+jako pojmenovaný případ ARKYS.
+
+**Navíc:** `src/prompts.ts` — prompty přestěhované na jedno místo s `PROMPT_VERSION`,
+která se zapisuje do `runs.stats.promptVersion`. První krok F4.
+
+---
+
 ## 2026-08-31 — F6: vypínač opravdu vypíná, pád jde člověku, zprávy přiznávají AI
 
 Retrofit proti build předpisu z `ai-agenti`. Projekt je starší než ten framework, takže se

@@ -3,6 +3,7 @@ import { messagesCreate, firstText, extractJson } from './anthropic.ts';
 import { providerChain, runWorkersJson } from './ai.ts';
 import { applyRegionGate } from './region.ts';
 import { truncate } from './util.ts';
+import { buildSystem } from './prompts.ts';
 
 // Relevance scoring přes levný model (haiku) + structured outputs (JSON-only).
 
@@ -17,53 +18,10 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const DEFAULT_SYSTEM =
-  'Jsi recruiter screener. Hodnotíš, jak moc inzerát odpovídá profilu VEDOUCÍ IT / ' +
-  'IT manažer / Head of IT / IT ředitel / CIO / Solution Architect / IT architekt — tedy ' +
-  'řídící nebo seniorní architektonické IT role. Odliš „vedoucí IT oddělení" (vysoká relevance) ' +
-  'od „IT support / helpdesk / junior / operátor" (nízká). Vrať pouze JSON dle schématu: ' +
-  'relevance 0–100, seniority lead|senior|other, reason krátké zdůvodnění česky.';
-
 function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-/**
- * Lokalita jako tvrdý faktor: pozice mimo preferovaný region (a ne remote/hybrid s
- * dojezdem) NESMÍ přes práh — i kdyby jinak seděla skvěle.
- *
- * Tahle věta v promptu je jen NÁPOVĚDA pro model. O výsledku rozhoduje deterministický
- * strop v src/region.ts (applyRegionGate níže) — free model instrukci prokazatelně
- * ignoroval (pražský inzerát dostal 80/100 s odůvodněním „je v preferovaném regionu").
- */
-function locationClause(region?: string, threshold?: number): string {
-  const r = (region ?? '').trim();
-  if (!r) return '';
-  const t = threshold ?? 70;
-  return (
-    ` LOKALITA JE ZÁSADNÍ KRITÉRIUM: preferovaný region je „${r}". Pokud pozice NENÍ v tomto ` +
-    `regionu a zároveň NENÍ remote/hybridní s reálným dojezdem, MUSÍŠ dát relevance POD ${t} ` +
-    `(klidně 30–50), i kdyby role obsahově seděla perfektně. Pozici v regionu nebo plně remote ` +
-    `lokalitou nepenalizuj. NIKDY si lokalitu nedomýšlej: hodnoť VÝHRADNĚ podle pole „Lokalita"/` +
-    `„Region" ve vstupu. Když ve vstupu žádná lokalita není, do zdůvodnění napiš „lokalita neuvedena" ` +
-    `a NETVRĎ, že je v preferovaném regionu — takový inzerát nesmí přes práh jen kvůli obsahu.`
-  );
-}
-
-function buildSystem(profile: string, region?: string, threshold?: number): string {
-  const loc = locationClause(region, threshold);
-  const p = (profile ?? '').trim();
-  if (!p) return DEFAULT_SYSTEM + loc;
-  return (
-    'Jsi recruiter screener. Hodnotíš, jak moc pracovní inzerát sedí na KONKRÉTNÍ profil tohoto ' +
-    'kandidáta (zkušenosti, seniorita, zaměření, lokalita, preference):\n\n' +
-    p.slice(0, 6000) +
-    '\n\nVrať relevance 0–100 = míra shody pozice s TÍMTO profilem (ne obecně), ' +
-    'seniority lead|senior|other, reason = krátké zdůvodnění česky vůči profilu.' +
-    loc +
-    ' Pouze JSON dle schématu.'
-  );
-}
 
 /**
  * Sjednotí výstup obou backendů (Workers AI vrací čísla občas jako string).

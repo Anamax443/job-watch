@@ -44,13 +44,23 @@ function keywordMatch(job: JobPosting, keywords: string[]): boolean {
 /**
  * Sedí inzerát na hledanou roli? CZ-ISCO prefix NEBO klíčové slovo.
  *
- * Zdroje `web:` jsou předfiltrované samotným dotazem (hledá se cíleně), takže projdou.
- * `jobs.cz` tuhle výjimku měl taky — a neměl mít: z listovky napadalo 139 inzerátů mimo
- * obor (skladníci, seřizovači, operátoři výroby). Listovka zjevně vrací i to, na co se
- * neptáme, takže se posuzuje jako každý jiný zdroj.
+ * Zdroje `web:` a `jobs.cz` jsou předfiltrované samotným dotazem (hledá se cíleně),
+ * takže projdou na hodnocení bez testu klíčových slov.
+ *
+ * **Oprava 31. 8. 2026 (tentýž den odpoledne):** propustka pro `jobs.cz` byla na pár hodin
+ * zrušena s odůvodněním „z listovky napadalo 139 inzerátů mimo obor". To číslo bylo špatně
+ * spočítané — vzniklo dotazem na inzeráty bez `CzIsco/133`, jenže inzeráty z jobs.cz nemají
+ * CZ-ISCO **vůbec**, takže se do něj vešly všechny. Měření na 458 reálných záznamech ukázalo,
+ * co by to stálo: 16 relevantních brněnských inzerátů by vypadlo, mimo jiné „IT Specialista /
+ * Architekt — Druhý muž IT" (ARKYS, Brno, skóre 80), „Manažer kybernetické bezpečnosti",
+ * „Senior IT konzultant" nebo „Správce ICT" na Masarykově univerzitě. Titulky z portálu totiž
+ * skoro nikdy neznějí jako klíčové slovo ze seznamu.
+ *
+ * Šum z MPSV, kvůli kterému se to zpřísňovalo, měl jinou příčinu — hledání klíčového slova
+ * podřetězcem („CIO" v slově sta-CIO-nář), viz `keywordHit`. Ta oprava platí dál.
  */
 export function roleMatch(job: JobPosting, settings: Settings): boolean {
-  if (job.source.startsWith('web:')) return true;
+  if (job.source.startsWith('web:') || job.source === 'jobs.cz') return true;
   return iscoMatch(job.czIsco, settings.czIscoPrefixes) || keywordMatch(job, settings.keywords);
 }
 

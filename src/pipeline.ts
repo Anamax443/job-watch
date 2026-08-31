@@ -9,6 +9,7 @@ import { fetchPraceCz } from './sources/pracecz.ts';
 import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
 import { prefilter, roleMatch, regionRejected } from './prefilter.ts';
 import { clearStop, stopRequested } from './store.ts';
+import { PROMPT_VERSION } from './prompts.ts';
 import { sendTelegram, AI_DISCLOSURE } from './notify.ts';
 import { scoreJob } from './score.ts';
 import { enrichOriginator } from './enrich.ts';
@@ -44,6 +45,7 @@ export interface RunStats {
   notified: number;
   discovered: number;
   livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
+  promptVersion?: string; // podle jakého znění promptu se v tomhle běhu skórovalo (F4)
   prefiltered?: number; // kolik jich z fronty vyřadil kód (mimo obor/kraj) bez jediného dotazu na AI
   // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
   // UI podle toho spouští další dávky, dokud není 0 (viz index.js — „doskórování").
@@ -109,6 +111,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   await clearStop(env);
   let stopped = false;
   const stats: RunStats = {
+    promptVersion: PROMPT_VERSION,
     fetched: 0,
     candidates: 0,
     scored: 0,
