@@ -11,6 +11,37 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — ruční hromadné skóre: vyfiltruj, zaškrtni, dej nulu
+
+**Zadání.** Umět některým inzerátům přiřadit skóre ručně a hromadně — vyfiltrovat si třeba
+„Praha" nebo „dělník", označit řádky a dát jim 0.
+
+**Co přibylo.**
+
+- **Hledání** v liště filtrů (`/api/jobs?q=`) přes název, zaměstnavatele, odmaskovaného
+  původce a lokalitu. `LIKE` v SQLite sjednocuje velikost písmen jen u ASCII, takže
+  „dělník" se hledá s diakritikou tak, jak se píše — na ruční třídění to stačí.
+- **Zaškrtávátka** u řádků + „označit všechny zobrazené" v hlavičce tabulky.
+- **„Dát vybraným skóre 0"** s potvrzením, kolika řádků se to týká.
+
+**Rozhodnutí, které stojí za zapsání: endpoint bere seznam id, ne filtr.** Hromadný zápis
+podle filtru je pohodlnější (nemusí se klikat), ale filtr se mezi zobrazením a kliknutím může
+změnit a zápis by pak sáhl jinam, než na co se uživatel díval. `POST /api/jobs/score` proto
+dostane `ids`, projde `sanitizeIds()` (neprázdné řetězce, bez duplicit, strop `BULK_MAX` = 500)
+a zapíše se jen to.
+
+**Zapisuje se `relevance`, `reason` a `rescore = 0`.** Ta nula u `rescore` je podstatná:
+bez ní by řádek zůstal ve frontě a příští běh by ruční verdikt přepsal modelem. Důvod nese
+značku ✋, takže v přehledu jde poznat ruční nulu od nuly z filtru (⛔) a od nuly od modelu.
+
+**Nic se nemaže.** Řádky zůstávají v databázi a při Min. skóre 0 jsou pořád vidět —
+jen přestanou lézt do výsledků a odejdou z fronty na ohodnocení.
+
+**Kontroly.** 7 testů v `tests/jobs-filter.test.ts` (celkem **113**) + 3 ve skupině
+„Ruční zásah" na `/tests`.
+
+---
+
 ## 2026-08-31 — prefiltr byl děravý: „CIO" chytalo „stacionář", jobs.cz mělo propustku
 
 **Jak se to našlo.** Po zapnutí „i historie" se v seznamu objevili manipulační dělníci,

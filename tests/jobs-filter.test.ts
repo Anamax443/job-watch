@@ -5,7 +5,7 @@
 // a na NULL neplatí žádné porovnání, takže je vyhodil i práh 1.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildJobsFilter } from '../src/store.ts';
+import { BULK_MAX, buildJobsFilter, sanitizeIds } from '../src/store.ts';
 
 const F = { minScore: 0, agencyOnly: false, active: 'all', history: false };
 
@@ -57,4 +57,44 @@ test('všechno naráz drží pořadí bindů shodné s pořadím otazníků', ()
     'duplicate_of IS NULL AND (relevance >= ? OR relevance IS NULL) AND is_agency = 1 AND (active IS NULL OR active = 1)',
   );
   assert.deepEqual(r.binds, [60]);
+});
+
+// --- Textové hledání + ruční hromadné skóre --------------------------------
+// Proč: tohle je jediná cesta, jak do dat sáhne ručně člověk (vyfiltruj „dělník", zaškrtni,
+// dej nulu). Chyba v sanitaci id nebo v podmínce znamená zápis jinam, než kam se uživatel díval.
+
+test('hledaný text projde přes název, zaměstnavatele i lokalitu', () => {
+  const r = buildJobsFilter({ ...F, q: 'Praha' });
+  assert.match(r.where, /lower\(title\) LIKE \?/);
+  assert.match(r.where, /lower\(COALESCE\(location,''\)\) LIKE \?/);
+  assert.deepEqual(r.binds, ['%praha%', '%praha%', '%praha%', '%praha%']);
+});
+
+test('prázdné hledání a samé mezery podmínku nepřidají', () => {
+  assert.equal(buildJobsFilter({ ...F, q: '' }).where, 'duplicate_of IS NULL');
+  assert.equal(buildJobsFilter({ ...F, q: '   ' }).where, 'duplicate_of IS NULL');
+});
+
+test('hledání se skládá s prahem a pořadí bindů sedí na otazníky', () => {
+  const r = buildJobsFilter({ ...F, minScore: 70, q: 'dělník' });
+  assert.deepEqual(r.binds, [70, '%dělník%', '%dělník%', '%dělník%', '%dělník%']);
+});
+
+test('sanitizeIds propustí jen neprázdné řetězce', () => {
+  assert.deepEqual(sanitizeIds(['a', '', '  ', 5, null, 'b']), ['a', 'b']);
+});
+
+test('duplicitní id se zahodí — jinak by se týž řádek zapsal dvakrát', () => {
+  assert.deepEqual(sanitizeIds(['a', 'a', 'b']), ['a', 'b']);
+});
+
+test('co není pole, není výběr — tělo požadavku je cizí JSON', () => {
+  assert.deepEqual(sanitizeIds(undefined), []);
+  assert.deepEqual(sanitizeIds('a,b'), []);
+  assert.deepEqual(sanitizeIds({ ids: ['a'] }), []);
+});
+
+test('strop hromadného zásahu platí — má to být výběr, ne celá databáze', () => {
+  const many = Array.from({ length: BULK_MAX + 50 }, (_, i) => `id-${i}`);
+  assert.equal(sanitizeIds(many).length, BULK_MAX);
 });

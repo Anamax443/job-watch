@@ -62,6 +62,9 @@
   .empty { color:var(--mut); padding:40px 0; text-align:center; }
   #status { color:var(--mut); font-size:13px; }
   .stale { color:var(--mut); font-size:11px; margin-left:3px; cursor:help; }
+  .filters input[type=search] { background:var(--card); border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:5px 8px; width:150px; }
+  th.pick, td.pick { width:28px; text-align:center; }
+  .bulkbox { display:flex; gap:12px; align-items:center; justify-content:center; padding:10px 0; color:var(--mut); }
   .morebox { display:flex; justify-content:center; padding:14px 0 22px; }
   .morebox button[disabled] { opacity:.5; cursor:default; }
   .runbox{margin:0 20px;border:1px solid var(--line);border-radius:10px;background:#0b1018;overflow:hidden;display:none}
@@ -97,6 +100,7 @@
       <option value="inactive">Staženo z portálu</option>
     </select>
   </label>
+  <label title="Hledá v názvu pozice, zaměstnavateli i lokalitě. Slouží k ručnímu třídění: vyfiltruj si třeba „dělník" nebo „Praha“ a hromadně jim dej nulu.">Hledat <input id="q" type="search" placeholder="dělník, Praha…" /></label>
   <label><input id="agencyOnly" type="checkbox" /> jen agentury</label>
   <label title="Zobrazit i inzeráty BEZ skóre — čekající ve frontě a starší, kterým skóre smazala změna profilu. Bez tohohle je jakékoli Min. skóre vyhodí: skóre je NULL a na NULL neplatí žádné porovnání."><input id="history" type="checkbox" /> i historie (bez skóre)</label>
   <button id="refresh" class="ghost" title="Načíst výsledky znovu podle nastavených filtrů">Obnovit</button>
@@ -116,11 +120,16 @@
 <main>
   <table>
     <thead><tr>
-      <th>Skóre</th><th>Pozice</th><th>Zaměstnavatel</th><th>Lokalita</th><th>Mzda</th><th>Zdroj</th><th>Stav</th><th></th>
+      <th class="pick"><input id="pickAll" type="checkbox" title="Označit všechny zobrazené řádky" /></th><th>Skóre</th><th>Pozice</th><th>Zaměstnavatel</th><th>Lokalita</th><th>Mzda</th><th>Zdroj</th><th>Stav</th><th></th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
   <div id="empty" class="empty" hidden>Zatím žádné výsledky. Spusť běh tlačítkem „Spustit teď".</div>
+  <div class="bulkbox" id="bulkbox" hidden>
+    <span id="bulkCount"></span>
+    <button id="bulkZero" class="ghost" title="Nastaví vybraným inzerátům skóre 0 s poznámkou, že to bylo ručně. Nic se nemaže a řádky zůstanou v databázi — jen přestanou lézt do výsledků a odejdou z fronty na ohodnocení.">Dát vybraným skóre 0</button>
+    <span id="bulkMsg" class="savemsg" hidden></span>
+  </div>
   <div class="morebox">
     <button id="more" class="ghost" hidden title="Načíst další stránku výsledků — v databázi zůstávají všechny nalezené inzeráty od 14. 6. 2026, nic se nemaže">Načíst starší</button>
   </div>

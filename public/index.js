@@ -99,10 +99,11 @@ async function load(append){
   const ag = $('#agencyOnly').checked ? '1' : '0';
   const act = $('#activeFilter').value || 'all';
   const hist = $('#history').checked ? '1' : '0';
+  const q = encodeURIComponent($('#q').value.trim());
   if(!append) shown = 0;
   $('#status').textContent = 'Načítám…';
   $('#more').disabled = true;
-  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}&history=${hist}&offset=${shown}`);
+  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}&history=${hist}&q=${q}&offset=${shown}`);
   const res = await r.json();
   const jobs = res.jobs || [];
   total = res.total ?? jobs.length;
@@ -116,6 +117,7 @@ async function load(append){
       ? `${esc(j.employer)} <span class="badge agency">agentura</span><br><span class="orig">🎯 ${esc(j.real_employer)}</span>`
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
+      <td class="pick"><input type="checkbox" class="rowpick" data-id="${esc(j.id)}" /></td>
       <td class="score">${j.relevance ?? '—'}${j.rescore ? '<span class="stale" title="Skóre je z předchozího profilu. Číslo se nemaže, jen čeká na přepočet ve frontě.">⟳</span>' : ''}</td>
       <td><a class="titlelink" data-id="${esc(j.id)}" title="Zobrazit uložený inzerát (jako na portálu)">${esc(j.title)}</a>${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div><a class="showad" data-id="${esc(j.id)}">📄 zobrazit inzerát</a></td>
       <td>${emp}${contactBlock(j)}${reachOut(j)}</td>
@@ -134,6 +136,7 @@ async function load(append){
   more.hidden = shown >= total;
   more.disabled = false;
   more.textContent = `Načíst starší (zbývá ${total - shown})`;
+  refreshBulk();
 }
 
 // Pozor na obal: bez něj by se do load() dostal Event a vyhodnotil se jako append=true.
@@ -142,6 +145,47 @@ $('#minScore').onchange = () => load(false);
 $('#agencyOnly').onchange = () => load(false);
 $('#activeFilter').onchange = () => load(false);
 $('#history').onchange = () => load(false);
+$('#q').onchange = () => load(false);
+$('#q').addEventListener('search', () => load(false));
+
+// --- Ruční hromadné skóre -------------------------------------------------
+// Posílá se seznam id, ne filtr: mezi zobrazením a kliknutím se filtr může změnit
+// a zápis podle něj by sáhl jinam, než na co se uživatel dívá.
+function picked(){ return [...document.querySelectorAll('.rowpick:checked')].map((el) => el.dataset.id); }
+function refreshBulk(){
+  const n = picked().length;
+  $('#bulkbox').hidden = n === 0;
+  $('#bulkCount').textContent = `vybráno ${n}`;
+}
+$('#rows').addEventListener('change', (e) => { if (e.target.classList.contains('rowpick')) refreshBulk(); });
+$('#pickAll').onchange = () => {
+  const on = $('#pickAll').checked;
+  document.querySelectorAll('.rowpick').forEach((el) => { el.checked = on; });
+  refreshBulk();
+};
+$('#bulkZero').onclick = async () => {
+  const ids = picked();
+  if (!ids.length) return;
+  if (!confirm(`Nastavit skóre 0 u ${ids.length} inzerátů?
+
+Nic se nemaže — řádky zůstanou v databázi, jen přestanou lézt do výsledků a odejdou z fronty na ohodnocení.`)) return;
+  $('#bulkZero').disabled = true;
+  try {
+    const r = await fetch('/api/jobs/score', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids, relevance: 0 }),
+    });
+    const res = await r.json();
+    const msg = $('#bulkMsg');
+    msg.textContent = r.ok ? `✓ upraveno ${res.updated}` : `✗ ${res.error || 'nepovedlo se'}`;
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 3000);
+    if (r.ok) { $('#pickAll').checked = false; await load(false); refreshBulk(); }
+  } finally {
+    $('#bulkZero').disabled = false;
+  }
+};
 $('#more').onclick = () => load(true);
 
 // Klik na název pozice / „zobrazit inzerát" → detail inzerátu (archiv). Delegace přes tbody.

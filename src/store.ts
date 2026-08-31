@@ -409,6 +409,8 @@ export interface JobsFilter {
   active: string;
   /** true = pustit i inzeráty BEZ skóre (fronta + historie po změně profilu). */
   history: boolean;
+  /** Hledaný text v názvu, zaměstnavateli nebo lokalitě (prázdné = nehledat). */
+  q?: string;
 }
 
 /**
@@ -432,5 +434,68 @@ export function buildJobsFilter(f: JobsFilter): { where: string; binds: unknown[
   // (active=1 i dosud neověřené NULL) — ať se nic nezobrazí předčasně jako mrtvé.
   if (f.active === 'inactive') conds.push('active = 0');
   else if (f.active === 'active') conds.push('(active IS NULL OR active = 1)');
+  // Textové hledání přes to, co je v řádku vidět. LIKE v SQLite sjednocuje velikost písmen
+  // jen u ASCII, takže „dělník" se hledá s diakritikou tak, jak se píše — na ruční třídění
+  // (vyfiltruj si dělníky nebo Prahu a hromadně jim dej nulu) to stačí.
+  const q = (f.q ?? '').trim().toLowerCase();
+  if (q) {
+    conds.push(
+      "(lower(title) LIKE ? OR lower(employer) LIKE ? OR lower(COALESCE(real_employer,'')) LIKE ? OR lower(COALESCE(location,'')) LIKE ?)",
+    );
+    const like = `%${q}%`;
+    binds.push(like, like, like, like);
+  }
   return { where: conds.join(' AND '), binds };
+}
+
+// --- Ruční hromadné skóre --------------------------------------------------
+
+/** Kolik řádků smí jeden hromadný zásah změnit. Strop je proti překlepu, ne proti zátěži. */
+export const BULK_MAX = 500;
+
+/**
+ * Očistí seznam id z požadavku. Čistá funkce.
+ *
+ * Tělo požadavku je cizí JSON, i když chodí z vlastního UI. Propouští se jen neprázdné
+ * řetězce, duplicity padají (jinak by se tentýž řádek zapsal několikrát) a je strop:
+ * hromadný zásah má být to, co člověk vybral, ne omylem celá databáze.
+ */
+export function sanitizeIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of input) {
+    if (typeof v !== 'string') continue;
+    const id = v.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= BULK_MAX) break;
+  }
+  return out;
+}
+
+/**
+ * Ručně nastaví skóre vybraným inzerátům.
+ *
+ * `rescore = 0` je tu podstatné: bez toho by řádek zůstal ve frontě a příští běh by ruční
+ * verdikt přepsal modelem. Důvod se zapisuje s jasnou značkou, aby v přehledu šlo poznat
+ * ruční nulu od nuly z filtru a od nuly, kterou dal model.
+ */
+export async function bulkSetScore(env: Env, ids: string[], relevance: number): Promise<number> {
+  if (!ids.length) return 0;
+  const reason = `✋ Ručně nastaveno v přehledu (${new Date().toISOString().slice(0, 10)}).`;
+  const CHUNK = 50;
+  let n = 0;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const part = ids.slice(i, i + CHUNK);
+    const marks = part.map(() => '?').join(',');
+    const r = await env.DB.prepare(
+      `UPDATE seen_jobs SET relevance = ?, reason = ?, rescore = 0 WHERE id IN (${marks})`,
+    )
+      .bind(relevance, reason, ...part)
+      .run();
+    n += r.meta?.changes ?? part.length;
+  }
+  return n;
 }

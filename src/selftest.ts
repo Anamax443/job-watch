@@ -19,7 +19,7 @@ import { prefilter } from './prefilter.ts';
 import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
-import { buildJobsFilter } from './store.ts';
+import { buildJobsFilter, sanitizeIds, BULK_MAX } from './store.ts';
 import { formatPositions, parseCommand } from './telegram.ts';
 import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
@@ -201,6 +201,12 @@ export function runSelfTest(): SelfTestResult {
   check(U, 'norm sjednotí diakritiku a mezery', 'Stojí na tom dedup i prefiltr.', 'vedouci it oddeleni', norm('  Vedoucí   IT ODDĚLENÍ '));
   check(U, 'truncate krátí jen když je potřeba', 'Zbytečná výpustka mate čtenáře notifikace.', ['abc…', 'abc'], [truncate('abcdef', 3), truncate('abc', 3)]);
   check(U, 'num propustí jen konečná čísla', 'Mzda ze zdroje bývá string nebo nesmysl.', [60000, undefined], [num('60000'), num('nedohodou')]);
+
+  // --- Ruční hromadné skóre --------------------------------------------------
+  const RH = 'Ruční zásah';
+  check(RH, 'Vybrané id se očistí a duplicity padnou', 'Týž řádek zapsaný dvakrát by hromadnou akci tiše zdvojil.', ['a', 'b'], sanitizeIds(['a', ' ', 'a', 5, 'b']));
+  check(RH, 'Co není pole, není výběr', 'Tělo požadavku je cizí JSON, i když chodí z vlastního UI.', [], sanitizeIds('a,b'));
+  check(RH, 'Strop hromadného zásahu platí', 'Hromadná akce má být to, co člověk vybral, ne omylem celá databáze.', BULK_MAX, sanitizeIds(Array.from({ length: BULK_MAX + 10 }, (_, i) => 'id' + i)).length);
 
   // --- Příkazy z Telegramu ---------------------------------------------------
   const TG = 'Telegram';

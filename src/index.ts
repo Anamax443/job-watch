@@ -13,7 +13,7 @@ import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
-import { buildJobsFilter } from './store.ts';
+import { BULK_MAX, buildJobsFilter, bulkSetScore, sanitizeIds } from './store.ts';
 import { HEARTBEAT_KEY, pollTelegram } from './telegram.ts';
 
 /** Výraz cronu vyhrazený pro vybírání zpráv z Telegramu (viz wrangler.toml). */
@@ -114,9 +114,10 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
   const active = url.searchParams.get('active') ?? 'all';
   // history=1 → pustit i inzeráty bez skóre. Bez toho je jakýkoli min. práh vyhodí (NULL).
   const history = url.searchParams.get('history') === '1';
+  const q = url.searchParams.get('q') ?? '';
   const { limit, offset } = pageParams(url.searchParams.get('limit'), url.searchParams.get('offset'));
 
-  const { where, binds } = buildJobsFilter({ minScore, agencyOnly, active, history });
+  const { where, binds } = buildJobsFilter({ minScore, agencyOnly, active, history, q });
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
             url, description, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
@@ -328,6 +329,19 @@ async function route(
 
     if (p === '/api/jobs' && request.method === 'GET') return await handleJobs(env, url);
     if (p === '/api/settings' && request.method === 'GET') return json(await loadSettings(env));
+    // Ruční hromadné skóre: vyfiltruj si v přehledu (např. „dělník" nebo „Praha"), zaškrtni
+    // řádky a dej jim nulu. Zapisuje se JEN to, co člověk vybral — endpoint bere seznam id,
+    // ne filtr. Filtr se totiž může mezi zobrazením a kliknutím změnit a hromadný zápis podle
+    // něj by sáhl jinam, než na co se uživatel díval.
+    if (p === '/api/jobs/score' && request.method === 'POST') {
+      const body: any = await request.json().catch(() => ({}));
+      const ids = sanitizeIds(body?.ids);
+      const rel = Math.min(Math.max(parseInt(String(body?.relevance ?? 0), 10) || 0, 0), 100);
+      if (!ids.length) return json({ error: 'nevybrán žádný inzerát', updated: 0 }, 400);
+      const updated = await bulkSetScore(env, ids, rel);
+      return json({ updated, relevance: rel, max: BULK_MAX });
+    }
+
     if (p === '/api/settings' && request.method === 'POST') {
       const body: any = await request.json().catch(() => ({}));
       const before = await loadSettings(env);
