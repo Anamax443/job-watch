@@ -16,6 +16,22 @@ export function isCheckableUrl(url: string | null | undefined): boolean {
 
 export type Liveness = 'active' | 'gone' | 'unknown';
 
+/**
+ * Stav inzerátu z HTTP kódu — jediné místo, kde se to rozhoduje.
+ *
+ * Vytaženo ze `checkUrl` zvlášť ze dvou důvodů: běh mimo Worker
+ * (`scripts/portal-liveness.ts` v GitHub Action) musí soudit stejně jako pipeline,
+ * a bez sítě se to dá otestovat (tests/liveness.test.ts).
+ *
+ * `unknown` NENÍ „mrtvý": 403 z ochrany proti robotům ani 5xx neznamená, že inzerát
+ * zmizel. Kdo dostane `unknown`, nesmí sáhnout na `active` — jen na `active_checked_at`.
+ */
+export function classifyStatus(status: number): Liveness {
+  if (status === 404 || status === 410) return 'gone';
+  if (status >= 200 && status < 300) return 'active';
+  return 'unknown'; // 403/5xx/redirect na jinou doménu → nejistota, stav neměníme
+}
+
 export async function checkUrl(url: string): Promise<Liveness> {
   try {
     const res = await fetch(url, {
@@ -33,9 +49,7 @@ export async function checkUrl(url: string): Promise<Liveness> {
     } catch {
       /* ignore */
     }
-    if (res.status === 404 || res.status === 410) return 'gone';
-    if (res.status >= 200 && res.status < 300) return 'active';
-    return 'unknown'; // 403/5xx/redirect na jinou doménu → nejistota, stav neměníme
+    return classifyStatus(res.status);
   } catch {
     return 'unknown';
   }

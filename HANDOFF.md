@@ -11,6 +11,57 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — živost portálových inzerátů má vlastní běh (CI), ne rozpočet Workeru
+
+**Nález.** Ověřování živosti fungovalo, ale u portálů (jobs.cz, prace.cz) neobsáhlo stav.
+Strop `MAX_LIVENESS_CHECKS_PER_RUN` byl 23. 8. snížen na 15/běh (jinak Worker vyčerpal
+podřízené požadavky a doskórování fronty padalo na „Too many subrequests"). Jenže aktivních
+portálových inzerátů je **142** → jeden okruh trval **~9,5 dne**. Změřeno v produkci 31. 8.:
+nejstarší `active_checked_at` u aktivního portálového inzerátu byl **24. 8.** Stažený inzerát
+se tedy u nás tvářil živě klidně týden. MPSV touhle vadou netrpí — to jede přes vlastní
+GitHub Action proti plnému exportu a všech 176 aktivních mělo razítko z předchozího dne.
+
+**Oprava.** Přesně to, co si commit `8aa6b30` sám předepsal („kdyby to nestačilo, přesunout
+živost do vlastního běhu jako u MPSV přes GitHub Action"):
+
+- `scripts/portal-liveness.ts` + `.github/workflows/portal-liveness.yml` (denně 04:00 UTC,
+  před MPSV liveness i před během pipeline). V CI žádný strop podřízených požadavků není,
+  projde se **všech 142 každý den**.
+- Skript **nemá vlastní názor na to, co je zrušený inzerát** — importuje `checkUrl` ze
+  `src/liveness.ts`, tedy tutéž funkci, jakou používá pipeline. Dvě kopie téhle logiky by
+  znamenaly dva různé verdikty nad týmž inzerátem.
+- `classifyStatus` vytažena jako čistá funkce → jde otestovat bez sítě (`tests/liveness.test.ts`,
+  12 nových kontrol; celkem 69). Klíčové případy: 403 a 5xx **nejsou** „mrtvý" — při výpadku
+  portálu by jinak jeden běh pohřbil celý seznam.
+- `looksBlocked()`: když je nejistých odpovědí přes polovinu, workflow **spadne** a nic
+  nezapíše. Runner GitHubu leze na portál z datacentra; kdyby nás jobs.cz odstřihl, vrátil by
+  403 na všechno → samé `unknown` → skript by dopsal „nic se nemění" a tvářil se zeleně.
+  Blokace a „všechno žije" musí jít rozeznat.
+
+**Změny v běhu Workeru:**
+
+- Strop snížen na `5` — role se změnila: hromadné ověření dělá CI, v běhu zůstává jen dávka
+  na **čerstvé nálezy** (`recheckLiveness` řadí dosud neověřené první, takže inzerát nalezený
+  dnes se dnes i ověří a nečeká na ranní Action). Uvolňuje to ~10 podřízených požadavků na
+  skórování fronty, ve které čeká 353 inzerátů.
+- Opravena tichá past: `parseInt(...) || 60` znamenalo, že `"0"` spadlo zpátky na 60 —
+  **vypnout to nešlo**. Teď `0` opravdu vypíná a běh to napíše do logu.
+- Živost se loguje i když se neověří nic. Dřív se při `lv.checked === 0` nelogovalo vůbec,
+  takže „nebylo co ověřit" a „ověřování se nespustilo" vypadaly v logu stejně.
+
+**Ověřeno nanečisto proti ostrým datům** (skript psal jen lokální `.sql`, do D1 se nesahalo):
+142 inzerátů, **136 na portálu, 6 už stažených, 0 nejistých**. Těch 6 by se pod starým
+stropem odhalovalo až devět dní. Brána `typecheck` + 69 testů zelená.
+
+**Otevřené — plánovač GitHubu driftuje.** MPSV workflow má `cron: 0 5 * * *` s odůvodněním
+„před během pipeline (06:00 UTC)", jenže reálné starty byly 05:34, 10:24, 11:32 a **17:15**.
+V ty dny pipeline skóruje a notifikuje proti neaktualizovaným příznakům živosti. Cronem to
+neopravíš (drift je klidně 12 h); chtělo by to buď spouštět pipeline přes `workflow_run` po
+doběhnutí živosti, nebo přiznat, že pořadí neplatí, a nespoléhat na něj. Totéž se týká nového
+`portal-liveness`.
+
+---
+
 ## 2026-08-30 — audit proti build předpisu: tři nálezy, zatím neopravené
 
 **Kontext.** V repu [`Anamax443/ai-agenti`](https://github.com/Anamax443/ai-agenti) vznikl

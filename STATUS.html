@@ -65,7 +65,7 @@
     <tr><th>Databáze (D1)</th><td><code>job-watch</code> — <code>seen_jobs</code> (výsledky, živost, kontakty), <code>sources</code> (dynamicky objevené zdroje), <code>meta</code> (nastavení + kurzor), <code>runs</code> (stav běhů)</td></tr>
     <tr><th>AI backend</th><td>default <b>zdarma</b> Cloudflare Workers AI (<code>llama-3.1-8b-instruct-fp8</code>) pro skórování; volitelně placený <code>claude-haiku-4-5</code>. Deanonymizace agentur (<code>claude-sonnet-4-6</code> + web_search) umí jen Claude.</td></tr>
     <tr><th>Notifikace</th><td>Telegram · e-mail přes <b>Cloudflare Email Sending</b> (bez SMTP) · Slack webhook</td></tr>
-    <tr><th>Mimo Worker</th><td>GitHub Actions: <code>mpsv-liveness.yml</code> (plný export ~184 MB — Worker to v běhu neunese), <code>seed.yml</code>, <code>mpsv-backfill-location.yml</code></td></tr>
+    <tr><th>Mimo Worker</th><td>GitHub Actions: <code>portal-liveness.yml</code> (živost jobs.cz/prace.cz — Worker má strop na podřízené požadavky, v CI ne), <code>mpsv-liveness.yml</code> (plný export ~184 MB — Worker to v běhu neunese), <code>seed.yml</code>, <code>mpsv-backfill-location.yml</code></td></tr>
   </table>
 
   <h2>Zdroje inzerátů</h2>

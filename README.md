@@ -107,9 +107,17 @@ ale neukládá se do prohlížeče (filtry Agentury/Stav ano).
 
 Ve Výsledcích má každý inzerát **Stav** (✅ Aktivní / 🚫 Zrušené / ⏳ neověřeno) a v hlavičce
 je filtr **Vše (default) / Aktivní / Zrušené** (uloží se do prohlížeče). U jobs.cz (`/rpd/<id>`)
-a prace.cz (`/nabidka/<uuid>`) vrací zrušený inzerát **HTTP 404** → `recheckLiveness` v každém
-běhu dávkově přeověří zobrazované inzeráty (přednost mají nejdéle neověřené = vypadlé z listovky;
-strop `MAX_LIVENESS_CHECKS_PER_RUN`, default 60). Výskyt v živé listovce rovnou nastaví `active=1`.
+a prace.cz (`/nabidka/<uuid>`) vrací zrušený inzerát **HTTP 404**. Hromadné přeověření dělá
+**denní GitHub Action `portal-liveness.yml`** (`scripts/portal-liveness.ts`, 04:00 UTC): projde
+*všechny* aktivní portálové inzeráty, protože v CI neplatí strop podřízených požadavků, který
+svazuje Worker (60 kontrol v běhu 23. 8. 2026 shodilo doskórování fronty na „Too many
+subrequests"). Skript schválně používá tentýž `checkUrl` jako pipeline — dvě kopie by znamenaly
+dva různé názory na to, co je zrušený inzerát. 403/5xx je `unknown`, tam se `active` **nemění**
+(výpadek portálu by jinak pohřbil celý seznam); a když je nejistých přes polovinu, workflow
+**spadne a nic nezapíše** — blokace runneru není výsledek měření. V běhu Workeru zůstává jen malá
+dávka na čerstvé nálezy (`recheckLiveness` řadí dosud neověřené první; strop
+`MAX_LIVENESS_CHECKS_PER_RUN`, v kódu default 60, v produkci `5`, `0` = vypnuto).
+Výskyt v živé listovce rovnou nastaví `active=1`.
 
 **MPSV** nemá detailní URL k ověření a plný export má ~184 MB (Worker to v běhu neunese), takže
 živost MPSV řeší **denní GitHub Action `mpsv-liveness.yml`** (`scripts/mpsv-liveness.ts`): stáhne

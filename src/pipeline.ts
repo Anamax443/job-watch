@@ -342,11 +342,25 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     //     běžet dál, jen zmizel placený inzerát). Přednost mají
     //     nejdéle neověřené (vypadlé z listovky). Levné HTTP → dávkově, do deadline.
     if (Date.now() < deadline) {
-      const liveLimit = parseInt(env.MAX_LIVENESS_CHECKS_PER_RUN ?? '60', 10) || 60;
-      const lv = await recheckLiveness(env, (m) => run.log(m), deadline, liveLimit);
-      if (lv.checked) {
+      // Hromadné ověření dělá GitHub Action portal-liveness — v CI není strop podřízených
+      // požadavků, takže projde všechny aktivní portálové inzeráty každý den. V běhu zůstává
+      // malá dávka na čerstvé nálezy: recheckLiveness řadí dosud neověřené první, takže
+      // inzerát nalezený dnes se dnes i ověří, místo aby čekal na ranní Action.
+      const rawLimit = env.MAX_LIVENESS_CHECKS_PER_RUN;
+      const parsedLimit = rawLimit == null ? 60 : parseInt(rawLimit, 10);
+      // 0 = vypnuto. Dřív tu byl fallback "|| 60", takže nula tiše spadla na default a vypnout to nešlo.
+      const liveLimit = Number.isFinite(parsedLimit) && parsedLimit >= 0 ? parsedLimit : 60;
+      if (liveLimit === 0) {
+        run.log('🔓 Živost: v běhu vypnuta (MAX_LIVENESS_CHECKS_PER_RUN=0) — ověřuje ji GitHub Action portal-liveness');
+      } else {
+        const lv = await recheckLiveness(env, (m) => run.log(m), deadline, liveLimit);
         stats.livenessGone = lv.gone;
-        run.log(`🔓 Živost: ověřeno ${lv.checked} · na portálu ${lv.active} · nově staženo z portálu ${lv.gone}`);
+        // Logovat i nulu: „nebylo co ověřit" a „ověřování se vůbec nespustilo" musí jít rozeznat.
+        run.log(
+          lv.checked
+            ? `🔓 Živost: ověřeno ${lv.checked} · na portálu ${lv.active} · nově staženo z portálu ${lv.gone} (hromadně ověřuje GitHub Action portal-liveness)`
+            : '🔓 Živost: v běhu nebylo co ověřit — o stálý stav se stará GitHub Action portal-liveness',
+        );
         await run.flush(stats);
       }
     }

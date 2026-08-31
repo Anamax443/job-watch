@@ -1,0 +1,33 @@
+name: Portál liveness
+
+# Denně ověří, jestli inzeráty z jobs.cz/prace.cz na portálu ještě jsou (detail 404 = stažen).
+# Běží v CI, ne ve Workeru: každá kontrola je jeden podřízený požadavek a Worker jich má na
+# jedno vyvolání strop — 60 kontrol v běhu 23. 8. 2026 shodilo doskórování fronty na
+# „Too many subrequests". Strop v běhu se proto snížil na 15/den, jenže aktivních portálových
+# inzerátů je ~142 → jeden okruh trval ~9,5 dne. Tady rozpočet není a projdou se všechny.
+# Potřebuje GitHub secret: CLOUDFLARE_API_TOKEN (Workers + D1, stejný jako deploy/seed).
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC, před MPSV liveness (05:00) i denním během pipeline (06:00)
+  workflow_dispatch:
+
+jobs:
+  liveness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Export portálových id z D1
+        run: npx wrangler d1 execute job-watch --remote --json --command "SELECT id, url FROM seen_jobs WHERE duplicate_of IS NULL AND (active IS NULL OR active=1) AND (url LIKE '%jobs.cz/rpd/%' OR url LIKE '%prace.cz/nabidka/%')" > portal_ids.json
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Ověř živost na portálu
+        run: npm run portal:liveness # čte portal_ids.json → píše portal_liveness.sql
+      - name: Zapiš stav do D1
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 execute job-watch --remote --file=portal_liveness.sql
