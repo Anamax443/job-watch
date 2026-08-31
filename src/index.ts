@@ -8,13 +8,13 @@ import {
   providerChain,
   webResearchEnabled,
 } from './ai.ts';
-import { loadSettings, sanitizeSettings, saveSettings } from './config.ts';
+import { getMeta, loadSettings, sanitizeSettings, saveSettings } from './config.ts';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
 import { buildJobsFilter } from './store.ts';
-import { pollTelegram } from './telegram.ts';
+import { HEARTBEAT_KEY, pollTelegram } from './telegram.ts';
 
 /** Výraz cronu vyhrazený pro vybírání zpráv z Telegramu (viz wrangler.toml). */
 const TELEGRAM_CRON = '*/5 * * * *';
@@ -153,6 +153,9 @@ async function handleHealth(env: Env): Promise<Response> {
   ]);
   const email = checkEmail(env);
   const slack = { configured: !!env.SLACK_WEBHOOK_URL };
+  // Kdy naposledy doběhlo vybírání příkazů z Telegramu. Chybí-li, pětiminutový cron neběží
+  // — a bez toho je "nikdo nic nenapsal" k nerozeznání od "příkazy nikdo nevybírá".
+  const telegramPollAt = await getMeta(env, HEARTBEAT_KEY);
 
   // Aktivní AI backend „dle úhrady" (skórování) — to jde do indikátoru v záhlaví.
   const ctx = ctxFrom(env, s);
@@ -191,6 +194,8 @@ async function handleHealth(env: Env): Promise<Response> {
     // Stav autorizace — ať je vidět, že allowlist chybí (viz src/access.ts). Adresy se nevrací.
     access: accessStatus(env.ACCESS_ALLOWED_EMAILS),
     enabled: { telegram: s.notifyTelegram, email: s.notifyEmail, slack: s.notifySlack },
+    // null = pětiminutový cron pro příkazy z Telegramu ještě ani jednou neproběhl.
+    telegramPollAt,
   });
 }
 

@@ -14,6 +14,16 @@ import { buildJobsFilter } from './store.ts';
 /** Klíč kurzoru v `meta`: poslední zpracované update_id od Telegramu. */
 export const CURSOR_KEY = 'telegram_update_id';
 
+/**
+ * Klíč tepu v `meta`: kdy naposledy dotazování proběhlo.
+ *
+ * Proč to tu je: bez zpráv nemá dotazování žádnou stopu — nezapisuje kurzor, nic nepošle.
+ * „Nikdo nic nenapsal" a „cron se netočí" by pak vypadaly úplně stejně a chyba by se
+ * poznala až tím, že bot mlčí. Tep se píše VŽDY, i před kontrolou nastavení, takže jeho
+ * chybějící hodnota znamená právě jedno: rozvrh neběží.
+ */
+export const HEARTBEAT_KEY = 'telegram_poll_at';
+
 /** Kolik pozic vypsat do jedné zprávy. Telegram má strop 4096 znaků na zprávu. */
 export const MAX_ITEMS = 15;
 
@@ -164,6 +174,7 @@ export interface PollResult {
  */
 export async function pollTelegram(env: Env, settings: Settings): Promise<PollResult> {
   const out: PollResult = { prislo: 0, vyrizeno: 0, cizich: 0, stare: 0 };
+  await setMeta(env, HEARTBEAT_KEY, new Date().toISOString());
   const chatId = settings.telegramChatId;
   if (!env.TELEGRAM_BOT_TOKEN || !chatId) return out;
 
