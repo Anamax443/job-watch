@@ -116,7 +116,7 @@ async function load(append){
       ? `${esc(j.employer)} <span class="badge agency">agentura</span><br><span class="orig">🎯 ${esc(j.real_employer)}</span>`
       : `${esc(j.employer)}${j.is_agency ? ' <span class="badge agency">agentura</span>' : ''}`;
     tr.innerHTML = `
-      <td class="score">${j.relevance ?? '—'}</td>
+      <td class="score">${j.relevance ?? '—'}${j.rescore ? '<span class="stale" title="Skóre je z předchozího profilu. Číslo se nemaže, jen čeká na přepočet ve frontě.">⟳</span>' : ''}</td>
       <td><a class="titlelink" data-id="${esc(j.id)}" title="Zobrazit uložený inzerát (jako na portálu)">${esc(j.title)}</a>${j.seen_count>1?` <span class="badge rep" title="objevilo se vícekrát v čase">↻ opakovaný ×${j.seen_count}</span>`:''}<div class="reason">${esc(j.reason ?? '')}</div><a class="showad" data-id="${esc(j.id)}">📄 zobrazit inzerát</a></td>
       <td>${emp}${contactBlock(j)}${reachOut(j)}</td>
       <td>${esc(j.location ?? '—')}</td>

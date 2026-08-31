@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS seen_jobs (
   url                TEXT,
   description        TEXT,
   is_agency          INTEGER DEFAULT 0,  -- 0/1: zaměstnavatel je personální agentura
-  relevance          INTEGER,            -- 0–100 z LLM scoringu
+  relevance          INTEGER,            -- 0–100 z LLM scoringu (0 = vyřazeno filtrem/modelem, NULL = zatím nehodnoceno)
+  rescore            INTEGER DEFAULT 0,  -- 1 = skóre je z předchozího profilu, čeká na přepočet
   seniority          TEXT,               -- lead | senior | other
   reason             TEXT,               -- krátké zdůvodnění skóre
   real_employer      TEXT,               -- odmaskovaný původce (u agentur)
@@ -45,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_seen_agency    ON seen_jobs(is_agency);
 CREATE INDEX IF NOT EXISTS idx_seen_first     ON seen_jobs(first_seen);
 CREATE INDEX IF NOT EXISTS idx_seen_fp        ON seen_jobs(fingerprint);
 CREATE INDEX IF NOT EXISTS idx_seen_active    ON seen_jobs(active);
+CREATE INDEX IF NOT EXISTS idx_seen_rescore   ON seen_jobs(rescore);
 
 -- Key-value úložiště: editovatelné nastavení (JSON pod 'settings') + kurzory běhu.
 CREATE TABLE IF NOT EXISTS meta (

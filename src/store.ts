@@ -100,7 +100,7 @@ export async function saveJob(env: Env, x: SaveInput): Promise<void> {
      ON CONFLICT(id) DO UPDATE SET
        hash=?3, dedup_key=?4, title=?5, employer=?6, employer_ico=?7, location=?8, region=?9, cz_isco=?10,
        salary_from=?11, salary_to=?12, url=?13, description=?14, is_agency=?15,
-       relevance=?16, seniority=?17, reason=?18, real_employer=?19, real_employer_url=?20,
+       relevance=?16, seniority=?17, reason=?18, rescore=0, real_employer=?19, real_employer_url=?20,
        duplicate_of=?21, fingerprint=?22,
        contact_name=COALESCE(?23, contact_name), contact_email=COALESCE(?24, contact_email),
        contact_phone=COALESCE(?25, contact_phone), contact_position=COALESCE(?26, contact_position),
@@ -234,7 +234,10 @@ export async function loadUnscored(env: Env, limit: number, offset = 0): Promise
     `SELECT id, source, title, employer, employer_ico, location, region, cz_isco, salary_from, salary_to,
             url, description, is_agency, notified_at
      FROM seen_jobs
-     WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)
+     -- Do fronty patří jak nikdy nehodnocené (relevance NULL), tak ty, kterým změna
+     -- profilu označila skóre za neaktuální (rescore = 1). Číslo jim zůstává, takže jsou
+     -- mezitím pořád vidět a filtrovatelné — jen se čeká na přepočet.
+     WHERE (relevance IS NULL OR rescore = 1) AND duplicate_of IS NULL AND (active IS NULL OR active = 1)
      -- Co UŽ JEDNOU prošlo prahem, se přeskóruje první; teprve pak zbytek od nejnovějších.
      -- Proč: v běžném dni je správné brát nejdřív čerstvé nálezy. Jenže změna profilu vynuluje
      -- VŠECHNA skóre a přeskórovává se celá historie — a tam řazení „od nejnovějších" odsune
@@ -275,14 +278,17 @@ export async function loadUnscored(env: Env, limit: number, offset = 0): Promise
 export async function countUnscored(env: Env): Promise<number> {
   const r = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM seen_jobs
-     WHERE relevance IS NULL AND duplicate_of IS NULL AND (active IS NULL OR active = 1)`,
+     WHERE (relevance IS NULL OR rescore = 1) AND duplicate_of IS NULL AND (active IS NULL OR active = 1)`,
   ).first<{ n: number }>();
   return r?.n ?? 0;
 }
 
 /** Zapíše jen skóre (doskórování fronty — bez změny ostatních polí / notifikace). */
 export async function updateScore(env: Env, id: string, score: ScoreResult): Promise<void> {
-  await env.DB.prepare('UPDATE seen_jobs SET relevance = ?2, seniority = ?3, reason = ?4 WHERE id = ?1')
+  // rescore = 0: čerstvé skóre je proti aktuálnímu profilu, značka „neaktuální" padá.
+  await env.DB.prepare(
+    'UPDATE seen_jobs SET relevance = ?2, seniority = ?3, reason = ?4, rescore = 0 WHERE id = ?1',
+  )
     .bind(id, score.relevance, score.seniority, score.reason)
     .run();
 }

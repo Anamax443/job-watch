@@ -120,7 +120,7 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
             url, description, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
-            notified_at, first_seen, seen_count, active, active_checked_at,
+            notified_at, first_seen, seen_count, active, active_checked_at, rescore,
             contact_name, contact_email, contact_phone, contact_position
      FROM seen_jobs WHERE ${where}
      ORDER BY (relevance IS NULL), relevance DESC, first_seen DESC LIMIT ? OFFSET ?`;
@@ -156,6 +156,15 @@ async function handleHealth(env: Env): Promise<Response> {
   // Kdy naposledy doběhlo vybírání příkazů z Telegramu. Chybí-li, pětiminutový cron neběží
   // — a bez toho je "nikdo nic nenapsal" k nerozeznání od "příkazy nikdo nevybírá".
   const telegramPollAt = await getMeta(env, HEARTBEAT_KEY);
+  // Je nasazená migrace 0003? Bez sloupce `rescore` spadne dojíždění fronty na SQL chybě
+  // a v UI by to vypadalo jako "běh se nepovedl" bez udání důvodu. Radši se to zeptá rovnou.
+  let schemaRescore = false;
+  try {
+    await env.DB.prepare('SELECT rescore FROM seen_jobs LIMIT 1').first();
+    schemaRescore = true;
+  } catch {
+    /* sloupec chybí → migrace 0003 neproběhla */
+  }
 
   // Aktivní AI backend „dle úhrady" (skórování) — to jde do indikátoru v záhlaví.
   const ctx = ctxFrom(env, s);
@@ -196,6 +205,8 @@ async function handleHealth(env: Env): Promise<Response> {
     enabled: { telegram: s.notifyTelegram, email: s.notifyEmail, slack: s.notifySlack },
     // null = pětiminutový cron pro příkazy z Telegramu ještě ani jednou neproběhl.
     telegramPollAt,
+    // false = neproběhla migrace 0003_keep_score_on_profile_change.sql
+    schema: { rescore: schemaRescore },
   });
 }
 
@@ -323,7 +334,10 @@ async function route(
       const saved = await saveSettings(env, sanitizeSettings(body));
       // změna profilu znehodnotí stará skóre → příští běh přeskóruje proti novému profilu
       if (typeof body?.profile === 'string' && body.profile.trim() !== (before.profile ?? '').trim()) {
-        await env.DB.prepare('UPDATE seen_jobs SET relevance = NULL').run();
+        // Skóre se NEMAŽE, jen se označí jako neaktuální. Mazání sice bylo poctivé
+        // (staré číslo bylo měřené proti jinému profilu), ale schovalo 299 z 458 inzerátů
+        // za Min. skóre, přeskórování trvá týdny a 154 stažených se nedožene nikdy.
+        await env.DB.prepare('UPDATE seen_jobs SET rescore = 1').run();
       }
       return json(saved);
     }
