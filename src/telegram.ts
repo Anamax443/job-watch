@@ -210,7 +210,11 @@ staženo ${st.fetched ?? 0} · kandidátů ${st.candidates ?? 0} · ohodnoceno $
       `
 notifikováno ${st.notified ?? 0} · ve frontě ${st.queueDepth ?? 0}` +
       (st.prefiltered ? `
-vyřazeno filtrem bez AI ${st.prefiltered}` : '');
+vyřazeno filtrem bez AI ${st.prefiltered}` : '') +
+      // Rozpočet podřízených požadavků Workeru je skutečné omezení propustnosti (free plán 50),
+      // takže patří do stavu — jinak se „ohodnoceno 15" čte jako lenost, ne jako strop.
+      (st.budget ? `
+rozpočet požadavků ${st.budget.celkem} (D1 ${st.budget.d1} · model ${st.budget.model})` : '');
   } catch {
     /* stats se nepovedlo přečíst — hlavička stačí */
   }

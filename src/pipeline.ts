@@ -10,6 +10,7 @@ import { loadAgencyIcos, applyAgencyFlag } from './sources/agencies.ts';
 import { prefilter, roleMatch, regionRejected } from './prefilter.ts';
 import { clearStop, stopRequested, bulkUpdateScores } from './store.ts';
 import { PROMPT_VERSION } from './prompts.ts';
+import { createCounter, wrapDb, formatBudget, type RunBudget } from './metrics.ts';
 import { sendTelegram, AI_DISCLOSURE } from './notify.ts';
 import { scoreJob } from './score.ts';
 import { enrichOriginator } from './enrich.ts';
@@ -45,6 +46,7 @@ export interface RunStats {
   notified: number;
   discovered: number;
   livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
+  budget?: RunBudget & { celkem: number }; // spotřeba podřízených požadavků Workeru (viz src/metrics.ts)
   promptVersion?: string; // podle jakého znění promptu se v tomhle běhu skórovalo (F4)
   prefiltered?: number; // kolik jich z fronty vyřadil kód (mimo obor/kraj) bez jediného dotazu na AI
   // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
@@ -107,6 +109,10 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
   const runStart = Date.now(); // pro absolutní strop celého běhu (viz deadline níže)
   env = await resolveEnv(env); // klíče přednostně z D1 (UI), jinak Worker secrets
   const settings = await loadSettings(env);
+  // Měřák rozpočtu: od téhle chvíle jde každé volání D1 přes počítadlo. Obaluje se až tady,
+  // aby se do čísla nepočítalo načtení nastavení, které proběhne i mimo běh.
+  const budget = createCounter();
+  env = { ...env, DB: wrapDb(env.DB, budget) } as Env;
   // Starý požadavek na zastavení nesmí zabít ten příští běh.
   await clearStop(env);
   let stopped = false;
@@ -239,6 +245,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
 
       if (aiCalls >= maxScores) return; // strop hodnocení → kandidát spadne do fronty
       aiCalls++;
+      budget.add('model');
       const score = await scoreJob(env, job, settings.profile, {
         region: settings.regionPriority,
         threshold: settings.notifyThreshold,
@@ -369,6 +376,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       } else {
         const lv = await recheckLiveness(env, (m) => run.log(m), deadline, liveLimit);
         stats.livenessGone = lv.gone;
+        budget.add('liveness', lv.checked);
         // Logovat i nulu: „nebylo co ověřit" a „ověřování se vůbec nespustilo" musí jít rozeznat.
         run.log(
           lv.checked
@@ -484,6 +492,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
         continue;
       }
       aiCalls += toScore.length;
+      budget.add('model', toScore.length);
       const zapsat: { id: string; score: ScoreResult }[] = [];
       await Promise.all(
         toScore.map(async (job) => {
@@ -581,6 +590,9 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       `📋 Souhrn: staženo ${stats.fetched} inzerátů (${perSource}), po filtru ${stats.candidates} relevantních · ` +
         `ohodnoceno ${stats.scored} · ${leads}${pending}`,
     );
+    const b = budget.snapshot();
+    stats.budget = b;
+    run.log(formatBudget(b, stats.scored));
     run.log(
       stopped
         ? '⏹️ Běh ukončen na žádost. Co se nestihlo, čeká ve frontě — nic se nezahodilo.'

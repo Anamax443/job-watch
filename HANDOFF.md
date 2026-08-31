@@ -11,6 +11,32 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — měřák rozpočtu: běh si podřízené požadavky počítá sám
+
+Dosud se spotřeba rozpočtu **odhadovala ze statické analýzy kódu**. To je počítání na papíře
+— a jak ukázal dnešek dvakrát, papír snese i špatné číslo. `src/metrics.ts`:
+
+- `wrapDb()` obalí D1 na začátku běhu, takže se počítá **každé** volání bez zásahu do
+  volajících míst. Dávka se počítá jako **jedna** položka — v tom je celý smysl dávkování.
+  Statementy se před předáním do `batch()` rozbalí na originály, jinak by je D1 nepřijala.
+- Volání modelu a HTTP kontroly živosti se počítají zvlášť.
+- Výsledek jde do `runs.stats.budget` a do logu běhu řádkem 📶, včetně **spotřeby na jeden
+  ohodnocený inzerát** — to je to číslo, podle kterého se pozná, jestli optimalizace pomohla.
+- Vidět je i v Telegramu přes `/stav`.
+
+**Co se schválně neměří:** stahování zdrojů (`fetch` uvnitř `src/sources/*`). Globální `fetch`
+se obalit bezpečně nedá — izolát sdílí víc souběžných vyvolání. Řádek v logu to **přiznává**,
+protože součet bez té poznámky by se četl jako úplný a člověk by usoudil, že do stropu je
+dál, než je.
+
+**K čemu to bude hned:** ověří (nebo vyvrátí) dnešní diagnózu. Podle výpočtu má po dávkovém
+zápisu vyjít kolem 1,3 požadavku na inzerát a ~27 ohodnocených. Kdyby měřák ukázal něco
+jiného, je špatně diagnóza, ne agent.
+
+6 testů nad atrapou D1 (celkem **142**), mimo jiné že do `batch()` prolezou originály a ne obaly.
+
+---
+
 ## 2026-08-31 — propustnost: zápis do D1 po jednom žral rozpočet Workeru
 
 **Diagnóza.** Worker má strop na počet podřízených požadavků na jedno vyvolání — na free
