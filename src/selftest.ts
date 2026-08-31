@@ -19,7 +19,7 @@ import { prefilter } from './prefilter.ts';
 import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
-import { norm, num, truncate } from './util.ts';
+import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
 
 export interface SelfCheck {
@@ -199,6 +199,13 @@ export function runSelfTest(): SelfTestResult {
   check(U, 'norm sjednotí diakritiku a mezery', 'Stojí na tom dedup i prefiltr.', 'vedouci it oddeleni', norm('  Vedoucí   IT ODDĚLENÍ '));
   check(U, 'truncate krátí jen když je potřeba', 'Zbytečná výpustka mate čtenáře notifikace.', ['abc…', 'abc'], [truncate('abcdef', 3), truncate('abc', 3)]);
   check(U, 'num propustí jen konečná čísla', 'Mzda ze zdroje bývá string nebo nesmysl.', [60000, undefined], [num('60000'), num('nedohodou')]);
+
+  // --- Stránkování výsledků --------------------------------------------------
+  const PG = 'Stránkování';
+  check(PG, 'Bez parametrů první stránka po 200', 'Odkaz bez query musí dát tutéž první stránku jako dřív.', { limit: 200, offset: 0 }, pageParams(null, null));
+  check(PG, 'Offset se propíše — tudy vedou starší inzeráty', 'V D1 se nic nemaže; bez offsetu se na historii nedalo dostat.', { limit: 200, offset: 400 }, pageParams('200', '400'));
+  check(PG, 'Limit se stropuje na 500', 'Jedna odpověď nesmí nafouknout celou databázi do JSONu.', 500, pageParams('5000', null).limit);
+  check(PG, 'Nesmysl v URL padá na default, ne na prázdno', 'Query si upravuje i člověk; prázdný seznam by vypadal jako „nic nenalezeno".', { limit: 200, offset: 0 }, pageParams('abc', '-5'));
 
   const selhalo = kontroly.filter((k) => !k.ok).length;
   return {

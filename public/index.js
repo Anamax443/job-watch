@@ -15,6 +15,10 @@ function statusCell(j){
 // Detail inzerátu (archiv): plný uložený inzerát „jako bys na něj klikl na portálu" —
 // funguje i po stažení z portálu (kdy odkaz dá 404). Otvírá se v modálním okně.
 let jobsById = {};
+// Stránkování. Seznam dřív bral natvrdo prvních 200 řádků a víc se na starší inzeráty
+// nedalo dostat, i když v D1 jsou (nic se nemaže, historie sahá do 14. 6. 2026).
+let shown = 0;
+let total = 0;
 
 function portalName(url){
   if(/jobs\.cz/.test(url||'')) return 'jobs.cz';
@@ -88,15 +92,21 @@ function contactBlock(j){
   return `<div class="contact">${parts.join('<br>')}</div>`;
 }
 
-async function load(){
+// append = true → připojit další stránku pod už zobrazené (tlačítko „Načíst starší").
+// Změna filtru nebo Obnovit stránkování vždy resetuje, jinak by se míchaly dva různé výběry.
+async function load(append){
   const min = $('#minScore').value || 0;
   const ag = $('#agencyOnly').checked ? '1' : '0';
   const act = $('#activeFilter').value || 'all';
+  if(!append) shown = 0;
   $('#status').textContent = 'Načítám…';
-  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}`);
-  const { jobs } = await r.json();
-  const tb = $('#rows'); tb.innerHTML = ''; jobsById = {};
-  $('#empty').hidden = jobs.length > 0;
+  $('#more').disabled = true;
+  const r = await fetch(`/api/jobs?minScore=${min}&agency=${ag}&active=${act}&offset=${shown}`);
+  const res = await r.json();
+  const jobs = res.jobs || [];
+  total = res.total ?? jobs.length;
+  const tb = $('#rows');
+  if(!append){ tb.innerHTML = ''; jobsById = {}; }
   for(const j of jobs){
     jobsById[j.id] = j;
     const tr = document.createElement('tr');
@@ -115,13 +125,22 @@ async function load(){
       <td>${j.url ? `<a class="link" href="${esc(j.url)}" target="_blank" rel="noopener">otevřít ↗</a>` : ''}</td>`;
     tb.appendChild(tr);
   }
-  $('#status').textContent = `${jobs.length} pozic`;
+  shown += jobs.length;
+  $('#empty').hidden = shown > 0;
+  // Kolik z kolika — useknutý seznam se nesmí tvářit jako úplný.
+  $('#status').textContent = shown >= total ? `${shown} pozic` : `${shown} z ${total} pozic`;
+  const more = $('#more');
+  more.hidden = shown >= total;
+  more.disabled = false;
+  more.textContent = `Načíst starší (zbývá ${total - shown})`;
 }
 
-$('#refresh').onclick = load;
-$('#minScore').onchange = load;
-$('#agencyOnly').onchange = load;
-$('#activeFilter').onchange = load;
+// Pozor na obal: bez něj by se do load() dostal Event a vyhodnotil se jako append=true.
+$('#refresh').onclick = () => load(false);
+$('#minScore').onchange = () => load(false);
+$('#agencyOnly').onchange = () => load(false);
+$('#activeFilter').onchange = () => load(false);
+$('#more').onclick = () => load(true);
 
 // Klik na název pozice / „zobrazit inzerát" → detail inzerátu (archiv). Delegace přes tbody.
 $('#rows').addEventListener('click', (e) => {

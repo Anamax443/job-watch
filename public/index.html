@@ -61,6 +61,8 @@
   a.link { color:var(--acc); text-decoration:none; }
   .empty { color:var(--mut); padding:40px 0; text-align:center; }
   #status { color:var(--mut); font-size:13px; }
+  .morebox { display:flex; justify-content:center; padding:14px 0 22px; }
+  .morebox button[disabled] { opacity:.5; cursor:default; }
   .runbox{margin:0 20px;border:1px solid var(--line);border-radius:10px;background:#0b1018;overflow:hidden;display:none}
   .runbox.show{display:block}
   .runhead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px}
@@ -117,6 +119,9 @@
     <tbody id="rows"></tbody>
   </table>
   <div id="empty" class="empty" hidden>Zatím žádné výsledky. Spusť běh tlačítkem „Spustit teď".</div>
+  <div class="morebox">
+    <button id="more" class="ghost" hidden title="Načíst další stránku výsledků — v databázi zůstávají všechny nalezené inzeráty od 14. 6. 2026, nic se nemaže">Načíst starší</button>
+  </div>
 </main>
 
 <div id="detail" class="modal-backdrop" hidden>

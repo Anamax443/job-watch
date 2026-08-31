@@ -2,7 +2,7 @@
 // tady se projeví až jako duplicitní notifikace nebo prázdný výsledek.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { containsAny, norm, num, stripHtml, truncate } from '../src/util.ts';
+import { containsAny, norm, num, pageParams, stripHtml, truncate } from '../src/util.ts';
 
 test('norm sjednotí diakritiku, velikost písmen i mezery — na tom stojí dedup klíč', () => {
   assert.equal(norm('  Vedoucí   IT ODDĚLENÍ '), 'vedouci it oddeleni');
@@ -40,4 +40,32 @@ test('num propustí jen konečná čísla — mzda ze zdroje bývá string nebo 
   assert.equal(num('nedohodou'), undefined);
   assert.equal(num(null), undefined);
   assert.equal(num(Infinity), undefined);
+});
+
+// Stránkování /api/jobs. Proč zrovna tohle: v D1 se nic nemaže, ale seznam měl natvrdo strop
+// 200 bez offsetu — starší inzeráty existovaly a nedaly se zobrazit. Chyba tady se neprojeví
+// jako pád, ale jako tiše chybějící kus historie.
+
+test('bez parametrů první stránka po 200 — beze změny chování odkazu bez query', () => {
+  assert.deepEqual(pageParams(null, null), { limit: 200, offset: 0 });
+});
+
+test('offset posune na další stránku — tudy se jde na starší inzeráty', () => {
+  assert.deepEqual(pageParams('200', '400'), { limit: 200, offset: 400 });
+});
+
+test('limit se stropuje na 500 — jedna odpověď nesmí nafouknout celou D1 do JSONu', () => {
+  assert.equal(pageParams('5000', null).limit, 500);
+});
+
+test('limit 0 padá na default, ne na prázdný seznam — jinak by to vypadalo jako „nic nenalezeno"', () => {
+  assert.equal(pageParams('0', null).limit, 200);
+});
+
+test('nesmysl v URL padá na default místo chyby — query si upravuje i člověk', () => {
+  assert.deepEqual(pageParams('abc', 'xyz'), { limit: 200, offset: 0 });
+});
+
+test('záporný offset se nebere — SQLite by na OFFSET -1 vrátil celý zbytek', () => {
+  assert.equal(pageParams(null, '-5').offset, 0);
 });

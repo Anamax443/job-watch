@@ -11,6 +11,37 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — na starší inzeráty se z UI nedalo dostat, ačkoli v D1 byly
+
+**Nález.** `/api/jobs` mělo natvrdo `LIMIT 200` bez offsetu a UI parametr `limit` vůbec
+neposílalo. Řazení je „ohodnocené podle skóre, pak zbytek podle data nálezu", takže stránka
+spolkla 159 ohodnocených + 41 nejnovějších nezpracovaných a **258 starších záznamů
+(14. 6. – 13. 8. 2026) bylo z UI nedosažitelných** — bez odkazu, bez stránkování, bez zmínky.
+Hlavička k tomu psala „200 pozic", takže useknutý seznam vypadal jako úplný. V databázi ty
+inzeráty celou dobu byly, nic se nemaže (458 nezduplikovaných záznamů).
+
+**Oprava.**
+
+- `pageParams()` v `src/util.ts` — čistá funkce, `limit` (default 200, strop 500) + `offset`.
+  Nesmysl v query padá na default, ne na prázdný seznam: query si upravuje i člověk a prázdno
+  by vypadalo jako „nic nenalezeno". Záporný offset se zahazuje, SQLite by na `OFFSET -1`
+  vrátil celý zbytek.
+- `/api/jobs` vrací navíc `total` (COUNT přes tytéž podmínky), `limit` a `offset`.
+  Bez `total` nemá UI jak poznat, že je seznam useknutý.
+- Přehled: hlavička píše `X z Y` a pod tabulkou je tlačítko **„Načíst starší (zbývá N)"**,
+  které připojuje další stránku. Mizí, až když je zobrazeno všechno.
+- Vedlejší past při tom: obsluhy byly psané jako `$('#refresh').onclick = load`, takže by se
+  do nového parametru `append` dostal Event a vyhodnotil se jako `true`. Obaleno do šipek.
+
+**Kontroly.** 6 nových testů v `tests/util.test.ts` (celkem **75**) + 4 kontroly ve skupině
+„Stránkování" na stránce `/tests`, takže se to dá ověřit i na nasazené verzi, ne jen lokálně.
+
+**Ověřeno nad ostrými daty** (jen SELECT): dotaz s `LIMIT 200 OFFSET 400` vrací 58 řádků
+s `first_seen` od **2026-06-14 16:02:30** — tedy úplně první nález agenta. Řádky 201+ jsou
+těch 258 dřív skrytých.
+
+---
+
 ## 2026-08-31 — živost portálových inzerátů má vlastní běh (CI), ne rozpočet Workeru
 
 **Nález.** Ověřování živosti fungovalo, ale u portálů (jobs.cz, prace.cz) neobsáhlo stav.

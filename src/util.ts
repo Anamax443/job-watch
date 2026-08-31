@@ -50,3 +50,26 @@ export function num(v: unknown): number | undefined {
   const n = typeof v === 'string' ? parseFloat(v) : typeof v === 'number' ? v : NaN;
   return Number.isFinite(n) ? n : undefined;
 }
+
+/**
+ * Stránkování seznamu výsledků (`/api/jobs`).
+ *
+ * Proč vzniklo: seznam měl natvrdo strop 200 bez offsetu. Starší inzeráty v D1 zůstávaly
+ * (nic se nemaže), ale z UI se na ně nedalo dostat — a hlavička hlásila „200 pozic", tedy
+ * useknutý seznam vypadal jako úplný. Strop 500 na jeden dotaz drží velikost odpovědi,
+ * přes `offset` se dá dojít až na konec.
+ *
+ * Nesmysl (prázdno, text, záporné číslo) padá na default, ne na chybu — filtr v URL píše
+ * i člověk a prázdný seznam by vypadal jako „nic nenalezeno".
+ */
+export function pageParams(
+  limitRaw: string | null | undefined,
+  offsetRaw: string | null | undefined,
+): { limit: number; offset: number } {
+  const l = parseInt(limitRaw ?? '', 10);
+  const o = parseInt(offsetRaw ?? '', 10);
+  return {
+    limit: Number.isFinite(l) && l > 0 ? Math.min(l, 500) : 200,
+    offset: Number.isFinite(o) && o > 0 ? o : 0,
+  };
+}

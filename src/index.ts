@@ -12,6 +12,7 @@ import { loadSettings, sanitizeSettings, saveSettings } from './config.ts';
 import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
+import { pageParams } from './util.ts';
 import {
   ACCESS_EMAIL_HEADER,
   ACCESS_LOGOUT_PATH,
@@ -106,7 +107,7 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
   const agencyOnly = url.searchParams.get('agency') === '1';
   // active: 'all' (default) | 'active' (aktivní/neověřené) | 'inactive' (zrušené)
   const active = url.searchParams.get('active') ?? 'all';
-  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '200', 10) || 200, 500);
+  const { limit, offset } = pageParams(url.searchParams.get('limit'), url.searchParams.get('offset'));
 
   const conds = ['duplicate_of IS NULL'];
   const binds: unknown[] = [];
@@ -120,19 +121,24 @@ async function handleJobs(env: Env, url: URL): Promise<Response> {
   if (active === 'inactive') conds.push('active = 0');
   else if (active === 'active') conds.push('(active IS NULL OR active = 1)');
 
+  const where = conds.join(' AND ');
   const sql =
     `SELECT id, source, title, employer, employer_ico, location, cz_isco, salary_from, salary_to,
             url, description, is_agency, relevance, seniority, reason, real_employer, real_employer_url,
             notified_at, first_seen, seen_count, active, active_checked_at,
             contact_name, contact_email, contact_phone, contact_position
-     FROM seen_jobs WHERE ${conds.join(' AND ')}
-     ORDER BY (relevance IS NULL), relevance DESC, first_seen DESC LIMIT ?`;
-  binds.push(limit);
+     FROM seen_jobs WHERE ${where}
+     ORDER BY (relevance IS NULL), relevance DESC, first_seen DESC LIMIT ? OFFSET ?`;
 
   const rows = await env.DB.prepare(sql)
-    .bind(...binds)
+    .bind(...binds, limit, offset)
     .all();
-  return json({ jobs: rows.results ?? [] });
+  // Kolik jich filtru odpovídá celkem. Bez toho se useknutá stránka tváří jako celý
+  // seznam — nic se přitom nemaže, historie v D1 sahá do 14. 6. 2026.
+  const totalRow = await env.DB.prepare(`SELECT COUNT(*) AS n FROM seen_jobs WHERE ${where}`)
+    .bind(...binds)
+    .first<{ n: number }>();
+  return json({ jobs: rows.results ?? [], total: totalRow?.n ?? 0, limit, offset });
 }
 
 // Kontrola spojení: DB + živé ověření Anthropic / Telegram / MS Graph + stav Slacku.

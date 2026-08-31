@@ -100,6 +100,12 @@ Výsledcích. Je to něco jiného než `notifyThreshold` (od jakého skóre se *
 Uložené v D1, takže platí na všech zařízeních; v přehledu jde hodnotu dočasně přenastavit,
 ale neukládá se do prohlížeče (filtry Agentury/Stav ano).
 
+**Starší inzeráty:** v D1 se **nic nemaže** — historie sahá k prvnímu běhu (14. 6. 2026).
+Přehled načítá po **200** (`/api/jobs?limit=&offset=`, strop 500 na dotaz) a řadí ohodnocené
+podle skóre, zbytek podle data nálezu. Hlavička píše `X z Y` a pod tabulkou je **„Načíst
+starší"**; dokud se stránkovat nedalo, viselo tam jen „200 pozic" a 258 starších záznamů
+(14. 6. – 13. 8. 2026) bylo z UI nedosažitelných, ačkoli v databázi celou dobu byly.
+
 **Můj profil:** v Nastavení vlož CV / text o sobě → AI skóruje pozice přímo proti tobě
 (ne obecně). Změna profilu vynuluje skóre → příští běh přeskóruje.
 

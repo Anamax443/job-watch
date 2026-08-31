@@ -103,7 +103,7 @@
 
   <h2>Kvalita a kontroly</h2>
   <table>
-    <tr><th>Testy</th><td><b>45 testů</b> vestavěným <code>node --test</code> + <b>14 kontrol</b> filtru regionu. <b>Žádná nová závislost</b>, žádná infrastruktura — <code>npm test</code>.</td></tr>
+    <tr><th>Testy</th><td><b>75 testů</b> vestavěným <code>node --test</code> + <b>14 kontrol</b> filtru regionu. <b>Žádná nová závislost</b>, žádná infrastruktura — <code>npm test</code>.</td></tr>
     <tr><th>Co pokrývají</th><td>autorizace a allowlist · dedup / otisk / <code>contentHash</code> · prefiltr · normalizace odpovědi modelu · <code>util</code> · verdikty regionu a strop skóre</td></tr>
     <tr><th>Brána v CI</th><td><code>typecheck</code> → <code>test</code> → deploy. Když testy spadnou, <b>nenasadí se nic</b>.</td></tr>
     <tr><th>Tvar testů</th><td>Malý dílčí celek — jedna funkce, jeden vstup, jeden očekávaný výstup. Každý případ má v názvu, <b>proč</b> tam je; jeden je přímo živý incident s Prahou.</td></tr>
@@ -188,7 +188,7 @@
         <li class="ok">Deanonymizace agentur, kontaktní osoby</li>
         <li class="ok">Telegram / e-mail / Slack</li>
         <li class="ok">Autorizace v aplikaci + allowlist</li>
-        <li class="ok">45 testů + brána v CI</li>
+        <li class="ok">75 testů + brána v CI</li>
       </ul>
     </div>
     <div class="card todo-card">
