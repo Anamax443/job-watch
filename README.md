@@ -141,6 +141,9 @@ nezávisle na PC (secret `CLOUDFLARE_API_TOKEN`); ručně přes „Run workflow"
 
 Do bota jde napsat **`/pozice`** a přijde výpis pozic, které jsou pořád na portálu a mají
 skóre nad prahem. Práh se bere z Nastavení, nebo se dá napsat rovnou: **`/pozice 50`**.
+Z chatu jde běh i **spustit**: `/beh` (pojistka proti dvojímu spuštění — když už jeden jede,
+odpoví kdy začal), a `/stav` vrátí, jak dopadl poslední běh. `/start`, který Telegram posílá sám
+při prvním otevření chatu, schválně **nespouští** nic — vrací nápovědu.
 Dál `/help`. Ve skupině Telegram k příkazu připojuje jméno bota (`/pozice@Bot 60`) — parser to
 odřízne, stejně jako zvládne velké písmeno a překlep v čísle (spadne na práh z Nastavení,
 ne na chybu).

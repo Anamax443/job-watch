@@ -4,7 +4,7 @@
 // a formátování je jediné, co uživatel z celé aplikace v Telegramu uvidí.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPositions, helpText, isFresh, parseCommand, type PositionRow } from '../src/telegram.ts';
+import { formatPositions, formatRun, helpText, isFresh, parseCommand, type PositionRow } from '../src/telegram.ts';
 
 const row = (p: Partial<PositionRow> = {}): PositionRow => ({
   title: 'Vedoucí IT',
@@ -102,4 +102,46 @@ test('zpráva na hranici 10 minut ještě projde — cron chodí po pěti', () =
 
 test('chybějící datum se bere jako čerstvé — radši odpovědět navíc než mlčet', () => {
   assert.equal(isFresh(undefined, 1_800_000_000), true);
+});
+
+test('/beh, /run i /spustit spustí běh — a /start ne, ten posílá Telegram sám', () => {
+  assert.deepEqual(parseCommand('/beh'), { kind: 'run' });
+  assert.deepEqual(parseCommand('/run'), { kind: 'run' });
+  assert.deepEqual(parseCommand('/spustit'), { kind: 'run' });
+  // Telegram pošle /start při prvním otevření chatu. Kdyby to spouštělo běh, agent by
+  // se rozjel jen tím, že si někdo otevře konverzaci.
+  assert.deepEqual(parseCommand('/start'), { kind: 'help' });
+});
+
+test('/stav i /status se ptají na poslední běh', () => {
+  assert.deepEqual(parseCommand('/stav'), { kind: 'status' });
+  assert.deepEqual(parseCommand('/status@JobWatchBot'), { kind: 'status' });
+});
+
+test('nedoběhlý běh se nehlásí jako úspěch ani jako pád — je to „běží"', () => {
+  const t = formatRun({ started_at: '2026-08-31 14:00', finished_at: null, trigger: 'manual', ok: 0, stats: null });
+  assert.match(t, /ještě běží/);
+  assert.doesNotMatch(t, /❌|✅/);
+});
+
+test('doběhlý běh nese značku výsledku i čísla ze statistiky', () => {
+  const t = formatRun({
+    started_at: '2026-08-31 14:00',
+    finished_at: '2026-08-31 14:03',
+    trigger: 'cron',
+    ok: 1,
+    stats: '{"fetched":101,"candidates":65,"scored":15,"notified":0,"queueDepth":147,"prefiltered":9}',
+  });
+  assert.match(t, /^✅/);
+  assert.match(t, /staženo 101/);
+  assert.match(t, /vyřazeno filtrem bez AI 9/);
+});
+
+test('rozbitá statistika nesmí shodit odpověď — hlavička stačí', () => {
+  const t = formatRun({ started_at: 'a', finished_at: 'b', trigger: 'cron', ok: 0, stats: '{tohle není JSON' });
+  assert.match(t, /^❌/);
+});
+
+test('žádný běh v historii se řekne rovnou, ne prázdnou zprávou', () => {
+  assert.match(formatRun(null), /Zatím neproběhl/);
 });

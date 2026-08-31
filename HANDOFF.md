@@ -11,6 +11,28 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — z Telegramu jde běh i spustit (/beh, /stav)
+
+Doteď uměl bot jen číst. Přibylo:
+
+- **`/beh`** (`/run`, `/spustit`) — spustí běh toutéž cestou jako tlačítko v UI
+  (`runPipeline(env, 'manual')`). Pojistka: když už běh jede (`finished_at IS NULL` a start
+  do 15 minut zpět), odpoví „už jede od…" místo rozjetí druhého. Dotazování chodí po pěti
+  minutách a běh trvá minuty, takže netrpělivé druhé /beh je reálné.
+- **`/stav`** (`/status`) — jak dopadl poslední běh. Nedoběhlý se hlásí jako **⏳ běží**,
+  ne jako ✅ ani ❌; zrovna tady by tichá záměna zamlžila, že je agent mrtvý.
+- **`/start` schválně nespouští nic.** Telegram ho posílá sám při prvním otevření chatu —
+  kdyby to znamenalo „spusť běh", agent by se rozjel jen tím, že si někdo otevře konverzaci.
+  Vrací nápovědu.
+
+Spuštění se předává zvenčí (`PollDeps.startRun`), aby `telegram.ts` nemusel znát `pipeline.ts`
+— jinak by z toho byl kruh v importech a modul by nešlo testovat bez celého běhu.
+
+**Kontroly.** 6 testů (celkem **119**), mimo jiné že `/start` je nápověda a že rozbitá
+statistika v `runs.stats` neshodí odpověď.
+
+---
+
 ## 2026-08-31 — ruční hromadné skóre: vyfiltruj, zaškrtni, dej nulu
 
 **Zadání.** Umět některým inzerátům přiřadit skóre ručně a hromadně — vyfiltrovat si třeba

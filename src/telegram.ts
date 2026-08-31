@@ -29,6 +29,8 @@ export const MAX_ITEMS = 15;
 
 export type Command =
   | { kind: 'positions'; minScore: number | null }
+  | { kind: 'run' }
+  | { kind: 'status' }
   | { kind: 'help' }
   | { kind: 'unknown'; text: string };
 
@@ -53,7 +55,11 @@ export function parseCommand(raw: string | undefined | null): Command | null {
     if (!Number.isFinite(n)) return { kind: 'positions', minScore: null };
     return { kind: 'positions', minScore: Math.min(Math.max(n, 0), 100) };
   }
-  if (cmd === 'help' || cmd === 'start' || cmd === 'napoveda') return { kind: 'help' };
+  if (cmd === 'beh' || cmd === 'run' || cmd === 'spustit') return { kind: 'run' };
+  if (cmd === 'stav' || cmd === 'status') return { kind: 'status' };
+  if (cmd === 'help' || cmd === 'napoveda') return { kind: 'help' };
+  // /start posílá Telegram sám při prvním otevření chatu — nesmí spustit běh, jen nápovědu.
+  if (cmd === 'start') return { kind: 'help' };
   return { kind: 'unknown', text: cmd };
 }
 
@@ -108,12 +114,47 @@ export function formatPositions(rows: PositionRow[], minScore: number, total: nu
   return lines.join('\n');
 }
 
+export interface RunRow {
+  started_at: string;
+  finished_at: string | null;
+  trigger: string | null;
+  ok: number;
+  stats: string | null;
+}
+
+/**
+ * Poslední běh → text zprávy. Čistá funkce.
+ *
+ * Nedoběhlý běh se nesmí tvářit jako úspěšný ani jako pád: `finished_at IS NULL` znamená
+ * „běží", ne „selhal". Tohle je zrovna to místo, kde by tichá záměna zamlžila, že je agent mrtvý.
+ */
+export function formatRun(r: RunRow | null): string {
+  if (!r) return '📭 Zatím neproběhl žádný běh.';
+  if (!r.finished_at) return `⏳ Běh z ${r.started_at} ještě běží.`;
+  let s = '';
+  try {
+    const st = JSON.parse(r.stats ?? '{}');
+    s =
+      `
+staženo ${st.fetched ?? 0} · kandidátů ${st.candidates ?? 0} · ohodnoceno ${st.scored ?? 0}` +
+      `
+notifikováno ${st.notified ?? 0} · ve frontě ${st.queueDepth ?? 0}` +
+      (st.prefiltered ? `
+vyřazeno filtrem bez AI ${st.prefiltered}` : '');
+  } catch {
+    /* stats se nepovedlo přečíst — hlavička stačí */
+  }
+  return `${r.ok ? '✅' : '❌'} Běh ${r.started_at} → ${r.finished_at} (${r.trigger ?? '?'})${s}`;
+}
+
 export function helpText(defaultMin: number): string {
   return [
     '🔎 JobWatch — příkazy',
     '',
     `/pozice — pozice na portálu se skóre ≥ ${defaultMin} (práh z Nastavení)`,
     '/pozice 50 — totéž s vlastním prahem',
+    '/beh — spustit běh agenta teď',
+    '/stav — jak dopadl poslední běh',
     '/help — tenhle výpis',
     '',
     'Vypisují se jen inzeráty, které na portálu pořád jsou. Odpověď chodí do 5 minut —',
@@ -172,7 +213,16 @@ export interface PollResult {
  * neznámému chatu by z bota udělala veřejné čtení výsledků (kontaktní osoby, zaměstnavatelé).
  * Že se něco zahodilo, jde do logu Workeru, ať to není úplně neviditelné.
  */
-export async function pollTelegram(env: Env, settings: Settings): Promise<PollResult> {
+export interface PollDeps {
+  /** Spustí běh agenta. Předává se zvenčí, aby telegram.ts nemusel znát pipeline. */
+  startRun: () => void;
+}
+
+export async function pollTelegram(
+  env: Env,
+  settings: Settings,
+  deps: PollDeps,
+): Promise<PollResult> {
   const out: PollResult = { prislo: 0, vyrizeno: 0, cizich: 0, stare: 0 };
   await setMeta(env, HEARTBEAT_KEY, new Date().toISOString());
   const chatId = settings.telegramChatId;
@@ -220,6 +270,23 @@ export async function pollTelegram(env: Env, settings: Settings): Promise<PollRe
       const min = cmd.minScore ?? settings.minScore ?? 0;
       const { rows, total } = await loadPositions(env, min);
       await sendTelegram(env, chatId, formatPositions(rows, min, total));
+    } else if (cmd.kind === 'run') {
+      // Pojistka proti dvojímu spuštění: běh trvá minuty a dotazování chodí po pěti,
+      // takže netrpělivé druhé /beh by rozjelo dva běhy proti téže databázi.
+      const bezi = await env.DB.prepare(
+        "SELECT started_at FROM runs WHERE finished_at IS NULL AND started_at > datetime('now','-15 minutes') ORDER BY id DESC LIMIT 1",
+      ).first<{ started_at: string }>();
+      if (bezi) {
+        await sendTelegram(env, chatId, `⏳ Běh už jede od ${bezi.started_at}. Napiš /stav.`);
+      } else {
+        deps.startRun();
+        await sendTelegram(env, chatId, '▶️ Běh spuštěn. Trvá pár minut — pak napiš /stav.');
+      }
+    } else if (cmd.kind === 'status') {
+      const r = await env.DB.prepare(
+        'SELECT started_at, finished_at, trigger, ok, stats FROM runs ORDER BY id DESC LIMIT 1',
+      ).first<RunRow>();
+      await sendTelegram(env, chatId, formatRun(r ?? null));
     } else if (cmd.kind === 'help') {
       await sendTelegram(env, chatId, helpText(settings.minScore ?? 0));
     } else {
