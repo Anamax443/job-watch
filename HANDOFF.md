@@ -11,6 +11,30 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-08-31 — F4: prompt nese verzi, evaluační sada z reálných inzerátů
+
+- `src/prompts.ts` — prompty přestěhované z `score.ts` na jedno místo, texty beze změny.
+  `PROMPT_VERSION` se zapisuje do `runs.stats.promptVersion`.
+- `npm run check:prompt` — brána v CI: změní-li se soubor promptů a verze ne, nasazení
+  spadne. Bez toho by v uložených bězích ležela dvě znění pod jedním číslem.
+  Kontrolu dělá čistá funkce `needsVersionBump(diff)`, na ni 5 testů.
+- `evals/skorovani.json` — **26 reálných inzerátů** z produkční D1 s ručně dopsanou pravdou.
+  U každého je zapsané PROČ tam je; většina vznikla z konkrétního incidentu (Praha s 80/100,
+  „CIO" ve slově stacionář, manipulační dělník, ARKYS vyhozený zpřísněným prefiltrem).
+- `npm run evals` — deterministická část (prefiltr, kraj) běží vždy a je bránou v CI:
+  **26/26**. Modelová část potřebuje `ANTHROPIC_API_KEY`, takže se v CI hlasitě přeskočí —
+  „nešlo změřit" se nesmí tvářit jako „prošlo".
+
+**Stav proti build předpisu po dnešku:** F3 ✅, F5 ⚠️→✅ (přibylo označení AI), F6 ✅
+(vypínač i hlášení pádu), F4 ⚠️ (verze a sada jsou, modelová část evalů v CI zatím neběží —
+chybí klíč v secrets). Zbývá F0 (návrhový list), F1 (změřené jádro: přesnost, cena, čas)
+a F7 (nová verze napřed naslepo vedle ostré).
+
+**Aby modelová část jela i v CI**, stačí do GitHub secrets přidat `ANTHROPIC_API_KEY`
+a doplnit ho do kroku `npm run evals`. Do té doby brána měří jen deterministickou půlku.
+
+---
+
 ## 2026-08-31 — OPRAVA VLASTNÍ CHYBY: zpřísnění prefiltru vyhazovalo reálné leady
 
 **Co se stalo.** Odpoledne jsem zrušil propustku `j.source === 'jobs.cz'` v prefiltru

@@ -187,6 +187,28 @@ k běhu nepoužívá. Stav, naučené zdroje i nastavení žijí v D1.
 
 ---
 
+## Prompt a evaly (fáze F4 build předpisu)
+
+Prompty bydlí v [`src/prompts.ts`](src/prompts.ts) a nesou **`PROMPT_VERSION`**, která se
+zapisuje do `runs.stats.promptVersion` — u každého uloženého běhu je tedy vidět, podle jakého
+znění se skórovalo. Hlídá to brána v CI (`npm run check:prompt`): **změní-li se soubor promptů
+a číslo ne, nasazení spadne.** Jinak by v historii ležela dvě různá znění pod jedním číslem.
+
+Evaluační sada je v [`evals/skorovani.json`](evals/skorovani.json) — **26 reálných inzerátů**
+z produkční D1 s ručně dopsanou pravdou (ne opsanou z toho, co model kdysi vrátil — to by
+měřilo samo sebe). U každého případu je napsané, proč tam je; většina vznikla z konkrétního
+incidentu: pražský inzerát s 80/100, „CIO" chycené ve slově sta**cio**nář, manipulační dělník
+v přehledu, ARKYS vyhozený zpřísněným prefiltrem.
+
+`npm run evals` má dvě části:
+
+| Část | Co ověřuje | Kdy běží | Práh |
+|---|---|---|---|
+| deterministická | prefiltr a filtr kraje | vždy, i v CI | 100 % (invarianty) |
+| modelová | skutečné skórování promptem | jen s `ANTHROPIC_API_KEY` | 90 % |
+
+Bez klíče se modelová část **hlasitě přeskočí** — „nešlo změřit" se nesmí tvářit jako „prošlo".
+
 ## Testy
 
 Testy jsou **bez závislostí a bez infrastruktury** — vestavěný `node --test` nad čistými

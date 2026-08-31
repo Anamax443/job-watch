@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.ts\" && node scripts/region-check.ts",
     "check:region": "node scripts/region-check.ts",
+    "evals": "node scripts/evals.ts",
+    "check:prompt": "node scripts/prompt-check.ts",
     "db:init": "wrangler d1 execute job-watch --remote --file=schema.sql",
     "db:init:local": "wrangler d1 execute job-watch --local --file=schema.sql",
     "seed": "node --max-old-space-size=4096 scripts/seed.ts",

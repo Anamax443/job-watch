@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Dva commity: kontrola verze promptu porovnává HEAD~1..HEAD.
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -25,6 +28,15 @@ jobs:
       # Testy nepotřebují Worker, D1 ani síť — čisté funkce (dedup, region, prefiltr,
       # normalizace odpovědi modelu, autorizace). Když spadnou, nenasazuje se.
       - run: npm test
+      # Fáze F4 build předpisu: prompt je kód a nese verzi. Když se src/prompts.ts změní
+      # a PROMPT_VERSION ne, brána spadne — jinak by v uložených bězích ležela dvě různá
+      # znění promptu pod jedním číslem a změna chování by se nedala spárovat s příčinou.
+      - run: npm run check:prompt
+      # Evaluační sada nad reálnými inzeráty (evals/skorovani.json). Deterministická část
+      # (prefiltr, kraj) běží vždy a je to plnohodnotná brána; modelová část potřebuje klíč,
+      # takže se tady hlasitě přeskočí. Sada existuje kvůli chybě z 31. 8. 2026, kdy
+      # zpřísnění prefiltru opřené o špatný SQL agregát vyhazovalo 16 reálných leadů.
+      - run: npm run evals
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
