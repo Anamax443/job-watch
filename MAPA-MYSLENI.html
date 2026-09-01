@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — mapa myšlení</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#fff; --line:#d8dde5; --fg:#141922; --mut:#5d6879; --acc:#2b6cb0;
+    --c1:#2b6cb0; --c1b:#e8f0fb; --c2:#a2620a; --c2b:#fdf1dc;
+    --c3:#1f7a4d; --c3b:#e4f5ec; --c4:#7a3f8f; --c4b:#f3eaf7; --c5:#a3452f; --c5b:#fbeae6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0c0f15; --panel:#141925; --line:#2a3346; --fg:#e9edf5; --mut:#93a0b5; --acc:#7db3f5;
+      --c1:#7db3f5; --c1b:#16273d; --c2:#f0c07a; --c2b:#33260f;
+      --c3:#7fe0ae; --c3b:#12301f; --c4:#d3a7e6; --c4b:#2a1b31; --c5:#f0a08c; --c5b:#331a14;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.65 system-ui,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px 70px}
+  header{border-bottom:1px solid var(--line);background:var(--panel)}
+  header .wrap{padding:26px 22px}
+  .eyebrow{color:var(--mut);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
+  h1{margin:.3rem 0 0;font-size:1.85rem}
+  .stand{color:var(--mut);margin:.5rem 0 0;max-width:64ch}
+  h2{font-size:1.2rem;margin:2.2rem 0 .8rem;padding-top:.7rem;border-top:1px solid var(--line)}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+  svg.map{display:block;width:100%;min-width:860px;height:auto}
+  table{border-collapse:collapse;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:.6rem .9rem;border-bottom:1px solid var(--line);vertical-align:top;font-size:.94rem}
+  th{color:var(--mut);font-weight:600;width:24%}
+  tr:last-child td,tr:last-child th{border-bottom:0}
+  footer{color:var(--mut);font-size:.9rem;margin-top:2.4rem;padding-top:1rem;border-top:1px solid var(--line)}
+  a{color:var(--acc)}
+  .hub{fill:var(--panel);stroke:var(--fg);stroke-width:2}
+  .n1{fill:var(--c1b);stroke:var(--c1);stroke-width:1.6}
+  .n2{fill:var(--c2b);stroke:var(--c2);stroke-width:1.6}
+  .n3{fill:var(--c3b);stroke:var(--c3);stroke-width:1.6}
+  .n4{fill:var(--c4b);stroke:var(--c4);stroke-width:1.6}
+  .n5{fill:var(--c5b);stroke:var(--c5);stroke-width:1.6}
+  .leaf{fill:var(--panel);stroke:var(--line);stroke-width:1.2}
+  .th{fill:var(--fg);font:700 15px system-ui,sans-serif}
+  .tb{fill:var(--fg);font:600 12.5px system-ui,sans-serif}
+  .tl{fill:var(--mut);font:11px system-ui,sans-serif}
+  .ed{stroke:var(--line);stroke-width:1.5;fill:none}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="eyebrow">JobWatch · stav k 1. 9. 2026</div>
+  <h1>Mapa myšlení</h1>
+  <p class="stand">Ne architektura, ale <b>rozhodnutí a jejich důvody</b>. Skoro každá větev
+  téhle mapy vznikla z konkrétního incidentu — ne z návrhu na zeleném drnu. Kdo chce vědět,
+  jak agent funguje, ať jde do <a href="TOK-INFORMACI.html">toku informací</a>; tohle je o tom,
+  proč je postavený zrovna takhle.</p>
+</div></header>
+
+<div class="wrap">
+  <h2>Pět otázek, na kterých projekt stojí</h2>
+  <div class="board">
+    <svg class="map" viewBox="0 0 980 640" role="img"
+         aria-label="Mapa myšlení JobWatche: pět větví — kdo rozhoduje, jak poznáme že to funguje, co když to spadne, komu věříme, kolik to stojí.">
+      <path class="ed" d="M490,320 C420,320 400,150 350,120"></path>
+      <path class="ed" d="M490,320 C560,320 590,150 640,120"></path>
+      <path class="ed" d="M490,320 C400,330 300,420 250,470"></path>
+      <path class="ed" d="M490,320 C580,330 680,420 730,470"></path>
+      <path class="ed" d="M490,320 L490,540"></path>
+
+      <rect class="hub" x="392" y="292" width="196" height="56" rx="28"></rect>
+      <text class="th" x="490" y="317" text-anchor="middle">JobWatch</text>
+      <text class="tl" x="490" y="336" text-anchor="middle">agent, který čte trh práce za člověka</text>
+
+      <rect class="n1" x="150" y="60" width="230" height="52" rx="10"></rect>
+      <text class="tb" x="265" y="82" text-anchor="middle">1 · Kdo rozhoduje?</text>
+      <text class="tl" x="265" y="100" text-anchor="middle">model, nebo kód</text>
+      <rect class="leaf" x="20" y="130" width="200" height="46" rx="8"></rect>
+      <text class="tl" x="32" y="149">Model dělá jednu úlohu:</text>
+      <text class="tl" x="32" y="166">shodu inzerátu s profilem.</text>
+      <rect class="leaf" x="234" y="130" width="210" height="46" rx="8"></rect>
+      <text class="tl" x="246" y="149">Region, práh, dedup, odeslání</text>
+      <text class="tl" x="246" y="166">rozhoduje kód. Vždycky.</text>
+      <rect class="leaf" x="128" y="188" width="316" height="42" rx="8"></rect>
+      <text class="tl" x="140" y="214">Pravidlo: když si u kroku nejsi jistý, je to kód.</text>
+
+      <rect class="n2" x="600" y="60" width="230" height="52" rx="10"></rect>
+      <text class="tb" x="715" y="82" text-anchor="middle">2 · Jak poznáme, že to funguje?</text>
+      <text class="tl" x="715" y="100" text-anchor="middle">měření místo dojmu</text>
+      <rect class="leaf" x="536" y="130" width="216" height="46" rx="8"></rect>
+      <text class="tl" x="548" y="149">23 reálných inzerátů,</text>
+      <text class="tl" x="548" y="166">pravdu psal člověk předem.</text>
+      <rect class="leaf" x="766" y="130" width="194" height="46" rx="8"></rect>
+      <text class="tl" x="778" y="149">Běží uvnitř nasazené</text>
+      <text class="tl" x="778" y="166">verze, ne v laboratoři.</text>
+      <rect class="leaf" x="536" y="188" width="424" height="42" rx="8"></rect>
+      <text class="tl" x="548" y="214">Free model recall 50 %, Claude 100 %. Do 1. 9. 2026 to číslo neexistovalo.</text>
+
+      <rect class="n3" x="60" y="440" width="230" height="52" rx="10"></rect>
+      <text class="tb" x="175" y="462" text-anchor="middle">3 · Co když to spadne?</text>
+      <text class="tl" x="175" y="480" text-anchor="middle">ticho je nejhorší stav</text>
+      <rect class="leaf" x="20" y="508" width="200" height="46" rx="8"></rect>
+      <text class="tl" x="32" y="527">Pád jde do Telegramu,</text>
+      <text class="tl" x="32" y="544">ne jen do logu.</text>
+      <rect class="leaf" x="20" y="566" width="200" height="46" rx="8"></rect>
+      <text class="tl" x="32" y="585">Co se nestihne, čeká</text>
+      <text class="tl" x="32" y="602">ve frontě. Nic nemizí.</text>
+      <rect class="leaf" x="234" y="508" width="212" height="46" rx="8"></rect>
+      <text class="tl" x="246" y="527">Selhání vrací null, ne 0.</text>
+      <text class="tl" x="246" y="544">Nula znamená hotovo.</text>
+
+      <rect class="n4" x="690" y="440" width="230" height="52" rx="10"></rect>
+      <text class="tb" x="805" y="462" text-anchor="middle">4 · Komu věříme?</text>
+      <text class="tl" x="805" y="480" text-anchor="middle">nikomu zvenčí</text>
+      <rect class="leaf" x="760" y="508" width="200" height="46" rx="8"></rect>
+      <text class="tl" x="772" y="527">Text inzerátu je DATA,</text>
+      <text class="tl" x="772" y="544">ne pokyn pro model.</text>
+      <rect class="leaf" x="760" y="566" width="200" height="46" rx="8"></rect>
+      <text class="tl" x="772" y="585">Za Accessem, a přesto</text>
+      <text class="tl" x="772" y="602">ověřuje i aplikace.</text>
+      <rect class="leaf" x="534" y="508" width="212" height="46" rx="8"></rect>
+      <text class="tl" x="546" y="527">V datech jsou kontakty</text>
+      <text class="tl" x="546" y="544">třetích osob → chráněné čtení.</text>
+
+      <rect class="n5" x="375" y="540" width="230" height="52" rx="10"></rect>
+      <text class="tb" x="490" y="562" text-anchor="middle">5 · Kolik to stojí?</text>
+      <text class="tl" x="490" y="580" text-anchor="middle">a co za to</text>
+      <rect class="leaf" x="375" y="600" width="230" height="34" rx="8"></rect>
+      <text class="tl" x="387" y="622">82 Kč/měsíc = polovina navíc nalezených leadů.</text>
+    </svg>
+  </div>
+
+  <h2>Odkud se ta rozhodnutí vzala</h2>
+  <table>
+    <tr><th>Region rozhoduje kód</th>
+      <td>5. 8. 2026 poslal agent pražský inzerát se skóre 80/100 a zdůvodněním „lokalita je
+      v Praze, což je v preferovaném regionu", ačkoli v nastavení stálo Brno. Pravidlo bylo
+      jen věta v promptu a slabý model ji ignoroval. <b>Tvrdá kritéria nepatří do promptu.</b></td></tr>
+    <tr><th>Fronta místo zahazování</th>
+      <td>Denní běh reálně ohodnotil 3 z 91 kandidátů a 88 zahodil — přírůstek se stahuje jen
+      jednou a kurzor se posunul. Co se nestihne, se od té doby ukládá bez skóre.</td></tr>
+    <tr><th>Selhání vrací null</th>
+      <td><code>Number(null)</code> je 0 a nula ve smyčce znamená „hotovo" — inzerát by uvízl
+      navždy. Chybu našel test při psaní, ne provoz.</td></tr>
+    <tr><th>Měřit uvnitř nasazené verze</th>
+      <td>Sada nejdřív volala Claude napřímo, jenže produkce skórovala přes free model. Měřila
+      tedy jinou příčku žebříku, než která rozhoduje. <b>Měřicí přístroj namířený vedle je horší
+      než žádný</b> — vyrábí falešnou jistotu.</td></tr>
+    <tr><th>Cizí text jako data</th>
+      <td>Popis inzerátu píše kdokoli. Do 1. 9. 2026 se lepil rovnou do dotazu; škodu držely
+      v mezích jen JSON schéma a strop regionu, což bylo štěstí z návrhu, ne obrana.</td></tr>
+    <tr><th>Otazník místo tichého zahození</th>
+      <td>Inzerát bez lokality nemohl projít nikdy — strop ho držel pod prahem. Přitom o lead
+      se nemá přijít kvůli prázdnému poli. Odvodit kraj odjinud nešlo (4 z 5 takových inzerátů
+      nemají město ani v popisu), tak radši projde s <b>⚠</b>.</td></tr>
+  </table>
+
+  <footer>
+    Součást dokumentace projektu JobWatch. Tok informací:
+    <a href="TOK-INFORMACI.html">TOK-INFORMACI.html</a> · diagram běhu:
+    <a href="BEH-AGENTA.html">BEH-AGENTA.html</a> · stav:
+    <a href="STATUS.html">STATUS.html</a> · pro vedení:
+    <a href="PREHLED-VEDENI.html">PREHLED-VEDENI.html</a>.
+    English: <a href="MAPA-MYSLENI.en.html">MAPA-MYSLENI.en.html</a>.
+  </footer>
+</div>
+</body></html>

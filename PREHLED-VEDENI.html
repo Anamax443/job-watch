@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — shrnutí pro vedení</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 14mm 12mm; }
+  :root{
+    --ink:#10161f; --mut:#5b6675; --line:#d5dae2; --acc:#1f5ea8;
+    --codebg:#eef3fa; --okbg:#e9f6ef; --ok:#1c7a4c; --warnbg:#fdf3e3; --warn:#8a5a12;
+  }
+  *{box-sizing:border-box}
+  html,body{background:#eceff3}
+  body{margin:0;color:var(--ink);font:11pt/1.5 "Segoe UI",system-ui,Roboto,sans-serif}
+  .page{
+    width:210mm; min-height:297mm; margin:10mm auto; padding:14mm 14mm 12mm;
+    background:#fff; box-shadow:0 2px 14px rgba(0,0,0,.14);
+  }
+  h1{margin:0;font-size:20pt;letter-spacing:-.01em}
+  .sub{color:var(--mut);font-size:10pt;margin-top:2mm}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;
+        border-bottom:2px solid var(--ink);padding-bottom:4mm}
+  .badge{font-size:8.5pt;font-weight:700;color:#fff;background:var(--ok);
+         padding:1.4mm 3mm;border-radius:3mm;white-space:nowrap}
+  h2{font-size:11.5pt;margin:6mm 0 2.5mm;padding-bottom:1mm;border-bottom:1px solid var(--line);
+     text-transform:uppercase;letter-spacing:.06em;color:var(--acc)}
+  p{margin:0 0 2.5mm}
+  .lead{font-size:11.5pt}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+  .kpi{border:1px solid var(--line);border-radius:2mm;padding:3mm;background:var(--okbg)}
+  .kpi .n{font-size:16pt;font-weight:700;line-height:1.1;color:var(--ok)}
+  .kpi .l{font-size:8.5pt;color:var(--mut);margin-top:1mm}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:2.5mm;margin:0}
+  .step{border:1px solid var(--line);border-radius:2mm;padding:2.5mm 3mm;background:#fafbfd}
+  .step .k{font-size:8pt;font-weight:700;color:var(--acc);letter-spacing:.06em}
+  .step .h{font-weight:700;font-size:10pt;margin:.8mm 0}
+  .step .d{font-size:8.6pt;color:var(--mut);line-height:1.35}
+  table{border-collapse:collapse;width:100%;font-size:9.5pt}
+  th,td{text-align:left;padding:1.8mm 2mm;border-bottom:1px solid var(--line);vertical-align:top}
+  th{width:34%;color:var(--mut);font-weight:600}
+  tr:last-child th,tr:last-child td{border-bottom:0}
+  .box{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:2mm;
+       padding:3mm 3.5mm;background:#fafbfd;font-size:9.8pt}
+  .box.warn{border-left-color:var(--warn);background:var(--warnbg)}
+  ul{margin:0;padding-left:5mm}
+  li{margin:1mm 0;font-size:9.8pt}
+  code{background:var(--codebg);padding:.2mm 1.2mm;border-radius:1mm;font-size:9pt}
+  footer{margin-top:6mm;padding-top:2.5mm;border-top:1px solid var(--line);
+         color:var(--mut);font-size:8.5pt;display:flex;justify-content:space-between}
+  @media print{
+    html,body{background:#fff}
+    .page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="head">
+    <div>
+      <h1>JobWatch</h1>
+      <div class="sub">Automatický monitor pracovních nabídek · shrnutí pro vedení · 1. 9. 2026</div>
+    </div>
+    <span class="badge">V PROVOZU</span>
+  </div>
+
+  <h2>K čemu to je</h2>
+  <p class="lead">Každý den projde celý český trh práce, vybere z něj vedoucí IT pozice,
+  posoudí je proti konkrétnímu profilu uchazeče a to podstatné pošle na Telegram, e-mail
+  nebo do Slacku. Člověk nečte inzeráty — čte jen výsledek a rozhoduje, co s ním.</p>
+  <p>Systém běží v cloudu bez vlastního serveru, nezávisle na zapnutém počítači,
+  a od 14. 6. 2026 nepřetržitě.</p>
+
+  <h2>Jak to pracuje</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="k">1 · SBĚR</div>
+      <div class="h">100 inzerátů denně</div>
+      <div class="d">Otevřená data MPSV (celý trh ČR), pracovní portály a kariérní stránky firem.</div>
+    </div>
+    <div class="step">
+      <div class="k">2 · FILTR</div>
+      <div class="h">86 z nich odpadne</div>
+      <div class="d">Pevná pravidla podle oboru, klasifikace pozice a kraje. Rozhoduje program, ne AI.</div>
+    </div>
+    <div class="step">
+      <div class="k">3 · POSOUZENÍ</div>
+      <div class="h">14 posoudí AI</div>
+      <div class="d">Jediné místo, kde rozhoduje umělá inteligence: jak moc pozice sedí na profil.</div>
+    </div>
+    <div class="step">
+      <div class="k">4 · VÝSTUP</div>
+      <div class="h">Zpráva člověku</div>
+      <div class="d">Co projde prahem, dorazí do 24 hodin. Nejvýš 10 zpráv denně, ať nevznikne lavina.</div>
+    </div>
+  </div>
+
+  <h2>Změřené výsledky</h2>
+  <div class="grid3">
+    <div class="kpi">
+      <div class="n">100 %</div>
+      <div class="l">přesnost — z odeslaných nabídek nebyla ani jedna mimo zadání</div>
+    </div>
+    <div class="kpi">
+      <div class="n">100 %</div>
+      <div class="l">úplnost — z vhodných nabídek neunikla ani jedna</div>
+    </div>
+    <div class="kpi">
+      <div class="n">82 Kč</div>
+      <div class="l">měsíční provozní náklad · infrastruktura zdarma</div>
+    </div>
+  </div>
+  <p style="margin-top:3mm">Měřeno 1. 9. 2026 na <b>23 skutečných inzerátech</b> z provozní databáze,
+  u nichž byl správný výsledek určen ručně předem. Měření běží uvnitř nasazené verze, ne v laboratoři,
+  takže popisuje totéž, co obsluhuje ostrý provoz.</p>
+
+  <div class="box"><b>Proč na tom čísle záleží.</b> Do 1. 9. 2026 systém běžel bez měření kvality —
+  fungoval, ale nikdo nedokázal doložit jak dobře. Měření rovnou ukázalo, že bezplatný jazykový model
+  přehlédl <b>polovinu</b> vhodných nabídek, zatímco placený je našel všechny. Rozdíl mezi 0 a 82 Kč
+  měsíčně je tedy rozdíl mezi polovinou a všemi příležitostmi.</div>
+
+  <h2>Kde má AI hranice</h2>
+  <table>
+    <tr>
+      <th>AI rozhoduje o jediné věci</th>
+      <td>Jak dobře pozice odpovídá profilu. Obor, kraj, duplicita, práh i odeslání řeší pevná
+      pravidla v programu — tedy věci, které jdou otestovat a zopakovat.</td>
+    </tr>
+    <tr>
+      <th>AI nemá přístup k nevratným krokům</th>
+      <td>Vrací číslo a krátké zdůvodnění. Jestli se zpráva odešle, rozhoduje program.</td>
+    </tr>
+    <tr>
+      <th>Text inzerátu je bráný jako data</th>
+      <td>Inzeráty píšou cizí lidé. Text je proto do dotazu vložen ohraničeně a označen jako
+      nedůvěryhodný, aby v něm skrytý pokyn nemohl systém ovlivnit.</td>
+    </tr>
+    <tr>
+      <th>Selhání je vidět</th>
+      <td>Když běh spadne nebo ho ukončí platforma, přijde zpráva. „Dnes nic nenašel" a „dnes
+      to spadlo" nesmí vypadat stejně.</td>
+    </tr>
+  </table>
+
+  <h2>Stav a co dál</h2>
+  <div class="grid2">
+    <div class="box">
+      <b>Hotovo</b>
+      <ul>
+        <li>Nepřetržitý provoz, denní běh v 7:00</li>
+        <li>Kvalita AI změřena a doložena</li>
+        <li>Obrana proti manipulaci cizím textem</li>
+        <li>Přístup jen pro ověřenou identitu</li>
+        <li>174 automatických kontrol před každým nasazením</li>
+      </ul>
+    </div>
+    <div class="box warn">
+      <b>Otevřené</b>
+      <ul>
+        <li>Testovací sada je plně zelená, a tím přestala rozlišovat — potřebuje těžší případy</li>
+        <li>Klíče k službám uložené v databázi bez šifrování</li>
+        <li>Souběžný běh nové verze naslepo vedle ostré</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="box" style="margin-top:4mm"><b>Přenositelnost.</b> Postup vznikl podle obecného
+  předpisu pro stavbu AI agentů a JobWatch je jeho první ostrá zkouška. Stejná kostra — pevná
+  pravidla vpředu, AI na jednu úlohu, měření a brzda za ní — je použitelná na libovolnou agendu,
+  kde se dnes ručně prochází velký objem textu.</div>
+
+  <footer>
+    <span>JobWatch · Cloudflare Worker · provoz od 14. 6. 2026 · commit 970fca8</span>
+    <span>Milan Trnka</span>
+  </footer>
+
+</div>
+</body></html>

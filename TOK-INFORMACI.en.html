@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — information flow</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#fff; --line:#d8dde5; --fg:#141922; --mut:#5d6879;
+    --code:#2b6cb0; --codebg:#e8f0fb; --model:#a2620a; --modelbg:#fdf1dc;
+    --out:#1f7a4d; --outbg:#e4f5ec; --warn:#a3452f; --acc:#2b6cb0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0c0f15; --panel:#141925; --line:#2a3346; --fg:#e9edf5; --mut:#93a0b5;
+      --code:#7db3f5; --codebg:#16273d; --model:#f0c07a; --modelbg:#33260f;
+      --out:#7fe0ae; --outbg:#12301f; --warn:#f0a08c; --acc:#7db3f5;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15.5px/1.65 system-ui,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px 70px}
+  header{border-bottom:1px solid var(--line);background:var(--panel)}
+  header .wrap{padding:26px 22px}
+  .eyebrow{color:var(--mut);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
+  h1{margin:.3rem 0 0;font-size:1.85rem}
+  .stand{color:var(--mut);margin:.5rem 0 0;max-width:62ch}
+  h2{font-size:1.2rem;margin:2.2rem 0 .8rem;padding-top:.7rem;border-top:1px solid var(--line)}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+         padding:14px;overflow-x:auto}
+  svg.dgm{display:block;width:100%;min-width:820px;height:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem;margin:.9rem 0 0;font-size:.9rem;color:var(--mut)}
+  .legend b{color:var(--fg)}
+  .chip{display:inline-block;width:.8rem;height:.8rem;border-radius:3px;vertical-align:-1px;margin-right:.35rem}
+  table{border-collapse:collapse;width:100%;background:var(--panel);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:.6rem .9rem;border-bottom:1px solid var(--line);
+        vertical-align:top;font-size:.94rem}
+  th{color:var(--mut);font-weight:600;width:26%}
+  tr:last-child td,tr:last-child th{border-bottom:0}
+  code{background:var(--codebg);color:var(--code);padding:.08rem .38rem;
+       border-radius:5px;font-size:.88em}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc);
+        border-radius:10px;padding:.75rem 1rem;margin:1rem 0}
+  footer{color:var(--mut);font-size:.9rem;margin-top:2.4rem;padding-top:1rem;
+         border-top:1px solid var(--line)}
+  a{color:var(--acc)}
+  .bx{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+  .bx-code{fill:var(--codebg);stroke:var(--code);stroke-width:1.5}
+  .bx-model{fill:var(--modelbg);stroke:var(--model);stroke-width:1.5}
+  .bx-out{fill:var(--outbg);stroke:var(--out);stroke-width:1.5}
+  .t{fill:var(--fg);font:600 13px system-ui,sans-serif}
+  .ts{fill:var(--mut);font:11.5px system-ui,sans-serif}
+  .tw{fill:var(--warn);font:600 11.5px system-ui,sans-serif}
+  .ln{stroke:var(--mut);stroke-width:1.6;fill:none}
+  .ln-d{stroke:var(--mut);stroke-width:1.4;fill:none;stroke-dasharray:5 4}
+  .mk{fill:var(--mut)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="eyebrow">JobWatch · state as of 1 Sep 2026</div>
+  <h1>Information flow</h1>
+  <p class="stand">How a job ad travels from source to human — and above all <b>who decides at each step</b>.
+  Blue is code: deterministic, testable, repeatable. Amber is the model: judgement that has to be
+  measured. The whole point of the design is to keep the amber boxes few, and to let none of them
+  have the last word.</p>
+</div></header>
+
+<div class="wrap">
+  <h2>The journey of one ad</h2>
+  <div class="board">
+    <svg class="dgm" viewBox="0 0 980 600" role="img"
+         aria-label="Information flow: sources, collection, deterministic prefilter and dedup, model scoring with delimited third-party text, deterministic region cap, model de-anonymisation, threshold and caps in code, notifications and the human.">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+        </marker>
+      </defs>
+
+      <text class="ts" x="20" y="24">1 · COLLECT</text>
+      <rect class="bx" x="20" y="34" width="150" height="106" rx="8"></rect>
+      <text class="t"  x="95" y="56" text-anchor="middle">Sources</text>
+      <text class="ts" x="95" y="76" text-anchor="middle">Labour Office (whole CZ market)</text>
+      <text class="ts" x="95" y="93" text-anchor="middle">jobs.cz · prace.cz</text>
+      <text class="ts" x="95" y="110" text-anchor="middle">Company ATS · Adzuna</text>
+      <text class="tw" x="95" y="131" text-anchor="middle">third-party text, unreviewed</text>
+
+      <path class="ln" d="M170,87 L214,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="216" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="291" y="72" text-anchor="middle">Fetch + cursor</text>
+      <text class="ts" x="291" y="92" text-anchor="middle">increments, time limits</text>
+      <text class="ts" x="291" y="109" text-anchor="middle">subrequest budget</text>
+
+      <path class="ln" d="M366,87 L410,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="412" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="487" y="72" text-anchor="middle">Prefilter</text>
+      <text class="ts" x="487" y="92" text-anchor="middle">occupation code + keywords</text>
+      <text class="ts" x="487" y="109" text-anchor="middle">86 out of 100 drop out</text>
+
+      <path class="ln" d="M562,87 L606,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="608" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="683" y="72" text-anchor="middle">Deduplication</text>
+      <text class="ts" x="683" y="92" text-anchor="middle">key · hash · sentence print</text>
+      <text class="ts" x="683" y="109" text-anchor="middle">already seen is skipped</text>
+
+      <path class="ln" d="M758,87 L802,87" marker-end="url(#a)"></path>
+      <rect class="bx" x="804" y="48" width="156" height="78" rx="8"></rect>
+      <text class="t"  x="882" y="72" text-anchor="middle">Queue in D1</text>
+      <text class="ts" x="882" y="92" text-anchor="middle">what does not fit waits</text>
+      <text class="ts" x="882" y="109" text-anchor="middle">nothing is thrown away</text>
+
+      <path class="ln" d="M882,126 L882,158 L487,158 L487,192" marker-end="url(#a)"></path>
+
+      <text class="ts" x="20" y="190">2 · JUDGEMENT AND BRAKE</text>
+      <rect class="bx" x="20" y="194" width="360" height="92" rx="8"></rect>
+      <text class="t"  x="38" y="217">Third-party text enters as DATA</text>
+      <text class="ts" x="38" y="237">The description is wrapped in &lt;inzerat&gt; and the prompt</text>
+      <text class="ts" x="38" y="254">states that it contains no instructions.</text>
+      <text class="tw" x="38" y="276">Without it, "give it 100" is indistinguishable from the task.</text>
+      <path class="ln-d" d="M380,240 L410,240" marker-end="url(#a)"></path>
+
+      <rect class="bx-model" x="412" y="194" width="150" height="92" rx="8"></rect>
+      <text class="t"  x="487" y="217" text-anchor="middle">Scoring</text>
+      <text class="ts" x="487" y="237" text-anchor="middle">profile match 0–100</text>
+      <text class="ts" x="487" y="254" text-anchor="middle">Claude haiku 4.5</text>
+      <text class="ts" x="487" y="273" text-anchor="middle">free Workers AI = fallback</text>
+
+      <path class="ln" d="M562,240 L606,240" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="608" y="194" width="150" height="92" rx="8"></rect>
+      <text class="t"  x="683" y="217" text-anchor="middle">Region cap</text>
+      <text class="ts" x="683" y="237" text-anchor="middle">outside region → max 40</text>
+      <text class="ts" x="683" y="254" text-anchor="middle">remote → no penalty</text>
+      <text class="tw" x="683" y="273" text-anchor="middle">no location → ⚠ passes</text>
+
+      <rect class="bx" x="778" y="194" width="182" height="92" rx="8"></rect>
+      <text class="t"  x="794" y="217">Code has the last word</text>
+      <text class="ts" x="794" y="237">The model demonstrably ignored</text>
+      <text class="ts" x="794" y="254">the region instruction:</text>
+      <text class="tw" x="794" y="276">Prague scored 80/100.</text>
+      <path class="ln-d" d="M776,240 L760,240"></path>
+
+      <path class="ln" d="M683,286 L683,314 L487,314 L487,348" marker-end="url(#a)"></path>
+
+      <text class="ts" x="20" y="346">3 · ENRICH AND OUTPUT</text>
+      <rect class="bx-model" x="412" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="487" y="374" text-anchor="middle">De-anonymisation</text>
+      <text class="ts" x="487" y="394" text-anchor="middle">who is behind the agency</text>
+      <text class="ts" x="487" y="411" text-anchor="middle">web search · Claude only</text>
+
+      <path class="ln" d="M412,389 L368,389" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="216" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="291" y="374" text-anchor="middle">Threshold and caps</text>
+      <text class="ts" x="291" y="394" text-anchor="middle">score ≥ 70 → send</text>
+      <text class="ts" x="291" y="411" text-anchor="middle">max 10 messages per run</text>
+
+      <path class="ln" d="M216,389 L172,389" marker-end="url(#a)"></path>
+      <rect class="bx-out" x="20" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="95" y="374" text-anchor="middle">Notifications</text>
+      <text class="ts" x="95" y="394" text-anchor="middle">Telegram · e-mail</text>
+      <text class="ts" x="95" y="411" text-anchor="middle">Slack · AI disclosed</text>
+
+      <path class="ln" d="M95,428 L95,466" marker-end="url(#a)"></path>
+      <rect class="bx-out" x="20" y="468" width="150" height="62" rx="8"></rect>
+      <text class="t"  x="95" y="493" text-anchor="middle">Human</text>
+      <text class="ts" x="95" y="513" text-anchor="middle">decides what happens next</text>
+
+      <path class="ln-d" d="M170,499 L214,499" marker-end="url(#a)"></path>
+      <rect class="bx" x="216" y="468" width="240" height="62" rx="8"></rect>
+      <text class="t"  x="234" y="492">Feedback</text>
+      <text class="ts" x="234" y="513">Telegram: /beh · /pozice · /stav · Stop</text>
+      <path class="ln-d" d="M456,499 L520,499 L520,430" marker-end="url(#a)"></path>
+
+      <rect class="bx" x="608" y="350" width="352" height="180" rx="8"></rect>
+      <text class="t"  x="626" y="374">Where it is measured</text>
+      <text class="ts" x="626" y="396">A set of 23 real ads runs INSIDE the</text>
+      <text class="ts" x="626" y="413">deployed Worker, through the same scoreJob,</text>
+      <text class="ts" x="626" y="430">prompt and backend ladder as production.</text>
+      <text class="ts" x="626" y="455">Result 1 Sep 2026 · Claude:</text>
+      <text class="t"  x="626" y="477">precision 100 % · recall 100 %</text>
+      <text class="t"  x="626" y="497">effective recall 100 % · coverage 100 %</text>
+      <text class="tw" x="626" y="519">The free model scored 50 % recall on the same set.</text>
+      <path class="ln-d" d="M758,240 L784,240 L784,348"></path>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <span><span class="chip" style="background:var(--codebg);border:1.5px solid var(--code)"></span><b>code</b> — deterministic, testable, last word</span>
+    <span><span class="chip" style="background:var(--modelbg);border:1.5px solid var(--model)"></span><b>model</b> — judgement, measured by evals</span>
+    <span><span class="chip" style="background:var(--outbg);border:1.5px solid var(--out)"></span><b>output</b> — out of the agent</span>
+  </div>
+
+  <h2>What follows from this</h2>
+  <table>
+    <tr><th>The model has one job</th>
+      <td>To judge how well an ad matches the profile. Everything else — source selection, prefilter,
+      deduplication, region, threshold, caps, writes, sending — is done by code. <b>The model has no
+      direct access to any irreversible action</b>: it returns a number and a sentence; what happens with them is up to the code.</td></tr>
+    <tr><th>Third-party text never acts as instructions</th>
+      <td>The ad description is written by an employer or an agency. It enters the prompt wrapped in
+      <code>&lt;inzerat&gt;</code>, a closing tag inside the input is neutralised, and the system prompt
+      states that there are no instructions inside.</td></tr>
+    <tr><th>The brake sits after the model, not in the prompt</th>
+      <td>The region rule started as a mere sentence in the prompt — and the weak model ignored it:
+      a Prague ad scored 80/100 with the reasoning that Prague is in the preferred region.
+      Now the region is derived deterministically from the location text and the score is capped.</td></tr>
+    <tr><th>Nothing is lost silently</th>
+      <td>What is not scored in time waits in the queue. What fails returns <code>null</code>, not zero.
+      What has an unverifiable location passes with a <b>⚠</b> instead of being dropped. A crashed run sends
+      a message through the same channel as a find.</td></tr>
+  </table>
+
+  <div class="note"><b>The only amber box with real power is scoring</b> — and that is exactly why
+  it is the only one with its own measurement. Until that number existed, the quality of the agent was a matter of opinion.</div>
+
+  <footer>
+    Part of the JobWatch project documentation. Run diagram:
+    <a href="BEH-AGENTA.en.html">BEH-AGENTA.en.html</a> · deployment status:
+    <a href="STATUS.en.html">STATUS.en.html</a> · management summary:
+    <a href="PREHLED-VEDENI.en.html">PREHLED-VEDENI.en.html</a> · log: <code>HANDOFF.en.md</code>.
+    Česky: <a href="TOK-INFORMACI.html">TOK-INFORMACI.html</a>.
+  </footer>
+</div>
+</body></html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — executive summary</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 14mm 12mm; }
+  :root{
+    --ink:#10161f; --mut:#5b6675; --line:#d5dae2; --acc:#1f5ea8;
+    --codebg:#eef3fa; --okbg:#e9f6ef; --ok:#1c7a4c; --warnbg:#fdf3e3; --warn:#8a5a12;
+  }
+  *{box-sizing:border-box}
+  html,body{background:#eceff3}
+  body{margin:0;color:var(--ink);font:11pt/1.5 "Segoe UI",system-ui,Roboto,sans-serif}
+  .page{
+    width:210mm; min-height:297mm; margin:10mm auto; padding:14mm 14mm 12mm;
+    background:#fff; box-shadow:0 2px 14px rgba(0,0,0,.14);
+  }
+  h1{margin:0;font-size:20pt;letter-spacing:-.01em}
+  .sub{color:var(--mut);font-size:10pt;margin-top:2mm}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;
+        border-bottom:2px solid var(--ink);padding-bottom:4mm}
+  .badge{font-size:8.5pt;font-weight:700;color:#fff;background:var(--ok);
+         padding:1.4mm 3mm;border-radius:3mm;white-space:nowrap}
+  h2{font-size:11.5pt;margin:6mm 0 2.5mm;padding-bottom:1mm;border-bottom:1px solid var(--line);
+     text-transform:uppercase;letter-spacing:.06em;color:var(--acc)}
+  p{margin:0 0 2.5mm}
+  .lead{font-size:11.5pt}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+  .kpi{border:1px solid var(--line);border-radius:2mm;padding:3mm;background:var(--okbg)}
+  .kpi .n{font-size:16pt;font-weight:700;line-height:1.1;color:var(--ok)}
+  .kpi .l{font-size:8.5pt;color:var(--mut);margin-top:1mm}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:2.5mm;margin:0}
+  .step{border:1px solid var(--line);border-radius:2mm;padding:2.5mm 3mm;background:#fafbfd}
+  .step .k{font-size:8pt;font-weight:700;color:var(--acc);letter-spacing:.06em}
+  .step .h{font-weight:700;font-size:10pt;margin:.8mm 0}
+  .step .d{font-size:8.6pt;color:var(--mut);line-height:1.35}
+  table{border-collapse:collapse;width:100%;font-size:9.5pt}
+  th,td{text-align:left;padding:1.8mm 2mm;border-bottom:1px solid var(--line);vertical-align:top}
+  th{width:34%;color:var(--mut);font-weight:600}
+  tr:last-child th,tr:last-child td{border-bottom:0}
+  .box{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:2mm;
+       padding:3mm 3.5mm;background:#fafbfd;font-size:9.8pt}
+  .box.warn{border-left-color:var(--warn);background:var(--warnbg)}
+  ul{margin:0;padding-left:5mm}
+  li{margin:1mm 0;font-size:9.8pt}
+  code{background:var(--codebg);padding:.2mm 1.2mm;border-radius:1mm;font-size:9pt}
+  footer{margin-top:6mm;padding-top:2.5mm;border-top:1px solid var(--line);
+         color:var(--mut);font-size:8.5pt;display:flex;justify-content:space-between}
+  @media print{
+    html,body{background:#fff}
+    .page{width:auto;min-height:0;margin:0;padding:0;box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="head">
+    <div>
+      <h1>JobWatch</h1>
+      <div class="sub">Automated job-vacancy monitor · executive summary · 1 Sep 2026</div>
+    </div>
+    <span class="badge">IN PRODUCTION</span>
+  </div>
+
+  <h2>What it is for</h2>
+  <p class="lead">Every day it goes through the entire Czech labour market, picks out IT leadership roles,
+  assesses them against one specific candidate profile, and sends what matters to Telegram, e-mail
+  or Slack. A person does not read job ads — only the result, and decides what to do with it.</p>
+  <p>The system runs in the cloud with no server of its own, independent of any switched-on computer,
+  and continuously since 14 Jun 2026.</p>
+
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="k">1 · COLLECT</div>
+      <div class="h">100 ads a day</div>
+      <div class="d">Labour Office open data (whole CZ market), job portals and company career pages.</div>
+    </div>
+    <div class="step">
+      <div class="k">2 · FILTER</div>
+      <div class="h">86 of them drop out</div>
+      <div class="d">Fixed rules on field, occupation code and region. The program decides, not the AI.</div>
+    </div>
+    <div class="step">
+      <div class="k">3 · ASSESSMENT</div>
+      <div class="h">AI assesses 14</div>
+      <div class="d">The single place where artificial intelligence decides: how well a role fits the profile.</div>
+    </div>
+    <div class="step">
+      <div class="k">4 · OUTPUT</div>
+      <div class="h">A message to a human</div>
+      <div class="d">Whatever passes the threshold arrives within 24 hours. At most 10 messages a day, to avoid an avalanche.</div>
+    </div>
+  </div>
+
+  <h2>Measured results</h2>
+  <div class="grid3">
+    <div class="kpi">
+      <div class="n">100 %</div>
+      <div class="l">precision — not one of the ads sent was off-brief</div>
+    </div>
+    <div class="kpi">
+      <div class="n">100 %</div>
+      <div class="l">recall — not one suitable ad was missed</div>
+    </div>
+    <div class="kpi">
+      <div class="n">CZK 82</div>
+      <div class="l">monthly running cost · infrastructure free of charge</div>
+    </div>
+  </div>
+  <p style="margin-top:3mm">Measured on 1 Sep 2026 against <b>23 real job ads</b> from the production database,
+  for which the correct answer had been determined by hand in advance. The measurement runs inside the deployed version, not in a lab,
+  so it describes exactly what serves live traffic.</p>
+
+  <div class="box"><b>Why that number matters.</b> Until 1 Sep 2026 the system ran without any quality measurement —
+  it worked, but nobody could show how well. The measurement immediately revealed that the free language model
+  missed <b>half</b> of the suitable ads, while the paid one found all of them. The difference between CZK 0 and 82
+  a month is therefore the difference between half the opportunities and all of them.</div>
+
+  <h2>Where the AI stops</h2>
+  <table>
+    <tr>
+      <th>The AI decides one thing only</th>
+      <td>How well a role matches the profile. Field, region, duplicates, threshold and sending are handled by fixed
+      rules in the program — things that can be tested and repeated.</td>
+    </tr>
+    <tr>
+      <th>The AI has no access to irreversible steps</th>
+      <td>It returns a number and a short justification. Whether a message goes out is decided by the program.</td>
+    </tr>
+    <tr>
+      <th>Ad text is treated as data</th>
+      <td>Job ads are written by outsiders. The text is therefore inserted into the query delimited and marked as
+      untrusted, so that an instruction hidden inside cannot influence the system.</td>
+    </tr>
+    <tr>
+      <th>Failure is visible</th>
+      <td>When a run crashes or the platform kills it, a message is sent. Found nothing today and
+      it crashed today must not look the same.</td>
+    </tr>
+  </table>
+
+  <h2>Status and next steps</h2>
+  <div class="grid2">
+    <div class="box">
+      <b>Done</b>
+      <ul>
+        <li>Continuous operation, daily run at 07:00</li>
+        <li>AI quality measured and documented</li>
+        <li>Defence against manipulation via third-party text</li>
+        <li>Access only for a verified identity</li>
+        <li>174 automated checks before every deployment</li>
+      </ul>
+    </div>
+    <div class="box warn">
+      <b>Open</b>
+      <ul>
+        <li>The test set is fully green and has therefore stopped discriminating — it needs harder cases</li>
+        <li>Service keys stored in the database without encryption</li>
+        <li>Shadow run of a new version alongside the live one</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="box" style="margin-top:4mm"><b>Transferability.</b> The approach follows a general
+  build specification for AI agents, and JobWatch is its first live test. The same skeleton — fixed
+  rules up front, AI on a single task, measurement and a brake behind it — applies to any workload
+  where a large volume of text is read by hand today.</div>
+
+  <footer>
+    <span>JobWatch · Cloudflare Worker · in production since 14 Jun 2026 · commit 970fca8</span>
+    <span>Milan Trnka</span>
+  </footer>
+
+</div>
+</body></html>

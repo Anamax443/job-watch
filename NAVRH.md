@@ -13,7 +13,7 @@ ne odhadnutá. Kde se něco změřit nedalo, je to napsané jako nezměřené, n
 |---|---|
 | **Co agent dělá** | Denně hledá volná místa „vedoucí IT / IT manažer / Solution Architect" v Jihomoravském kraji, skóruje je proti profilu majitele a to, co projde prahem, pošle na Telegram / e-mail / Slack. |
 | **Vlastník** | Milan Trnka |
-| **Kdy je hotový** | Měřitelně: každý inzerát z hlídaných zdrojů, který sedí na profil, dorazí vlastníkovi **do 24 h od zveřejnění**, a to bez falešných poplachů nad ~10 %. Tenhle cíl **zatím není ověřený** (chybí měření modelové části, viz F1). |
+| **Kdy je hotový** | Měřitelně: každý inzerát z hlídaných zdrojů, který sedí na profil, dorazí vlastníkovi **do 24 h od zveřejnění**, a to bez falešných poplachů nad ~10 %. Na evaluační sadě je to k 1. 9. 2026 **splněné** (precision 100 %, efektivní recall 100 %); v provozu na celém trhu to ověřené není. |
 | **Kde běží** | Cloudflare Worker + D1 + Cron, nezávisle na lokálním PC. |
 
 ## Vstupy
@@ -101,16 +101,22 @@ běhů od 1. 8. 2026. Ne na vzorku, ne na syntetice.
 
 | Část | Výsledek | Jak měřeno |
 |---|---|---|
-| **Deterministické jádro** (prefiltr role + kraj) | **26/26 = 100 %** | `npm run evals` nad `evals/skorovani.json` — 26 reálných inzerátů s ručně dopsanou pravdou |
-| **Skórování modelem** | **NEZMĚŘENO** | modelová část evalů potřebuje `ANTHROPIC_API_KEY`, který v CI není. 23 případů čeká. |
+| **Deterministické jádro** (prefiltr role + kraj) | **26/26 = 100 %** | `npm run evals` nad `evals/skorovani.ts` — reálné inzeráty s ručně dopsanou pravdou |
+| **Skórování modelem** | **23/23**; precision 100 %, recall 100 %, efektivní recall 100 %, coverage 100 % | tlačítko „Změřit kvalitu modelu" na `/tests` uvnitř nasazeného Workeru, 1. 9. 2026, backend `anthropic 23×`, prompt `skore-2026-09-01.2` |
 
-**Brána F1 tedy neplatí.** Nejrizikovější krok — jak dobře model pozná shodu inzerátu
-s profilem — číslo nemá. Deterministická půlka je změřená a drží; ta druhá je slepé místo
-a je poctivější to napsat než to zamlčet.
+**Brána F1 platí od 1. 9. 2026.** Do té doby nejrizikovější krok — jak dobře model pozná shodu
+inzerátu s profilem — číslo neměl a bylo to tady napsané jako slepé místo. Měření to zaplnilo,
+a rovnou ukázalo, proč na tom číslu záleží: **na téže sadě má free model recall 50 %, Claude
+100 %**. Tři reálné leady, kterým free model dal nulu, jsou přesně ty, kvůli kterým agent existuje.
 
-Co se přesto ví z provozu: ze 60 odeslaných notifikací nebyla ani jedna reklamována jako
-očividně mimo obor **po** opravě regionu (23. 8.). Před ní procházely pražské inzeráty —
-to byla chyba promptu, ne modelu, a vyřešil ji deterministický strop.
+Dva z těch tří vyřešil placený model. Třetí („Head of IT" bez lokality) ne — ten padl až opravou
+deterministického stropu regionu, který neurčitelnou lokalitu držel vždycky pod prahem. Kdyby se
+sledovalo jen souhrnné číslo, vypadalo by to jako jedna zásluha modelu.
+
+**Co číslo NEdokazuje:** záporná třída sady je slabá — 16 ze 17 negativů má `prefilter: "out"`,
+takže se v produkci k modelu nedostanou. Precision 100 % je tedy z velké části vysvědčení pro
+deterministický filtr. Doplnit případy, které filtrem projdou a přesto mají skončit nízko,
+je otevřený bod.
 
 ## Cena
 
@@ -127,7 +133,7 @@ Tokeny odhadnuté z počtu znaků poměrem **3 znaky ≈ 1 token** (čeština s 
 je to odhad, ne měření přes `count_tokens`. Objem 1 950/měsíc = 65 kandidátů denně
 po prefiltru × 30.
 
-**Dnes agent neplatí nic** — běží na free backendu. Číslo za Claude je cena přepnutí.
+**Od 1. 9. 2026 agent platí** — po změření (free recall 50 %, Claude 100 %) se produkce přepnula na Claude, takže cena z tabulky je reálná, ne hypotetická. Do té doby platilo: **dnes agent neplatí nic** — běží na free backendu. Číslo za Claude je cena přepnutí.
 
 ## Čas
 
@@ -152,11 +158,16 @@ To je zásadní vstup pro každé plánování, které se dosud opíralo o špat
 | Fáze | Stav |
 |---|---|
 | F0 návrh | ✅ tento dokument (zpětně) |
-| F1 změřené jádro | ⚠️ čas a cena změřené, **přesnost modelu ne** |
+| F1 změřené jádro | ✅ čas, cena i **přesnost modelu** změřené (1. 9. 2026) |
 | F2 kostra a kontrakty | ⚠️ testovací prostředí bez odesílacích kanálů neexistuje |
 | F3 deterministická páteř | ✅ |
-| F4 model a evaly | ⚠️ verze promptu a sada jsou, modelová část evalů v CI neběží |
+| F4 model a evaly | ⚠️ verze promptu, sada, obrana proti nepřátelskému vstupu i metriky hotové; modelová část ale **v CI běžet nemůže** (free příčka je binding `env.AI`) — spouští se ručně na `/tests` |
 | F5 brány, limity, identita | ✅ |
 | F6 selhání, runbook, vypínač | ✅ |
 | F7 nasazení | ⚠️ chybí souběžný běh nové verze naslepo vedle ostré |
-| F8 provoz a růst | ❌ evalů zatím nepřibývá, posun rozdělení se nesleduje |
+| F8 provoz a růst | ⚠️ sada je plně zelená, a tím přestala rozlišovat — potřebuje těžší případy |
+
+> **Nález do build předpisu, ne do projektu.** Brána F4 žádá „evaly běží v CI". U agenta, jehož
+> výchozí backend existuje **jen za běhu** (Workers AI binding), je to nesplnitelné: v CI by se
+> měřil jiný model, než který rozhoduje. Poctivá varianta zní „evaly na nasazené verzi, spouštěné
+> ručně, s protokolem" — a přesně tak to tady je.

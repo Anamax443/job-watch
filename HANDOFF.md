@@ -11,6 +11,110 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 (4) — inzerát bez lokality se přestal tiše zahazovat; sada je 23/23
+
+Commit `970fca8`, prompt `skore-2026-09-01.2`.
+
+**Jediný FN posledního měření nebyl chybou modelu, ale sporem v zadání.** `applyRegionGate`
+stropoval verdikt `unknown` na `práh − 1`, tedy VŽDY pod prahem notifikace — inzerát s prázdným
+polem lokality proto nemohl projít nikdy, ať dostal cokoli. Odůvodnění téhož případu v eval sadě
+přitom zní „neznámý kraj se NESMÍ zahazovat, o lead se nemá přijít kvůli prázdnému poli".
+Kód a záměr si odporovaly a měření to vytáhlo na světlo.
+
+**Nejdřív jsem zkusil kraj odvodit z textu popisu.** Napsal jsem to i s testy a pak zahodil,
+protože reálný vzorek to zamítl: z 283 aktivních inzerátů má **5 prázdnou lokalitu a 4 z nich
+nemají město ani v popisu** (jeden 3 518 znaků a nic); pátý zmiňuje Prahu a je to pražská pozice,
+takže dnešní „neposílat" je správně. **Ta větev by nezměnila výsledek ani u jednoho z pěti.**
+ARES podle IČO by dopadl hůř — jsou to konzultanti a agentury (Accenture 2×, IBS, Ipsos,
+Snapstack), kde sídlo o místě výkonu práce nevypovídá; systematicky by z toho lezla Praha.
+
+Zbyla volba mezi tichou ztrátou a otazníkem. Při 5 z 283 (1,8 %) je levnější poslat s otazníkem:
+- `unknown` **skóre nesnižuje**, jen dostane do zdůvodnění `⚠️ lokalita neuvedena` — vidí to
+  appka, konzole i mail;
+- **muselo se to změnit i v promptu.** Samotná změna stropu by neudělala nic: ty inzeráty měly
+  0–30 od modelu samotného, protože mu prompt říkal „takový inzerát nesmí přes práh jen kvůli
+  obsahu". Brzda se k nim vůbec nedostala. Nová věta: o neověřené lokalitě rozhoduje kód,
+  model má hodnotit jen obsah role;
+- `out` se stropuje dál na 40, tvrdě a beze změny.
+
+**Vedlejší nález:** číselník krajů v `region.ts` zná jen nominativ — „v Brně" se na alias „brno"
+netrefí. Na tom padl první test odvozování. Kdyby se někdy četla próza, tohle se musí vyřešit dřív.
+
+**Po nasazení změřeno znovu: 23/23**, precision 100 %, recall i efektivní recall 100 %,
+coverage 100 %, `anthropic 23×`. „Head of IT" překlopil na 75. Žádný z pražských případů se
+nepohnul přes práh (nejvýš 40 = strop pro `out`), takže regrese nikde.
+
+**Co to nedokazuje:** záporná třída je pořád degenerovaná (16 ze 17 negativů má
+`prefilter: "out"`) a plně zelená sada přestala rozlišovat. Potřebuje těžší případy —
+brněnské inzeráty, kde o výsledku nerozhoduje kraj, ale role. Kandidáti vytažení z D1 čekají
+na ruční štítky: Red Hat Senior SW Engineer, Asseco Customer Experience i delivery, FNZ Director
+of Equity Compensation, Kyndryl Unified Systems Operations, Zebra a Jamf Manager Software
+Engineering, Atlas Copco IT Product Owner.
+
+---
+
+## 2026-09-01 (3) — vlastní Anthropic klíč: produkce jede na Claude a je to poprvé změřené
+
+Klíč od sdílené organizace bez kreditu (`be25a427…`) nahradil vlastní v organizaci
+`391fd499…`. Ověřeno **billable voláním** `messages.create` s `max_tokens: 1`, ne přes
+`GET /v1/models` — ten je zdarma a projde i bez kreditu, takže by indikátor svítil falešně zeleně.
+Ověřené jsou i oba modely, které agent doopravdy používá: `claude-haiku-4-5` (skórování)
+i `claude-sonnet-4-6` (deanonymizace).
+
+Nasazeno jako secret na Worker (`Secret Change`, verze `2477def5`, 100 % provozu). V Nastavení
+přepnuto `aiProvider` na `anthropic`.
+
+**První běh po přepnutí nic nedokázal** — `scored: 0`, protože všech 14 kandidátů už bylo
+ohodnocených z předchozího běhu a dedup je správně přeskočil. Claude se nezavolal ani jednou.
+Nasazení secretu samo o sobě není důkaz, že placená cesta funguje; důkaz dala až sada na `/tests`.
+
+**Srovnání na téže sadě 23 případů:**
+
+| | free Workers AI | Claude |
+|---|---|---|
+| Precision | 100 % | 100 % |
+| Recall | **50 %** (TP 3 / FN 3) | **83 %** (TP 5 / FN 1) |
+| Efektivní recall | 50 % | 83 % |
+| Coverage | 100 % | 100 % |
+
+Free model dal nulu třem reálným leadům: „Druhý muž IT" (0 → 78 u Claude), „Manažer kybernetické
+bezpečnosti" (0 → 72) a „Head of IT" bez lokality (ten padl až opravou regionu, viz záznam výše).
+**Placený backend je tím poprvé obhájený čísly, ne vírou.**
+
+Poznámka k poctivosti srovnání: mezi oběma běhy se změnil i prompt
+(`skore-2026-08-31.1` → `skore-2026-09-01.1`), takže to není čistý experiment. Rozdíl 50 → 83 je
+tak velký, že ho prompt sotva vysvětlí, ale izolovat by to šlo přepnutím na `workers-ai`
+a novým měřením na stejném promptu.
+
+---
+
+## 2026-09-01 (2) — cizí text v promptu má obal; evaly měří zvolený backend
+
+Commity `7b1643d` a `01faed9`. Uzavírá nálezy 3 a 4 z auditu proti build předpisu.
+
+**Sada měřila jiný backend, než jaký běží.** `runEvals` nepředávala `scoreJob` volbu backendu,
+takže `providerChain` to vyhodnotil jako „auto" = **jen Workers AI**. Měření vrátilo
+`workers-ai 23×` ve chvíli, kdy v Nastavení byl zvolený placený Claude. Pipeline to dělá správně
+(`effectiveProvider` + předání do `scoreJob`), sada ne. Regresní test s volbou `off` bez opravy padá.
+
+**Metriky dostaly druhou půlku.** Přibyly `coverage` (kolik případů model vůbec zodpověděl)
+a **efektivní recall**, kde neodpověď u očekávaného leadu je ztracený lead, ne vyňatý případ.
+Bez toho vykáže model, který na šesti ze sedmi leadů mlčí a sedmý trefí, recall 100 %.
+
+**Region a práh se berou ze sady**, ne z živého Nastavení — ruční štítky jsou na ně navázané
+(„Praha → low" platí jen dokud je preferovaný kraj Brno a práh 70). Profil zůstal živý, ale
+do výsledku jde jeho otisk a délka, ať je v protokolu vidět, že se měřilo proti jinému zadání,
+než proti jakému štítky vznikly.
+
+**Obrana proti nepřátelskému vstupu.** Popis inzerátu je ohraničený značkou `<inzerat>`
+a systémový prompt říká, že uvnitř nejsou pokyny; uzavírací značka ve vstupu se znešikodní, ať
+se z ní nedá vylomit. Do té doby držely škodu v mezích jen JSON schéma a strop regionu — a to
+bylo štěstí z návrhu, ne obrana. Hlídá `tests/prompt-injection.test.ts`.
+
+**`npm run evals`** už nekončí souhrnem „Evaly prošly", když se modelová část vůbec nespustila.
+
+---
+
 ## 2026-09-01 — evaly měřily špatnou příčku žebříku; teď měří tu, která rozhoduje
 
 **Externí recenze našla to nejostřejší:** sada v `scripts/evals.ts` volala Anthropic napřímo,

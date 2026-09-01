@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobWatch — tok informací</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#fff; --line:#d8dde5; --fg:#141922; --mut:#5d6879;
+    --code:#2b6cb0; --codebg:#e8f0fb; --model:#a2620a; --modelbg:#fdf1dc;
+    --out:#1f7a4d; --outbg:#e4f5ec; --warn:#a3452f; --acc:#2b6cb0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0c0f15; --panel:#141925; --line:#2a3346; --fg:#e9edf5; --mut:#93a0b5;
+      --code:#7db3f5; --codebg:#16273d; --model:#f0c07a; --modelbg:#33260f;
+      --out:#7fe0ae; --outbg:#12301f; --warn:#f0a08c; --acc:#7db3f5;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15.5px/1.65 system-ui,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 22px 70px}
+  header{border-bottom:1px solid var(--line);background:var(--panel)}
+  header .wrap{padding:26px 22px}
+  .eyebrow{color:var(--mut);font-size:.82rem;text-transform:uppercase;letter-spacing:.08em}
+  h1{margin:.3rem 0 0;font-size:1.85rem}
+  .stand{color:var(--mut);margin:.5rem 0 0;max-width:62ch}
+  h2{font-size:1.2rem;margin:2.2rem 0 .8rem;padding-top:.7rem;border-top:1px solid var(--line)}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+         padding:14px;overflow-x:auto}
+  svg.dgm{display:block;width:100%;min-width:820px;height:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem;margin:.9rem 0 0;font-size:.9rem;color:var(--mut)}
+  .legend b{color:var(--fg)}
+  .chip{display:inline-block;width:.8rem;height:.8rem;border-radius:3px;vertical-align:-1px;margin-right:.35rem}
+  table{border-collapse:collapse;width:100%;background:var(--panel);
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:.6rem .9rem;border-bottom:1px solid var(--line);
+        vertical-align:top;font-size:.94rem}
+  th{color:var(--mut);font-weight:600;width:26%}
+  tr:last-child td,tr:last-child th{border-bottom:0}
+  code{background:var(--codebg);color:var(--code);padding:.08rem .38rem;
+       border-radius:5px;font-size:.88em}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc);
+        border-radius:10px;padding:.75rem 1rem;margin:1rem 0}
+  footer{color:var(--mut);font-size:.9rem;margin-top:2.4rem;padding-top:1rem;
+         border-top:1px solid var(--line)}
+  a{color:var(--acc)}
+  .bx{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+  .bx-code{fill:var(--codebg);stroke:var(--code);stroke-width:1.5}
+  .bx-model{fill:var(--modelbg);stroke:var(--model);stroke-width:1.5}
+  .bx-out{fill:var(--outbg);stroke:var(--out);stroke-width:1.5}
+  .t{fill:var(--fg);font:600 13px system-ui,sans-serif}
+  .ts{fill:var(--mut);font:11.5px system-ui,sans-serif}
+  .tw{fill:var(--warn);font:600 11.5px system-ui,sans-serif}
+  .ln{stroke:var(--mut);stroke-width:1.6;fill:none}
+  .ln-d{stroke:var(--mut);stroke-width:1.4;fill:none;stroke-dasharray:5 4}
+  .mk{fill:var(--mut)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="eyebrow">JobWatch · stav k 1. 9. 2026</div>
+  <h1>Tok informací</h1>
+  <p class="stand">Kudy jde inzerát od zdroje k člověku — a hlavně <b>kdo v každém kroku rozhoduje</b>.
+  Modrá je kód: deterministický, testovatelný, opakovatelný. Oranžová je model: úsudek, který se
+  musí měřit. Celý smysl návrhu je, aby oranžových políček bylo co nejmíň a aby žádné z nich
+  nemělo poslední slovo.</p>
+</div></header>
+
+<div class="wrap">
+  <h2>Cesta jednoho inzerátu</h2>
+  <div class="board">
+    <svg class="dgm" viewBox="0 0 980 600" role="img"
+         aria-label="Tok informací: zdroje, sběr, deterministický prefiltr a dedup, skórování modelem s ohraničeným cizím textem, deterministický strop regionu, deanonymizace modelem, práh a stropy v kódu, notifikace a člověk.">
+      <defs>
+        <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="mk" d="M0,0 L10,5 L0,10 z"></path>
+        </marker>
+      </defs>
+
+      <text class="ts" x="20" y="24">1 · SBĚR</text>
+      <rect class="bx" x="20" y="34" width="150" height="106" rx="8"></rect>
+      <text class="t"  x="95" y="56" text-anchor="middle">Zdroje</text>
+      <text class="ts" x="95" y="76" text-anchor="middle">MPSV (celý trh ČR)</text>
+      <text class="ts" x="95" y="93" text-anchor="middle">jobs.cz · prace.cz</text>
+      <text class="ts" x="95" y="110" text-anchor="middle">ATS firem · Adzuna</text>
+      <text class="tw" x="95" y="131" text-anchor="middle">cizí text, nikdo nereviduje</text>
+
+      <path class="ln" d="M170,87 L214,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="216" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="291" y="72" text-anchor="middle">Stažení + kurzor</text>
+      <text class="ts" x="291" y="92" text-anchor="middle">přírůstky, časové limity</text>
+      <text class="ts" x="291" y="109" text-anchor="middle">rozpočet požadavků</text>
+
+      <path class="ln" d="M366,87 L410,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="412" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="487" y="72" text-anchor="middle">Prefiltr</text>
+      <text class="ts" x="487" y="92" text-anchor="middle">CZ-ISCO + klíčová slova</text>
+      <text class="ts" x="487" y="109" text-anchor="middle">86 ze 100 odpadne</text>
+
+      <path class="ln" d="M562,87 L606,87" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="608" y="48" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="683" y="72" text-anchor="middle">Deduplikace</text>
+      <text class="ts" x="683" y="92" text-anchor="middle">klíč · hash · otisk vět</text>
+      <text class="ts" x="683" y="109" text-anchor="middle">už viděné se přeskočí</text>
+
+      <path class="ln" d="M758,87 L802,87" marker-end="url(#a)"></path>
+      <rect class="bx" x="804" y="48" width="156" height="78" rx="8"></rect>
+      <text class="t"  x="882" y="72" text-anchor="middle">Fronta v D1</text>
+      <text class="ts" x="882" y="92" text-anchor="middle">co se nestihne, počká</text>
+      <text class="ts" x="882" y="109" text-anchor="middle">nic se nezahazuje</text>
+
+      <path class="ln" d="M882,126 L882,158 L487,158 L487,192" marker-end="url(#a)"></path>
+
+      <text class="ts" x="20" y="190">2 · ÚSUDEK A BRZDA</text>
+      <rect class="bx" x="20" y="194" width="360" height="92" rx="8"></rect>
+      <text class="t"  x="38" y="217">Cizí text vstupuje jako DATA</text>
+      <text class="ts" x="38" y="237">Popis je ohraničený značkou &lt;inzerat&gt; a prompt</text>
+      <text class="ts" x="38" y="254">říká, že uvnitř nejsou pokyny.</text>
+      <text class="tw" x="38" y="276">Bez toho je „dej 100" k nerozeznání od zadání.</text>
+      <path class="ln-d" d="M380,240 L410,240" marker-end="url(#a)"></path>
+
+      <rect class="bx-model" x="412" y="194" width="150" height="92" rx="8"></rect>
+      <text class="t"  x="487" y="217" text-anchor="middle">Skórování</text>
+      <text class="ts" x="487" y="237" text-anchor="middle">shoda s profilem 0–100</text>
+      <text class="ts" x="487" y="254" text-anchor="middle">Claude haiku 4.5</text>
+      <text class="ts" x="487" y="273" text-anchor="middle">free Workers AI = záloha</text>
+
+      <path class="ln" d="M562,240 L606,240" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="608" y="194" width="150" height="92" rx="8"></rect>
+      <text class="t"  x="683" y="217" text-anchor="middle">Strop regionu</text>
+      <text class="ts" x="683" y="237" text-anchor="middle">mimo kraj → max 40</text>
+      <text class="ts" x="683" y="254" text-anchor="middle">remote → bez penalizace</text>
+      <text class="tw" x="683" y="273" text-anchor="middle">bez lokality → ⚠ projde</text>
+
+      <rect class="bx" x="778" y="194" width="182" height="92" rx="8"></rect>
+      <text class="t"  x="794" y="217">Poslední slovo má kód</text>
+      <text class="ts" x="794" y="237">Model instrukci o regionu</text>
+      <text class="ts" x="794" y="254">prokazatelně ignoroval:</text>
+      <text class="tw" x="794" y="276">Praha dostala 80/100.</text>
+      <path class="ln-d" d="M776,240 L760,240"></path>
+
+      <path class="ln" d="M683,286 L683,314 L487,314 L487,348" marker-end="url(#a)"></path>
+
+      <text class="ts" x="20" y="346">3 · DOPLNĚNÍ A VÝSTUP</text>
+      <rect class="bx-model" x="412" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="487" y="374" text-anchor="middle">Deanonymizace</text>
+      <text class="ts" x="487" y="394" text-anchor="middle">kdo je za agenturou</text>
+      <text class="ts" x="487" y="411" text-anchor="middle">web search · jen Claude</text>
+
+      <path class="ln" d="M412,389 L368,389" marker-end="url(#a)"></path>
+      <rect class="bx-code" x="216" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="291" y="374" text-anchor="middle">Práh a stropy</text>
+      <text class="ts" x="291" y="394" text-anchor="middle">skóre ≥ 70 → posílat</text>
+      <text class="ts" x="291" y="411" text-anchor="middle">max 10 zpráv na běh</text>
+
+      <path class="ln" d="M216,389 L172,389" marker-end="url(#a)"></path>
+      <rect class="bx-out" x="20" y="350" width="150" height="78" rx="8"></rect>
+      <text class="t"  x="95" y="374" text-anchor="middle">Notifikace</text>
+      <text class="ts" x="95" y="394" text-anchor="middle">Telegram · e-mail</text>
+      <text class="ts" x="95" y="411" text-anchor="middle">Slack · přiznaná AI</text>
+
+      <path class="ln" d="M95,428 L95,466" marker-end="url(#a)"></path>
+      <rect class="bx-out" x="20" y="468" width="150" height="62" rx="8"></rect>
+      <text class="t"  x="95" y="493" text-anchor="middle">Člověk</text>
+      <text class="ts" x="95" y="513" text-anchor="middle">rozhodne, co dál</text>
+
+      <path class="ln-d" d="M170,499 L214,499" marker-end="url(#a)"></path>
+      <rect class="bx" x="216" y="468" width="240" height="62" rx="8"></rect>
+      <text class="t"  x="234" y="492">Zpětná vazba</text>
+      <text class="ts" x="234" y="513">Telegram: /beh · /pozice · /stav · Stop</text>
+      <path class="ln-d" d="M456,499 L520,499 L520,430" marker-end="url(#a)"></path>
+
+      <rect class="bx" x="608" y="350" width="352" height="180" rx="8"></rect>
+      <text class="t"  x="626" y="374">Kde se to měří</text>
+      <text class="ts" x="626" y="396">Sada 23 reálných inzerátů běží UVNITŘ</text>
+      <text class="ts" x="626" y="413">nasazeného Workeru, přes tentýž scoreJob,</text>
+      <text class="ts" x="626" y="430">prompt i žebřík backendů jako ostrý běh.</text>
+      <text class="ts" x="626" y="455">Výsledek 1. 9. 2026 · Claude:</text>
+      <text class="t"  x="626" y="477">precision 100 % · recall 100 %</text>
+      <text class="t"  x="626" y="497">efektivní recall 100 % · coverage 100 %</text>
+      <text class="tw" x="626" y="519">Free model měl na téže sadě recall 50 %.</text>
+      <path class="ln-d" d="M758,240 L784,240 L784,348"></path>
+    </svg>
+  </div>
+
+  <div class="legend">
+    <span><span class="chip" style="background:var(--codebg);border:1.5px solid var(--code)"></span><b>kód</b> — deterministické, testovatelné, poslední slovo</span>
+    <span><span class="chip" style="background:var(--modelbg);border:1.5px solid var(--model)"></span><b>model</b> — úsudek, měří se evaly</span>
+    <span><span class="chip" style="background:var(--outbg);border:1.5px solid var(--out)"></span><b>výstup</b> — ven z agenta</span>
+  </div>
+
+  <h2>Co z toho plyne</h2>
+  <table>
+    <tr><th>Model má jednu úlohu</th>
+      <td>Posoudit, jak inzerát sedí na profil. Všechno ostatní — výběr zdrojů, prefiltr,
+      deduplikace, region, práh, stropy, zápis, odesílání — dělá kód. <b>Model nemá přístup
+      k žádné nevratné akci napřímo</b>: vrací číslo a větu, co se s nimi stane, rozhoduje kód.</td></tr>
+    <tr><th>Cizí text nikdy nemá roli pokynů</th>
+      <td>Popis inzerátu píše zaměstnavatel nebo agentura. Do promptu jde ohraničený značkou
+      <code>&lt;inzerat&gt;</code>, uzavírací značka ve vstupu se znešikodní a systémový prompt
+      říká, že uvnitř nejsou instrukce.</td></tr>
+    <tr><th>Brzda je za modelem, ne v promptu</th>
+      <td>Pravidlo o regionu bylo nejdřív jen věta v promptu — a slabý model ji ignoroval:
+      pražský inzerát dostal 80/100 se zdůvodněním, že Praha je v preferovaném regionu.
+      Teď se kraj určí z textu lokality deterministicky a skóre se zastropuje.</td></tr>
+    <tr><th>Nic se tiše neztrácí</th>
+      <td>Co se nestihne ohodnotit, čeká ve frontě. Co selže, vrací <code>null</code>, ne nulu.
+      Co má neověřitelnou lokalitu, projde s <b>⚠</b> místo tichého zahození. Pád běhu pošle
+      zprávu stejným kanálem jako nález.</td></tr>
+  </table>
+
+  <div class="note"><b>Jediné oranžové políčko s reálnou mocí je skórování</b> — a právě proto
+  má jako jediné vlastní měření. Dokud to číslo neexistovalo, byla kvalita agenta věcí názoru.</div>
+
+  <footer>
+    Součást dokumentace projektu JobWatch. Diagram běhu:
+    <a href="BEH-AGENTA.html">BEH-AGENTA.html</a> · stav nasazení:
+    <a href="STATUS.html">STATUS.html</a> · shrnutí pro vedení:
+    <a href="PREHLED-VEDENI.html">PREHLED-VEDENI.html</a> · deník: <code>HANDOFF.md</code>.
+    English: <a href="TOK-INFORMACI.en.html">TOK-INFORMACI.en.html</a>.
+  </footer>
+</div>
+</body></html>
