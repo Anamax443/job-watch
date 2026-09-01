@@ -3,7 +3,7 @@ import { messagesCreate, firstText, extractJson } from './anthropic.ts';
 import { providerChain, runWorkersJson } from './ai.ts';
 import { applyRegionGate } from './region.ts';
 import { truncate } from './util.ts';
-import { buildSystem } from './prompts.ts';
+import { buildSystem, wrapAd } from './prompts.ts';
 
 // Relevance scoring přes levný model (haiku) + structured outputs (JSON-only).
 
@@ -87,7 +87,7 @@ export async function scoreJob(
   } = {},
 ): Promise<ScoreResult | null> {
   const system = buildSystem(profile, opts.region, opts.threshold);
-  const user = [
+  const pole = [
     `Titul: ${job.title}`,
     `Zaměstnavatel: ${job.employer}${job.isAgency ? ' (personální agentura)' : ''}`,
     job.location ? `Lokalita: ${job.location}` : 'Lokalita: neuvedena',
@@ -100,6 +100,8 @@ export async function scoreJob(
   ]
     .filter(Boolean)
     .join('\n');
+  // Všechna pole výše pocházejí z inzerátu, tedy od cizí strany → do značky jde celý blok.
+  const user = wrapAd(pole);
 
   // Backend „dle úhrady": zkoušej v pořadí dle providerChain (default zdarma Workers AI,
   // placený Claude jako fallback). Když jeden selže, spadni na další.
