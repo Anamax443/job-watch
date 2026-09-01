@@ -1,23 +1,15 @@
 import type { Env, JobPosting, EnrichResult } from './types.ts';
 import { messagesCreate, allText, extractJson } from './anthropic.ts';
 import { truncate } from './util.ts';
+import { ENRICH_SYSTEM, wrapForeign } from './prompts.ts';
 
 // Deanonymizace: u agenturního inzerátu najdi PŮVODCE.
 // Sonnet 4.6 + web_search/web_fetch — vybere distinktivní věty, vyhledá je,
 // preferuje first-party stránky firmy (ty prozradí skutečného zaměstnavatele).
-
-const SYSTEM =
-  'Jsi rešeršér. Agentura inzerát anonymizuje a skrývá skutečného zaměstnavatele. Najdi PŮVODCE ' +
-  'inzerátu metodou OTISKU VĚTY:\n' +
-  '1) Vyber 1–3 KOMPLIKOVANÉ, dlouhé a konkrétní věty z popisu — ideálně ze sekcí „nabízíme" / ' +
-  '„požadujeme" / náplň práce (mají specifické formulace). Vyhni se obecným frázím („dynamický kolektiv").\n' +
-  '2) Hledej každou jako CELOU větu v uvozovkách = PŘESNÁ, 100% doslovná shoda. Taková věta funguje ' +
-  'jako unikátní otisk a vyhledávač ji najde i na stránkách skutečného zadavatele.\n' +
-  '3) web_fetch ověř doslovný výskyt. PREFERUJ first-party stránky firmy (vlastní kariérní web / vlastní ' +
-  'ATS *.recruitee.com / boards.greenhouse.io / jobs.lever.co) před jobboardy — ty prozradí původce.\n' +
-  'Vrať POUZE jeden JSON objekt: {"realEmployer": string|null, "realEmployerUrl": string|null, ' +
-  '"confidence": 0-100, "duplicateUrls": string[]}. confidence = jistota původce (0 když nenalezeno). ' +
-  'duplicateUrls = další místa s týmž inzerátem (včetně opakování v čase).';
+//
+// Prompt bydlí v `prompts.ts` (od 1. 9. 2026 večer), aby ho kryla PROMPT_VERSION a brána
+// v CI. Do 1. 9. tu měl vlastní konstantu mimo dosah obojího — a cizí text šel do modelu
+// s nástroji bez ohraničení.
 
 const TOOLS = [
   { type: 'web_search_20260209', name: 'web_search' },
@@ -29,14 +21,19 @@ function clamp(n: number): number {
 }
 
 export async function enrichOriginator(env: Env, job: JobPosting): Promise<EnrichResult> {
-  const user = [
-    `Agentura: ${job.employer}`,
-    job.title ? `Titul: ${job.title}` : '',
-    job.location ? `Lokalita: ${job.location}` : '',
-    `Popis inzerátu:\n${truncate(job.description, 4000)}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  // Všechno níž je CIZÍ TEXT: píše ho agentura, nikdo ho nereviduje — a model k němu má
+  // web_search i web_fetch. Proto celý blok do značky; systémový prompt k ní má větu, že
+  // uvnitř nejsou pokyny a že nesmí určovat, co se vyhledá nebo stáhne.
+  const user = wrapForeign(
+    [
+      `Agentura: ${job.employer}`,
+      job.title ? `Titul: ${job.title}` : '',
+      job.location ? `Lokalita: ${job.location}` : '',
+      `Popis inzerátu:\n${truncate(job.description, 4000)}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
 
   const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> = [
     { role: 'user', content: user },
@@ -46,7 +43,7 @@ export async function enrichOriginator(env: Env, job: JobPosting): Promise<Enric
     let resp = await messagesCreate(env, {
       model: env.ENRICH_MODEL,
       max_tokens: 2000,
-      system: SYSTEM,
+      system: ENRICH_SYSTEM,
       tools: TOOLS,
       messages,
     });
@@ -58,7 +55,7 @@ export async function enrichOriginator(env: Env, job: JobPosting): Promise<Enric
       resp = await messagesCreate(env, {
         model: env.ENRICH_MODEL,
         max_tokens: 2000,
-        system: SYSTEM,
+        system: ENRICH_SYSTEM,
         tools: TOOLS,
         messages,
       });

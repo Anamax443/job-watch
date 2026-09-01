@@ -1,6 +1,7 @@
 import type { Env } from './types.ts';
 import { messagesCreate, allText, extractJson } from './anthropic.ts';
 import { sourceKnown, insertSource } from './store.ts';
+import { DISCOVER_SYSTEM, wrapForeign } from './prompts.ts';
 
 // Dynamický screening: pro nově viděnou agenturu/firmu najde na internetu, KDE
 // zveřejňuje pracovní nabídky (ATS / kariérní stránka), detekuje platformu a uloží
@@ -16,19 +17,6 @@ const TOOLS = [
   { type: 'web_search_20260209', name: 'web_search' },
   { type: 'web_fetch_20260209', name: 'web_fetch' },
 ];
-
-const SYSTEM =
-  'Zjisti, kde daná firma/agentura v ČR zveřejňuje pracovní nabídky. Hledej OBECNĚ na webu ' +
-  '(jako Google) a vyhodnoť, co se zobrazí: oficiální kariérní stránku, veřejné API náborového ' +
-  'systému (ATS) i jobboard/agregátor, kde má aktivní inzeráty. ' +
-  'Když narazíš na ATS, rozpoznej platformu podle URL: Recruitee (*.recruitee.com), ' +
-  'Greenhouse (boards.greenhouse.io/{slug}), Lever (jobs.lever.co/{slug}), Ashby ' +
-  '(jobs.ashbyhq.com/{slug}), SmartRecruiters (jobs.smartrecruiters.com/{slug}); jinak platform="unknown" ' +
-  'a vrať aspoň careersUrl (nejlepší veřejně čitelný zdroj nabídek daného subjektu). ' +
-  'Ověř, že zdroj skutečně patří danému subjektu (sídlo/IČO/ČR). ' +
-  'Vrať POUZE jeden JSON objekt: {"careersUrl":string|null,"atsUrl":string|null,' +
-  '"platform":"recruitee|greenhouse|lever|ashby|smartrecruiters|unknown","slug":string|null,' +
-  '"confidence":0-100}.';
 
 interface Resolved {
   careersUrl?: string | null;
@@ -65,12 +53,13 @@ export function detectPlatform(url?: string | null): { platform: string; slug: s
 
 async function resolveOne(env: Env, c: SourceCandidate): Promise<Resolved | null> {
   const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> = [
-    { role: 'user', content: `Subjekt: ${c.name}${c.ico ? ` (IČO ${c.ico})` : ''}` },
+    // Název subjektu je cizí text (chodí z inzerátu), a model má web_search/web_fetch.
+    { role: 'user', content: wrapForeign(`Subjekt: ${c.name}${c.ico ? ` (IČO ${c.ico})` : ''}`) },
   ];
   let resp = await messagesCreate(env, {
     model: env.ENRICH_MODEL,
     max_tokens: 1500,
-    system: SYSTEM,
+    system: DISCOVER_SYSTEM,
     tools: TOOLS,
     messages,
   });
@@ -80,7 +69,7 @@ async function resolveOne(env: Env, c: SourceCandidate): Promise<Resolved | null
     resp = await messagesCreate(env, {
       model: env.ENRICH_MODEL,
       max_tokens: 1500,
-      system: SYSTEM,
+      system: DISCOVER_SYSTEM,
       tools: TOOLS,
       messages,
     });
