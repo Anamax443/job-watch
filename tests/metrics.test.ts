@@ -71,3 +71,11 @@ test('řádek do logu přizná, že stahování zdrojů se neměří', () => {
 test('bez ohodnocených se nedělí nulou', () => {
   assert.match(formatBudget({ d1: 3, model: 0, liveness: 0, celkem: 3 }, 0), /—/);
 });
+
+test('běh plný vyřazení nesmí vypadat jako drahé skórování', () => {
+  // Živý běh 133: 127 požadavků, 9 ohodnocených modelem, 105 vyřazených kódem.
+  // Samotné 127/9 = 14,1 by tvrdilo, že skórování je drahé; na zpracovanou položku je to 1,11.
+  const t = formatBudget({ d1: 113, model: 9, liveness: 5, celkem: 127 }, 9, 114);
+  assert.match(t, /na zpracovanou položku 1.11/);
+  assert.match(t, /na ohodnocený modelem 14.11/);
+});

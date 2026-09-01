@@ -90,10 +90,20 @@ export function wrapDb(db: any, m: Counter): any {
  * Řádek do logu běhu. Přiznává i to, co se nezměřilo — součet bez té poznámky by se
  * četl jako úplný a člověk by podle něj usoudil, že do stropu je dál, než je.
  */
-export function formatBudget(b: RunBudget & { celkem: number }, scored: number): string {
-  const naInzerat = scored > 0 ? (b.celkem / scored).toFixed(2) : '—';
+export function formatBudget(
+  b: RunBudget & { celkem: number },
+  scored: number,
+  zpracovano = scored,
+): string {
+  // Dvě různá čísla, protože měří dvě různé věci. Běh 133 (1. 9. 2026) utratil 127 požadavků,
+  // ohodnotil 9 inzerátů a dalších 105 vyřadil kód. „127 ÷ 9 = 14,1 na inzerát" z toho dělá
+  // drahé skórování, přestože skoro všechnu práci odvedlo levné vyřazení: na zpracovanou
+  // položku vyšlo 1,1. Jedno číslo tady lže vždycky — proto obě.
+  const naOhodnocený = scored > 0 ? (b.celkem / scored).toFixed(2) : '—';
+  const naZpracovaný = zpracovano > 0 ? (b.celkem / zpracovano).toFixed(2) : '—';
   return (
     `📶 Rozpočet požadavků: D1 ${b.d1} · model ${b.model} · živost ${b.liveness} = ${b.celkem} ` +
-    `(+ stahování zdrojů, to se neměří) · na ohodnocený inzerát ${naInzerat}`
+    `(+ stahování zdrojů, to se neměří) · na zpracovanou položku ${naZpracovaný} · ` +
+    `na ohodnocený modelem ${naOhodnocený}`
   );
 }

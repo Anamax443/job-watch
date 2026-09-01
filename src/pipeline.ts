@@ -611,7 +611,8 @@ export async function runPipeline(
     );
     const b = budget.snapshot();
     stats.budget = b;
-    run.log(formatBudget(b, stats.scored));
+    // Zpracované = co frontou i hlavní cestou reálně prošlo, tedy i to, co vyřadil kód.
+    run.log(formatBudget(b, stats.scored, stats.scored + (stats.prefiltered ?? 0)));
     run.log(
       stopped
         ? '⏹️ Běh ukončen na žádost. Co se nestihlo, čeká ve frontě — nic se nezahodilo.'
