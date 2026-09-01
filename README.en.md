@@ -11,10 +11,16 @@ new finds to **Telegram / e-mail / Slack**.
 - **AI backend "as paid for" (`src/ai.ts`):** free **Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct-fp8`) or paid **Claude** `claude-haiku-4-5`. De-anonymisation/screening (`claude-sonnet-4-6` + web_search/web_fetch) is Claude-only and is skipped on free/off. Switched in Settings / the `AI_PROVIDER` var. **Since 1 Sep 2026 production runs on Claude** — and for the first time that is backed by measurement rather than impression: on the same set the free model has 50 % recall, Claude 100 % (see "Prompt and evals").
 - **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Author:** Milan Trnka (maxferit)
 - **Project state:** [`STATUS.en.html`](STATUS.en.html) (snapshot) · [`HANDOFF.en.md`](HANDOFF.en.md) (state log) · [`BEH-AGENTA.en.html`](BEH-AGENTA.en.html) (run diagram) · [`TOK-INFORMACI.en.html`](TOK-INFORMACI.en.html) (information flow) · [`MAPA-MYSLENI.en.html`](MAPA-MYSLENI.en.html) (mind map) · [`PREHLED-VEDENI.en.html`](PREHLED-VEDENI.en.html) (executive summary)
-- **Audit of 30 Aug 2026** against the [build specification](https://github.com/Anamax443/ai-agenti) — **all four findings closed as of 1 Sep 2026**:
+- **Audit of 30 Aug 2026** against the [build specification](https://github.com/Anamax443/ai-agenti) — **three findings closed, the fourth half closed (as of 1 Sep 2026)**:
   - ✅ **the kill switch stops the run** — a flag in `meta`, read before every batch (31 Aug)
   - ✅ **a crashed run raises an alert** — from `catch` to Telegram; an external kill is caught by a watchdog for unfinished runs (31 Aug and 1 Sep)
-  - ✅ **third-party text is wrapped** — the ad description is delimited by an `<inzerat>` tag and the system prompt states that it contains no instructions; a closing tag inside the input is neutralised (1 Sep)
+  - ⚠️ **third-party text is wrapped ONLY in scoring** — the ad description enters `score.ts`
+    delimited by an `<inzerat>` tag and the system prompt states there are no instructions inside.
+    **`enrich.ts` and `discover.ts` have no such boundary**, and those are precisely the paths that
+    let the model onto foreign websites (`web_search`/`web_fetch`). The audit finding is therefore
+    half closed; declaring it done was premature (found by external review on 1 Sep 2026). The
+    prompts in `enrich.ts`/`discover.ts` also live outside `prompts.ts`, so they are covered neither
+    by `PROMPT_VERSION` nor by the CI gate.
   - ✅ **AI scoring quality is measured** — the set runs inside the deployed Worker through the same `scoreJob`, prompt and backend ladder as production: **23/23, precision 100 %, recall and effective recall 100 %, coverage 100 %** (prompt `skore-2026-09-01.2`)
   Details in `HANDOFF.en.md`.
 
@@ -257,7 +263,7 @@ The free model gave zero to three real leads. Claude got two of them (78 and 72)
 IT" with no location — fell only when the region cap was fixed, not thanks to a better model. Had only
 the headline number been watched, it would have looked like a single achievement.
 
-**An honest caveat:** precision does not yet carry much weight. 16 of the 17 negative cases have
+**An honest caveat:** precision does not yet carry much weight. All 17 negative cases have
 `prefilter: "out"`, so in production they never reach the model — that 100 % is largely a report card
 for the deterministic filter, not for the model. Adding cases that pass the filter and still have to
 end up low is an open item.

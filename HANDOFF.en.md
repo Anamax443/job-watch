@@ -15,6 +15,60 @@ listed here as an index at the end; their full text is in the Czech original.*
 
 ---
 
+## 2026-09-01 (5) — external review: four orchestration defects that 159 tests did not catch
+
+An independent test against the `ai-agenti` methodology (dfd733c). **I verified the findings in the
+code and all four hold.** They are not in the model, they are in the state machine around it — which
+is worse, because the model at least has a measurement while these paths have nothing.
+
+**1. All sources failing ends in a green run.** Adapters return `[]` on error, `timed()` returns the
+`[]` fallback on timeout, and the final `flush(stats, true)` writes `ok = 1`. A run that brought
+nothing because everything fell over looks exactly like a run on an empty market. There is no
+`failed/degraded` state and no alarm. This breaks F3 ("two outcomes: it failed and you know, or it
+went well").
+
+**2. An unsent notification is never retried.** `pipeline.ts` sends after the score is written; when
+no channel succeeds it logs `⚠️ not sent` and does **not** call `setNotified`. But the queue
+(`loadUnscored`) only takes `relevance IS NULL OR rescore = 1`, so a scored, unsent ad never returns
+to it. The agent can find the perfect job, fail to deliver it and never look at it again. (It stays
+visible in the UI — but the notification is not retried.) The fix is an outbox with retry state and
+an idempotency key.
+
+**3. There is no run lock.** `POST /api/run` is a bare `ctx.waitUntil(runPipeline(env, 'manual'))` —
+no lease, no mutex. Two requests = two concurrent runs. And it is worse than the review says: every
+run starts with `clearStop(env)`, so **the second run erases the first run’s stop flag**. The kill
+switch we fixed on 31 Aug can be bypassed this way without any ill intent.
+
+**4. A stopped run is overwritten as successful.** Stop sets `ok = 0` with the condition
+`WHERE finished_at IS NULL`. The pipeline then finishes and calls `flush(stats, true)`, which
+unconditionally writes `ok = 1` `WHERE id = ?`. A stopped run therefore appears successful in the
+history — which devalues the watchdog and the audit trail.
+
+**And two errors in what I wrote yesterday:**
+
+- **"16 of 17" was wrong; it is 17 of 17.** Re-measured over `evals/skorovani.ts`: `low+out 17`,
+  `low+in 0`, `high+in 6`. The model therefore never sees a **single** hard negative case, and the
+  claimed precision of 100 % says nothing about its ability to discriminate. I had published that
+  number in six files; corrected.
+- **The third-party text wrapper exists only in `score.ts`.** `wrapAd` appears exactly once in the
+  repository. `enrich.ts` and `discover.ts` have their own `SYSTEM` constants outside `prompts.ts` —
+  so no untrusted-data boundary, no `PROMPT_VERSION`, outside the CI gate. And those are precisely
+  the paths that let the model onto foreign websites. Declaring the audit finding closed was
+  premature. Corrected in README, STATUS and in the audit in `ai-agenti`.
+
+**Other verified details:** the provider statistic is only filled on the queue path
+(`pipeline.ts:527`); on the fresh-finds path (`:268`) `onProvider` is not passed, so "who scored it"
+is incomplete. `detectPlatform` uses `host.includes('lever.co')`, which also accepts
+`lever.co.evil.example`; the neighbouring Recruitee branch does it correctly with
+`endsWith('.recruitee.com')`. `npm audit` over runtime dependencies is **clean (0)**; the 1 low +
+5 high sit in the dev/deploy chain around Wrangler.
+
+**Order of fixes** (from the review, and I agree with it): four operational acceptance tests — all
+sources fail → `failed`; a failed send → the next run sends exactly once; two concurrent requests →
+the second gets `409`; a stopped run stays `stopped`. Only then hard-negative evals and adversarial
+cases for scoring, enrichment and discovery. **No new sources and no prompt tuning until that holds.**
+---
+
 ## 2026-09-01 (4) — an ad without a location is no longer silently dropped; the set is 23/23
 
 Commit `970fca8`, prompt `skore-2026-09-01.2`.
@@ -53,7 +107,7 @@ If prose is ever parsed, this has to be solved first.
 100 %, `anthropic 23x`. "Head of IT" flipped to 75. None of the Prague cases moved above the threshold
 (40 at most, the `out` cap), so there is no regression.
 
-**What this does not prove:** the negative class is still degenerate (16 of 17 negatives have
+**What this does not prove:** the negative class is still degenerate (17 of 17 negatives have
 `prefilter: "out"`) and a fully green set has stopped discriminating. It needs harder cases — Brno ads
 where the outcome is decided by the role, not the region. Candidates pulled from D1 are waiting for
 hand-written labels: Red Hat Senior SW Engineer, Asseco Customer Experience and delivery, FNZ Director

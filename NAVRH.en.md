@@ -116,7 +116,7 @@ Two of those three were solved by the paid model. The third ("Head of IT" with n
 location permanently below the threshold. Had only the headline number been watched, it would have
 looked like a single achievement of the model.
 
-**What the number does NOT prove:** the negative class of the set is weak — 16 of 17 negatives have
+**What the number does NOT prove:** the negative class of the set is weak — 17 of 17 negatives have
 `prefilter: "out"`, so in production they never reach the model. Precision of 100 % is therefore
 largely a report card for the deterministic filter. Adding cases that pass the filter and still
 have to score low is an open item.

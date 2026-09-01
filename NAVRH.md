@@ -113,7 +113,7 @@ Dva z těch tří vyřešil placený model. Třetí („Head of IT" bez lokality
 deterministického stropu regionu, který neurčitelnou lokalitu držel vždycky pod prahem. Kdyby se
 sledovalo jen souhrnné číslo, vypadalo by to jako jedna zásluha modelu.
 
-**Co číslo NEdokazuje:** záporná třída sady je slabá — 16 ze 17 negativů má `prefilter: "out"`,
+**Co číslo NEdokazuje:** záporná třída sady je slabá — 17 ze 17 negativů má `prefilter: "out"`,
 takže se v produkci k modelu nedostanou. Precision 100 % je tedy z velké části vysvědčení pro
 deterministický filtr. Doplnit případy, které filtrem projdou a přesto mají skončit nízko,
 je otevřený bod.

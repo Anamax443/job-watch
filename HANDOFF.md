@@ -11,6 +11,57 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 (5) — externí recenze: čtyři vady v orchestraci, které 159 testů nechytilo
+
+Nezávislý test proti metodice `ai-agenti` (dfd733c). **Nálezy jsem ověřil v kódu a všechny čtyři
+platí.** Nejsou v modelu, jsou ve stavovém automatu kolem něj — a to je horší, protože model má
+aspoň měření, kdežto tyhle cesty nemá nic.
+
+**1. Selhání všech zdrojů skončí zeleným během.** Adaptéry při chybě vracejí `[]`, `timed()` vrací
+při vypršení limitu fallback `[]`, a závěrečný `flush(stats, true)` zapíše `ok = 1`. Běh, který
+nepřinesl nic, protože všechno spadlo, vypadá stejně jako běh na prázdném trhu. Chybí stav
+`failed/degraded` a alarm. Porušuje to F3 („dva konce: selhalo a víš o tom, nebo dopadlo dobře").
+
+**2. Neodeslaná notifikace se už nikdy nezopakuje.** `pipeline.ts` odesílá až po zápisu skóre;
+když neuspěje žádný kanál, zaloguje `⚠️ neodesláno` a `setNotified` **nezavolá**. Jenže fronta
+(`loadUnscored`) bere jen `relevance IS NULL OR rescore = 1`, takže ohodnocený a neodeslaný inzerát
+se do ní nikdy nevrátí. Agent může najít ideální místo, selhat na odeslání a víc si ho nevšimnout.
+(Vidět v UI zůstane — ale notifikace se nezopakuje.) Řešení je outbox s retry a idempotency klíčem.
+
+**3. Chybí zámek běhu.** `POST /api/run` je holé `ctx.waitUntil(runPipeline(env, 'manual'))` — žádný
+lease, žádný mutex. Dva požadavky = dva souběžné běhy. A je to horší, než recenze píše: každý běh
+začíná `clearStop(env)`, takže **druhý běh smaže stop příznak prvního**. Vypínač, který jsme
+opravovali 31. 8., jde takhle obejít úplně bez zlého úmyslu.
+
+**4. Zastavený běh se přepíše na úspěšný.** Stop nastaví `ok = 0` s podmínkou `WHERE finished_at IS
+NULL`. Pipeline pak doběhne a zavolá `flush(stats, true)`, který bezpodmínečně zapíše `ok = 1`
+`WHERE id = ?`. Zastavený běh se tedy v historii tváří jako úspěšný — což znehodnocuje hlídač
+i auditní stopu.
+
+**A dvě chyby v tom, co jsem včera napsal já:**
+
+- **„16 ze 17" bylo špatně, je to 17 ze 17.** Změřeno znovu nad `evals/skorovani.ts`: `low+out 17`,
+  `low+in 0`, `high+in 6`. Model tedy nedostane **ani jeden** těžký záporný případ a deklarovaná
+  precision 100 % o jeho schopnosti rozlišovat neříká nic. Číslo jsem publikoval v šesti souborech;
+  opraveno.
+- **Obal cizího textu je jen ve `score.ts`.** `wrapAd` se v celém repu vyskytuje jednou.
+  `enrich.ts` a `discover.ts` mají vlastní `SYSTEM` konstanty mimo `prompts.ts` — tedy bez hranice
+  nedůvěryhodných dat, bez `PROMPT_VERSION` a mimo bránu v CI. A jsou to právě ony, kdo pouští
+  model na cizí weby. Prohlásit nález auditu za uzavřený bylo předčasné. Opraveno v README, STATUS
+  i v auditu v `ai-agenti`.
+
+**Další ověřené drobnosti:** statistika providerů se plní jen v cestě fronty (`pipeline.ts:527`),
+v cestě čerstvých nálezů (`:268`) se `onProvider` nepředává — takže „kdo skóroval" je neúplné.
+`detectPlatform` používá `host.includes('lever.co')`, což projde i `lever.co.evil.example`; vedlejší
+větev pro Recruitee to má správně přes `endsWith('.recruitee.com')`. `npm audit` je nad runtime
+závislostmi **čistý (0)**, 1 low + 5 high je v dev/deploy řetězci kolem Wrangleru.
+
+**Pořadí oprav** (podle recenze a souhlasím s ním): čtyři provozní acceptance testy — všechny zdroje
+selžou → `failed`; selhané odeslání → příští běh pošle právě jednou; dva souběžné požadavky → druhý
+`409`; zastavený běh zůstane `stopped`. Teprve potom hard-negative evaly a adversariální případy
+pro scoring, enrichment i discovery. **Žádné nové zdroje ani ladění promptu, dokud tohle neplatí.**
+---
+
 ## 2026-09-01 (4) — inzerát bez lokality se přestal tiše zahazovat; sada je 23/23
 
 Commit `970fca8`, prompt `skore-2026-09-01.2`.
@@ -44,7 +95,7 @@ netrefí. Na tom padl první test odvozování. Kdyby se někdy četla próza, t
 coverage 100 %, `anthropic 23×`. „Head of IT" překlopil na 75. Žádný z pražských případů se
 nepohnul přes práh (nejvýš 40 = strop pro `out`), takže regrese nikde.
 
-**Co to nedokazuje:** záporná třída je pořád degenerovaná (16 ze 17 negativů má
+**Co to nedokazuje:** záporná třída je pořád degenerovaná (17 ze 17 negativů má
 `prefilter: "out"`) a plně zelená sada přestala rozlišovat. Potřebuje těžší případy —
 brněnské inzeráty, kde o výsledku nerozhoduje kraj, ale role. Kandidáti vytažení z D1 čekají
 na ruční štítky: Red Hat Senior SW Engineer, Asseco Customer Experience i delivery, FNZ Director
@@ -139,7 +190,7 @@ Chybí ale druhá půlka toho pravidla — **„a je to vidět"**:
 - `src/evals.ts` + `POST /api/evals` — sada běží **uvnitř nasazené verze** přes tentýž
   `scoreJob`, prompt i žebřík jako ostrý běh. Jinak to nejde: free příčka je binding `env.AI`,
   který z Node ani z CI neexistuje.
-- **Precision a recall**, ne jen podíl uhádnutých. Sada má 16 z 23 případů záporných, takže
+- **Precision a recall**, ne jen podíl uhádnutých. Sada má 17 z 23 případů záporných, takže
   „uhádl 70 %" by vypadalo dobře i u modelu, který neposílá vůbec nic. Nezodpovězený případ
   se do přesnosti nepočítá — výpadek backendu není špatné hodnocení.
 - Tlačítko **„Změřit kvalitu modelu"** na `/tests`, zvlášť od sebekontroly: ta hlídá invarianty

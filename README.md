@@ -12,11 +12,15 @@ dohledá **původce**, ověří **živost inzerátu** (aktivní/zrušené), zach
 - **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
 - **English:** [`README.en.md`](README.en.md)
 - **Stav projektu:** [`STATUS.html`](STATUS.html) (snapshot k předložení) · [`HANDOFF.md`](HANDOFF.md) (deník stavu) · [`BEH-AGENTA.html`](BEH-AGENTA.html) (vývojový diagram běhu) · [`TOK-INFORMACI.html`](TOK-INFORMACI.html) (tok informací) · [`MAPA-MYSLENI.html`](MAPA-MYSLENI.html) (mapa myšlení) · [`PREHLED-VEDENI.html`](PREHLED-VEDENI.html) (shrnutí pro vedení, A4)
-- **Audit 30. 8. 2026** proti [build předpisu](https://github.com/Anamax443/ai-agenti) — **všechny čtyři nálezy uzavřené k 1. 9. 2026**:
+- **Audit 30. 8. 2026** proti [build předpisu](https://github.com/Anamax443/ai-agenti) — **tři nálezy uzavřené, čtvrtý z poloviny (k 1. 9. 2026)**:
   - ✅ **vypínač zastavuje běh** — příznak v `meta`, běh ho čte před každou dávkou (31. 8.)
   - ✅ **pád běhu upozorní** — z `catch` do Telegramu; zabití zvenčí chytá hlídač nedoběhlých běhů (31. 8. a 1. 9.)
-  - ✅ **cizí text má obal** — popis inzerátu je ohraničený značkou `<inzerat>` a systémový prompt říká, že uvnitř nejsou pokyny; uzavírací značka ve vstupu se znešikodní (1. 9.)
-  - ✅ **kvalita AI skórování je změřená** — sada běží uvnitř nasazeného Workeru přes tentýž `scoreJob`, prompt i žebřík backendů jako ostrý běh: **23/23, precision 100 %, recall i efektivní recall 100 %, coverage 100 %** (prompt `skore-2026-09-01.2`)
+  - ⚠️ **cizí text má obal JEN u skórování** — popis inzerátu jde do `score.ts` ohraničený značkou
+    `<inzerat>` a systémový prompt říká, že uvnitř nejsou pokyny. **`enrich.ts` a `discover.ts`
+    stejnou hranici nemají**, a přitom právě ony pouštějí model na cizí weby (`web_search`/`web_fetch`).
+    Nález auditu je tedy uzavřený z poloviny; deklarovat ho za hotový bylo předčasné (zjištěno
+    externí recenzí 1. 9. 2026). Prompty v `enrich.ts`/`discover.ts` navíc nebydlí v `prompts.ts`,
+    takže je nekryje ani `PROMPT_VERSION`, ani brána v CI.
   Podrobně v `HANDOFF.md`.
 
 ---
@@ -240,7 +244,7 @@ Free model dal nulu třem reálným leadům. Dva z nich Claude trefil (78 a 72),
 „Head of IT" bez lokality — padl až opravou stropu regionu, ne lepším modelem. Kdyby se
 sledovalo jen souhrnné číslo, vypadalo by to jako jedna zásluha.
 
-**Poctivá výhrada:** precision zatím moc neváží. 16 ze 17 záporných případů má
+**Poctivá výhrada:** precision zatím moc neváží. 17 ze 17 záporných případů má
 `prefilter: "out"`, takže se v produkci k modelu vůbec nedostanou — ta stovka je z velké části
 vysvědčení pro deterministický filtr, ne pro model. Doplnit případy, které filtrem projdou
 a přesto mají skončit nízko, je otevřený bod.
