@@ -15,12 +15,15 @@
 
 import { applyRegionGate, checkRegion } from './region.ts';
 import { authorize, isProtectedPath, parseAllowlist } from './access.ts';
-import { prefilter } from './prefilter.ts';
+import { prefilter, keywordHit, roleMatch, regionRejected } from './prefilter.ts';
 import { dedupKey, fingerprintText } from './store.ts';
 import { normalizeScore } from './score.ts';
 import { sanitizeSettings } from './config.ts';
 import { buildJobsFilter, sanitizeIds, BULK_MAX } from './store.ts';
-import { formatPositions, guessIntent, parseCommand } from './telegram.ts';
+import { formatPositions, formatRun, guessIntent, parseCommand } from './telegram.ts';
+import { createCounter, formatBudget, wrapDb } from './metrics.ts';
+import { ZOMBIE_PO_MINUTACH } from './store.ts';
+import { PROMPT_VERSION } from './prompts.ts';
 import { norm, num, pageParams, truncate } from './util.ts';
 import type { JobPosting, Settings } from './types.ts';
 
@@ -140,6 +143,41 @@ export function runSelfTest(): SelfTestResult {
   );
 
   // --- Dedup -----------------------------------------------------------------
+  // Nastavení s krajem — tvrdý filtr regionu se od 31. 8. 2026 uplatňuje už na vstupu.
+  const S_KRAJ = { ...NASTAVENI, regionPriority: 'brno' } as unknown as Settings;
+
+  check(P, 'jobs.cz projde bez testu klíčových slov', 'Nález 31. 8. 2026: když jsem tuhle propustku zrušil, vypadlo 16 reálných brněnských inzerátů včetně ARKYS „IT Specialista / Architekt — Druhý muž IT" se skóre 80. Titulky z portálu skoro nikdy neznějí jako klíčové slovo.', 1, prefilter([job({ source: 'jobs.cz', title: 'IT Specialista / Architekt – Druhý muž IT' })], NASTAVENI).length);
+  check(P, '„CIO" nechytí slovo stacionář', 'Nález 31. 8. 2026: klíčové slovo se hledalo podřetězcem a „cio" sedí uvnitř sta-CIO-nář — do fronty se dostali pracovníci v sociálních službách (69 ze 139).', false, keywordHit(norm('přímá péče v denním stacionáři'), 'CIO'));
+  check(P, 'Praha z jobs.cz neprojde', 'Propustka pro zdroj nesmí obejít filtr kraje — Prahu odřízne kraj, ne role.', 0, prefilter([job({ source: 'jobs.cz', title: 'Vedoucí IT', location: 'Praha', region: 'Hlavní město Praha' })], S_KRAJ).length);
+  check(P, 'Neznámá lokalita se nezahazuje', 'ATS inzeráty lokalitu často neuvádějí; o lead se nemá přijít kvůli prázdnému poli.', 1, prefilter([job({ source: 'ats:x', title: 'Vedoucí IT' })], S_KRAJ).length);
+  check(P, 'Role a kraj jsou dvě různá rozhodnutí', 'Když se zamění, ladí se špatná příčina: brněnský dělník padá na roli, pražský ředitel na kraji.', [true, false], [regionRejected(job({ location: 'Praha', region: 'Hlavní město Praha' }), S_KRAJ), roleMatch(job({ source: 'mpsv', title: 'Dělník' }), S_KRAJ)]);
+
+  // --- Měřák rozpočtu --------------------------------------------------------
+  const MR = 'Měřák rozpočtu';
+  {
+    const m = createCounter();
+    const atrapa: any = { prepare: () => ({ bind: () => ({}), run: () => ({}) }), batch: () => [] };
+    const w = wrapDb(atrapa, m);
+    w.batch([w.prepare('a'), w.prepare('b'), w.prepare('c')]);
+    check(MR, 'Dávka se počítá jako JEDEN požadavek', 'V tom je celý smysl dávkování: běh 133 odbavil 105 vyřazení ~14 zápisy místo 105. Kdyby se počítala každá položka, optimalizace by vypadala neúčinně.', 1, m.snapshot().d1);
+  }
+  {
+    const m = createCounter();
+    const atrapa: any = { prepare: () => ({ bind: () => ({}), run: () => ({}) }), batch: () => [] };
+    const w = wrapDb(atrapa, m);
+    w.prepare('x').run();
+    check(MR, 'Jednotlivý dotaz se počítá', 'Bez počítání D1 by rozpočet vypadal skoro prázdný — u běhu 133 byla D1 113 ze 127.', 1, m.snapshot().d1);
+  }
+  check(MR, 'Rozpočet hlásí dvě různá čísla', 'Běh 133: 127 požadavků, 9 ohodnocených modelem, 105 vyřazených kódem. Samotné 127/9 = 14,1 by tvrdilo, že skórování je drahé; na zpracovanou položku je to 1,11.', true, formatBudget({ d1: 113, model: 9, liveness: 5, celkem: 127 }, 9, 114).includes('na zpracovanou položku 1.11'));
+  check(MR, 'Rozpočet přizná, co se neměří', 'Stahování zdrojů se nepočítá; součet bez té poznámky by se četl jako úplný.', true, formatBudget({ d1: 1, model: 0, liveness: 0, celkem: 1 }, 0).includes('neměří'));
+
+  // --- Stav běhu -------------------------------------------------------------
+  const SB = 'Stav běhu';
+  check(SB, 'Nedoběhlý běh není ✅ ani ❌', 'Běh 132 (1. 9. 2026) platforma zabila. „Běží" a „spadlo" jsou různé věci a záměna zamlží, že je agent mrtvý.', true, formatRun({ started_at: 'x', finished_at: null, trigger: 'telegram', ok: 0, stats: null }).includes('ještě běží'));
+  check(SB, 'Rozbitá statistika neshodí odpověď', 'Hlavička o běhu je užitečná i bez čísel.', true, formatRun({ started_at: 'x', finished_at: 'y', trigger: 'cron', ok: 0, stats: '{tohle není JSON' }).startsWith('❌'));
+  check(SB, 'Hlídač čeká déle, než trvá běh', 'Hranice 6 minut vs. rozpočet běhu 60 s — kratší hranice by hlídač uzavíral běhy, které ještě žijí.', true, ZOMBIE_PO_MINUTACH * 60 > 60);
+  check(SB, 'Prompt nese verzi', 'Bez čísla v zápisu běhu nejde poznat, podle jakého znění se skórovalo (fáze F4 build předpisu).', true, PROMPT_VERSION.startsWith('skore-') && PROMPT_VERSION.length > 10);
+
   const D = 'Deduplikace';
   check(
     D,

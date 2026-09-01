@@ -4,10 +4,35 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 / po pauze. Věcné „jak to funguje" je v [README.md](README.md), tady je jen **stav**.
 
 > **🟢 NASAZENO A BĚŽÍ:** [jobwatch.maxferit.cz](https://jobwatch.maxferit.cz) za Cloudflare
-> Access, denní cron 07:00 SEČ. Repo **`Anamax443/job-watch`** (PUBLIC), větev `main`.
+> Access, denní cron 06:00 UTC (07:00 SEČ / 08:00 SELČ). Repo **`Anamax443/job-watch`** (PUBLIC), větev `main`.
 > Deploy jede z CI při pushi do `main` — **push = nasazení**; CI od 22. 8. 2026 hlásí pravdu
 > (brána `typecheck` → `test` → deploy).
 > Provoz je nezávislý na lokálním PC (Worker + D1 + Cron + GitHub Actions).
+
+---
+
+## 2026-09-01 — invarianty z dvoudenního ladění doplněny na /tests
+
+Většina toho, co dnešek odhalil, žila jen v `tests/` a v CI. Na nasazené verzi to nebylo
+vidět — a rozdíl mezi „prošel commit" a „platí to na tom, co právě běží" je celý smysl té
+stránky. Sebekontrola vyrostla ze **42 na 68 kontrol**, přibyly tři skupiny:
+
+**Prefiltr** (+5): jobs.cz projde bez testu klíčových slov (případ ARKYS — bez propustky
+vypadlo 16 reálných brněnských inzerátů), „CIO" nechytí slovo sta-CIO-nář, Praha z jobs.cz
+neprojde (odřízne ji kraj, ne role), neznámá lokalita se nezahazuje, a role × kraj jsou dvě
+různá rozhodnutí — když se zamění, ladí se špatná příčina.
+
+**Měřák rozpočtu** (4): dávka se počítá jako JEDEN požadavek (jinak by optimalizace vypadala
+neúčinně), jednotlivý dotaz se počítá, rozpočet hlásí dvě různá čísla (na zpracovanou položku
+vs. na ohodnocený modelem) a přiznává, že stahování zdrojů neměří.
+
+**Stav běhu** (4): nedoběhlý běh není ✅ ani ❌, rozbitá statistika neshodí odpověď, hlídač
+čeká déle než trvá běh (6 min vs. 60 s — kratší hranice by uzavírala živé běhy) a prompt
+nese verzi.
+
+**Vedle toho oprava, na kterou upozornil uživatel:** dokumentace psala „denní cron 07:00 SEČ".
+SEČ platí jen v zimě — v létě jede v 08:00 místního času. Půl roku ten údaj lhal. Opraveno
+na „06:00 UTC (07:00 SEČ / 08:00 SELČ)" v README, HANDOFF, STATUS i wrangler.toml.
 
 ---
 

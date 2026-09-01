@@ -6,7 +6,8 @@ compatibility_date = "2026-01-01"
 # vytáhnout bez přihlášení mimo Access. Jediná adresa je jobwatch.maxferit.cz (za Accessem).
 workers_dev = false
 
-# Denní běh: 07:00 SEČ / 06:00 UTC. MPSV publikuje přírůstky v pracovní dny.
+# Denní běh: 06:00 UTC = 07:00 SEČ v zimě, 08:00 SELČ v létě. Cron je vždy v UTC,
+# takže se posouvá vůči místnímu času — půl roku psaly dokumenty o hodinu vedle. MPSV publikuje přírůstky v pracovní dny.
 [triggers]
 # "0 6 * * *" = denní běh agenta. "*/5 * * * *" = vybírání příkazů z Telegramu:
 # aplikace je za Cloudflare Access, takže webhook by znamenal Bypass politiku (díru v ochraně).
