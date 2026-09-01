@@ -4,7 +4,7 @@
 // Precision a recall říkají dvě různé věci a jen spolu dávají smysl.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spoctiPresnost } from '../src/evals.ts';
+import { runEvals, spoctiPresnost } from '../src/evals.ts';
 
 const p = (expected: 'high' | 'low', got: 'high' | 'low' | null) =>
   ({ why: '', title: '', expected, got, relevance: null, provider: null, ok: expected === got, reason: null });
@@ -44,4 +44,17 @@ test('bez jediné odpovědi se nedělí nulou', () => {
   const r = spoctiPresnost([p('high', null)]);
   assert.equal(r.precision, null);
   assert.equal(r.recall, null);
+});
+
+test('INCIDENT 1. 9. 2026: sada měřila free příčku i při zvoleném placeném backendu', async () => {
+  // runEvals nepředávala scoreJob `provider`, takže providerChain volbu vyhodnotil jako
+  // „auto" = JEN Workers AI. Měření tím popisovalo jiný backend, než jaký podle Nastavení
+  // běží v produkci — a vydávalo to za kvalitu agenta. Kontrola bez sítě: s volbou 'off'
+  // nesmí projít ani jedno volání modelu. Před opravou fake binding odpověděl na všechny.
+  const env = {
+    AI: { run: async () => ({ response: '{"relevance":95,"seniority":"lead","reason":"ok"}' }) },
+  };
+  const r = await runEvals(env as never, { aiProvider: 'off', notifyThreshold: 70 } as never);
+  assert.equal(r.bezOdpovedi, r.celkem);
+  assert.deepEqual(r.providers, {});
 });

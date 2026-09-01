@@ -72,4 +72,11 @@ if (chyb) {
   console.log(`\n❌ Evaly neprošly.`);
   process.exit(1);
 }
-console.log(`\n✅ Evaly prošly. Verze promptu: ${PROMPT_VERSION}`);
+// Závěr musí rozlišit, co se změřilo a co ne. „Evaly prošly" u běhu, který modelovou část
+// vůbec nespustil, je falešná jistota — a přesně tu tahle sada má odstraňovat.
+console.log(
+  `
+✅ Deterministické evaly prošly. Modelové evaly NEPROBĚHLY (${sBandem.length} případů` +
+    `
+   čeká na /tests → „Změřit kvalitu modelu"). Verze promptu: ${PROMPT_VERSION}`,
+);

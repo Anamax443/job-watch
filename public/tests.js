@@ -135,9 +135,16 @@ $('#evals').onclick = async () => {
     out.innerHTML =
       `<p><b>${d.ok}/${d.celkem}</b> podle očekávání · prompt <code>${esc(d.promptVersion)}</code> · práh ${d.prah}` +
       (d.bezOdpovedi ? ` · <b>${d.bezOdpovedi} bez odpovědi modelu</b>` : '') + '</p>' +
-      `<p>Ohodnotil: <b>${backendy}</b></p>` +
+      `<p>Nastaveno: <b>${esc(d.zvolenyProvider || '—')}</b> · Ohodnotil: <b>${backendy}</b>` +
+      (d.zvolenyProvider && d.zvolenyProvider !== 'auto' && !(d.providers || {})[d.zvolenyProvider]
+        ? ' · <b class="bad">zvolený backend neodpověděl ani jednou — měřil fallback</b>'
+        : '') +
+      `<br><span class="meta">měřeno proti kraji „${esc(d.konfigurace?.region || '—')}" a prahu ${d.konfigurace?.prah}` +
+      ` ze sady · profil ${esc(d.profilOtisk?.hash || '?')} (${d.profilOtisk?.delka ?? '?'} znaků)</span></p>` +
       `<p><b>Precision ${pct(d.presnost.precision)}</b> (kolik z odeslaných by bylo správně) · ` +
-      `<b>Recall ${pct(d.presnost.recall)}</b> (kolik ze správných by odešlo) · ` +
+      `<b>Recall ${pct(d.presnost.recall)}</b> (kolik ze správných by odešlo, jen nad odpověďmi) · ` +
+      `<b>Efektivní recall ${pct(d.presnost.recallEfektivni)}</b> (neodpověď u leadu = ztracený lead) · ` +
+      `<b>Coverage ${pct(d.presnost.coverage)}</b> (${d.presnost.odpovedi}/${d.celkem} odpovědí) · ` +
       `<span class="meta">TP ${d.presnost.tp} · FP ${d.presnost.fp} · FN ${d.presnost.fn} · TN ${d.presnost.tn}</span></p>` +
       `<table class="evaltab"><tbody>${radky}</tbody></table>`;
   } catch (e) {
