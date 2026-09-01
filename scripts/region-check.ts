@@ -76,5 +76,21 @@ const keepOk = keep.relevance === 82 && !keep.capped;
 if (!keepOk) bad++;
 console.log(`${keepOk ? '✔' : '✘'} Brno se nepenalizuje: 82 → ${keep.relevance}`);
 
-console.log(bad ? `\n${bad} selhalo` : `\nVšech ${CASES.length + 2} kontrol prošlo`);
+// Neověřená lokalita už skóre nesnižuje. Dřív ji strop `t - 1` držel VŽDY pod prahem, takže
+// inzerát s prázdným polem lokality nemohl projít nikdy — ať dostal od modelu cokoli. Projít
+// musí, ale poznat to musí být: bez ⚠️ v odůvodnění by vypadal stejně jistě jako inzerát
+// s vyplněnou lokalitou, a to je přesně ten rozdíl, kvůli kterému se to označuje.
+const nezn = applyRegionGate(
+  { relevance: 78, reason: 'Řídící IT role, sedí na profil.' },
+  { title: 'Head of IT' },
+  'brno',
+  70,
+);
+const neznOk = nezn.relevance === 78 && !nezn.capped && nezn.reason.includes('⚠️');
+if (!neznOk) bad++;
+console.log(
+  `${neznOk ? '✔' : '✘'} neověřená lokalita projde s otazníkem: 78 → ${nezn.relevance} — ${nezn.reason}`,
+);
+
+console.log(bad ? `\n${bad} selhalo` : `\nVšech ${CASES.length + 3} kontrol prošlo`);
 process.exit(bad ? 1 : 0);

@@ -58,7 +58,9 @@ function gateByRegion(
   opts: { region?: string; threshold?: number },
 ): ScoreResult {
   const g = applyRegionGate(out, job, opts.region, opts.threshold);
-  if (!g.capped) return out;
+  // Nejen strop: neověřená lokalita mění jen odůvodnění, a to musí projít taky.
+  if (!g.capped && g.reason === out.reason) return out;
+  if (!g.capped) return { ...out, reason: g.reason };
   console.log(`region gate ${job.id}: ${out.relevance} → ${g.relevance} (${g.check.note})`);
   return { ...out, relevance: g.relevance, reason: g.reason };
 }

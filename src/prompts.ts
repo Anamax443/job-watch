@@ -16,7 +16,7 @@
  * ne, brána spadne. Bez toho by se dalo prompt tiše přepsat a nikdo by nespároval změnu
  * chování s příčinou.
  */
-export const PROMPT_VERSION = 'skore-2026-09-01.1';
+export const PROMPT_VERSION = 'skore-2026-09-01.2';
 
 /**
  * Text inzerátu je CIZÍ VSTUP: píše ho zaměstnavatel nebo agentura, nikdo ho nereviduje a
@@ -72,7 +72,8 @@ export function locationClause(region?: string, threshold?: number): string {
     `(klidně 30–50), i kdyby role obsahově seděla perfektně. Pozici v regionu nebo plně remote ` +
     `lokalitou nepenalizuj. NIKDY si lokalitu nedomýšlej: hodnoť VÝHRADNĚ podle pole „Lokalita"/` +
     `„Region" ve vstupu. Když ve vstupu žádná lokalita není, do zdůvodnění napiš „lokalita neuvedena" ` +
-    `a NETVRĎ, že je v preferovaném regionu — takový inzerát nesmí přes práh jen kvůli obsahu.`
+    `NETVRĎ, že je v preferovaném regionu, ale skóre kvůli chybějící lokalitě NESNIŽUJ — hodnoť ` +
+    `dál výhradně obsah role. Co se s neověřenou lokalitou stane, rozhoduje kód, ne ty.`
   );
 }
 

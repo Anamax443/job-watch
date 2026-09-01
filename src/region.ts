@@ -238,10 +238,18 @@ export function applyRegionGate(
   const t = Number.isFinite(threshold) ? threshold : 70;
   let cap: number | null = null;
   if (check.verdict === 'out') cap = Math.max(0, Math.min(40, t - 1));
-  else if (check.verdict === 'unknown') cap = Math.max(0, t - 1);
+  // 1. 9. 2026: `unknown` se přestal stropovat. Strop na `t - 1` byl VŽDY pod prahem, takže
+  // inzerát bez lokality nemohl projít nikdy, ať dostal cokoli — a odůvodnění případu v eval
+  // sadě přitom zní „o lead se nemá přijít kvůli prázdnému poli". Měření ukázalo, že odvodit
+  // kraj odjinud nejde (4 z 5 takových inzerátů nemají město ani v popisu), takže volba byla
+  // mezi tichou ztrátou a otazníkem. Je jich 5 z 283 (1,8 %) — levnější poslat s ⚠️ než zahodit.
 
   if (cap == null || score.relevance <= cap) {
-    return { relevance: score.relevance, reason: score.reason, check, capped: false };
+    // Nestropuje se, ale neověřená lokalita musí být vidět v appce i v notifikaci — jinak
+    // by inzerát bez lokality vypadal stejně jistě jako ten s vyplněnou.
+    const reason =
+      check.verdict === 'unknown' ? `⚠️ ${check.note}. ${score.reason}`.trim() : score.reason;
+    return { relevance: score.relevance, reason, check, capped: false };
   }
   const mark = check.verdict === 'out' ? '⛔' : '⚠️';
   return {
