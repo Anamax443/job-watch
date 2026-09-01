@@ -110,3 +110,39 @@ async function run() {
 
 $('#run').onclick = run;
 run();
+
+// --- Kvalita AI hodnocení ---------------------------------------------------
+// Zvlášť od sebekontroly, protože měří něco úplně jiného: sebekontrola hlídá invarianty
+// kódu (rychlá, zadarmo, pouští se sama), tohle měří model (pomalé, stojí volání, ručně).
+// Míchat obojí do jedné zelené by znamenalo, že „vše v pořádku" nic neříká o tom, jestli
+// agent vybírá správné nabídky.
+$('#evals').onclick = async () => {
+  const btn = $('#evals');
+  const out = $('#evalout');
+  btn.disabled = true;
+  out.innerHTML = '<p class="meta"><span class="spin">⟳</span> Měřím… každý případ je jedno volání modelu, počítej s desítkami sekund.</p>';
+  try {
+    const r = await fetch('/api/evals', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d?.error || 'nepovedlo se');
+    const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
+    const backendy = Object.entries(d.providers || {}).map(([p, n]) => `${esc(p)} ${n}×`).join(' · ') || '—';
+    const radky = d.pripady
+      .map((c) => `<tr class="${c.ok ? 'ok' : 'bad'}"><td>${c.ok ? '✔' : '✘'}</td><td>${c.relevance ?? '—'}</td>` +
+        `<td>${esc(c.title)}</td><td>čekáno ${esc(c.expected)}${c.got ? `, dostal ${esc(c.got)}` : ', bez odpovědi'}</td>` +
+        `<td class="meta">${esc(c.why)}</td></tr>`)
+      .join('');
+    out.innerHTML =
+      `<p><b>${d.ok}/${d.celkem}</b> podle očekávání · prompt <code>${esc(d.promptVersion)}</code> · práh ${d.prah}` +
+      (d.bezOdpovedi ? ` · <b>${d.bezOdpovedi} bez odpovědi modelu</b>` : '') + '</p>' +
+      `<p>Ohodnotil: <b>${backendy}</b></p>` +
+      `<p><b>Precision ${pct(d.presnost.precision)}</b> (kolik z odeslaných by bylo správně) · ` +
+      `<b>Recall ${pct(d.presnost.recall)}</b> (kolik ze správných by odešlo) · ` +
+      `<span class="meta">TP ${d.presnost.tp} · FP ${d.presnost.fp} · FN ${d.presnost.fn} · TN ${d.presnost.tn}</span></p>` +
+      `<table class="evaltab"><tbody>${radky}</tbody></table>`;
+  } catch (e) {
+    out.innerHTML = `<p class="bad">✘ Měření selhalo: ${esc(e.message || e)}</p>`;
+  } finally {
+    btn.disabled = false;
+  }
+};

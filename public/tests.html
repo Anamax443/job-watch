@@ -43,6 +43,11 @@
   .chk .diff { font-family:Consolas,Menlo,monospace; font-size:12px; color:var(--bad); margin-top:6px; word-break:break-all; }
   .empty { color:var(--mut); }
   @media (max-width:640px){ main { padding:14px; } }
+  .evalbox { margin:26px 0; padding:16px 20px; border:1px solid var(--line); border-radius:10px; }
+  .evalbox h2 { margin:0 0 6px; font-size:16px; }
+  .evaltab { width:100%; border-collapse:collapse; margin-top:12px; font-size:13px; }
+  .evaltab td { padding:5px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  .evaltab tr.bad td { color:#ffb4b4; }
 </style>
 </head>
 <body>
@@ -68,6 +73,17 @@
 
   <div id="verdict" class="verdict"><span class="meta">Načítám…</span></div>
   <div id="groups"></div>
+
+  <section class="evalbox">
+    <h2>Kvalita AI hodnocení</h2>
+    <p class="meta">Kontroly výše jsou invarianty čistých funkcí — o tom, jak dobře model pozná
+      relevantní inzerát, neříkají nic. Tohle měření pustí <b>26 reálných inzerátů</b> z produkční
+      databáze přes <b>stejné skórování jako ostrý běh</b>, včetně přepínání backendu
+      (placený Claude → free Workers AI). Každý případ stojí jedno volání modelu, proto se
+      spouští ručně.</p>
+    <button id="evals" class="ghost" title="Pustí 23 hodnocených případů přes živý AI backend. Trvá desítky sekund a spotřebuje volání modelu.">Změřit kvalitu modelu</button>
+    <div id="evalout"></div>
+  </section>
 </main>
 
 <script src="/tests.js"></script>

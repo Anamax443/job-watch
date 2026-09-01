@@ -47,6 +47,8 @@ export interface RunStats {
   discovered: number;
   livenessGone?: number; // kolik inzerátů se v tomto běhu ověřilo jako zrušené (404)
   budget?: RunBudget & { celkem: number }; // spotřeba podřízených požadavků Workeru (viz src/metrics.ts)
+  /** Kolik inzerátů ohodnotila která příčka žebříku (viz onProvider v score.ts). */
+  providers?: Record<string, number>;
   promptVersion?: string; // podle jakého znění promptu se v tomhle běhu skórovalo (F4)
   prefiltered?: number; // kolik jich z fronty vyřadil kód (mimo obor/kraj) bez jediného dotazu na AI
   // Kolik kandidátů z tohoto stažení ještě NENÍ ohodnoceno (nedojely kvůli časovému stropu).
@@ -226,6 +228,11 @@ export async function runPipeline(
     // vyčerpaný free limit od spadlého backendu nebo od modelu, co vrátil nesmysl.
     let lastFail = '';
     let failLogged = 0;
+    // Kdo skutečně ohodnotil — ne kdo byl zamýšlený. Přepnutí na zálohu je jinak neviditelné.
+    const pocitejProvidera = (p: string) => {
+      stats.providers = stats.providers ?? {};
+      stats.providers[p] = (stats.providers[p] ?? 0) + 1;
+    };
     const onScoreFail = (id: string) => (msg: string) => {
       lastFail = msg;
       if (failLogged < 3) {
@@ -517,6 +524,7 @@ export async function runPipeline(
               threshold: settings.notifyThreshold,
               provider,
               onFail: onScoreFail(job.id),
+              onProvider: pocitejProvidera,
             });
             if (!sc) return;
             // Zápis se odloží a udělá se jednou za dávku (viz bulkUpdateScores níže).
@@ -612,6 +620,15 @@ export async function runPipeline(
     const b = budget.snapshot();
     stats.budget = b;
     // Zpracované = co frontou i hlavní cestou reálně prošlo, tedy i to, co vyřadil kód.
+    // Který backend reálně rozhodoval. Dvě příčky v jednom běhu = přepnutí na zálohu,
+    // a to má být vidět jako událost, ne jako pár chybových hlášek zastropovaných na tři.
+    const pouzite = Object.entries(stats.providers ?? {});
+    if (pouzite.length) {
+      run.log(
+        `🧠 Ohodnotil: ${pouzite.map(([p, n]) => `${providerLabel(p as any)} ${n}×`).join(' · ')}` +
+          (pouzite.length > 1 ? ' — během běhu došlo k přepnutí na záložní backend.' : ''),
+      );
+    }
     run.log(formatBudget(b, stats.scored, stats.scored + (stats.prefiltered ?? 0)));
     run.log(
       stopped

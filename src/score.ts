@@ -75,6 +75,15 @@ export async function scoreJob(
     threshold?: number;
     provider?: string;
     onFail?: (msg: string) => void;
+    /**
+     * Která příčka žebříku skóre nakonec dala. Volá se JEN při úspěchu.
+     *
+     * Proč: backend se přepíná sám (placený Claude → free Workers AI, viz providerChain),
+     * což je záměr — provoz nespadne. Jenže osmdesátka od Claude a osmdesátka od Llamy 8B
+     * vypadají v databázi identicky, takže „došel kredit a celý měsíc skóruje free model"
+     * byla dosud tichá změna kvality. Bez tohohle háčku se nedá ani měřit, ani hlásit.
+     */
+    onProvider?: (p: string) => void;
   } = {},
 ): Promise<ScoreResult | null> {
   const system = buildSystem(profile, opts.region, opts.threshold);
@@ -121,7 +130,10 @@ export async function scoreJob(
       }
       const out = normalizeScore(parsed);
       // Region NEnechávej na modelu: zastropuj skóre podle skutečné lokality (src/region.ts).
-      if (out) return gateByRegion(out, job, opts);
+      if (out) {
+        opts.onProvider?.(provider);
+        return gateByRegion(out, job, opts);
+      }
       // Odpověď dorazila, ale nedá se použít (chybí číselná relevance) — u free modelu se to
       // stává. Ukázka odpovědi do hlášky, ať je poznat rozdíl proti výpadku backendu.
       opts.onFail?.(`${provider}: model nevrátil použitelné skóre (${JSON.stringify(parsed ?? null).slice(0, 120)})`);

@@ -13,6 +13,7 @@ import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
+import { runEvals } from './evals.ts';
 import { BULK_MAX, buildJobsFilter, bulkSetScore, requestStop, sanitizeIds, uzavriZombie } from './store.ts';
 import { HEARTBEAT_KEY, pollTelegram } from './telegram.ts';
 
@@ -380,6 +381,15 @@ async function route(
       ).all();
       return json({ sources: rows.results ?? [] });
     }
+    // Evaluační sada proti ŽIVÉMU backendu. Na vyžádání, ne automaticky: každý případ
+    // stojí jedno volání modelu. Jediné místo, kde jde změřit free příčku žebříku — binding
+    // env.AI z CI ani z Node neexistuje. Nezapisuje do dat, jen čte a volá model.
+    if (p === '/api/evals' && request.method === 'POST') {
+      const renv = await resolveEnv(env);
+      const s = await loadSettings(renv);
+      return json(await runEvals(renv, s));
+    }
+
     if (p === '/api/version' && request.method === 'GET') {
       return json({ commit: env.GIT_COMMIT ?? 'dev', builtAt: env.BUILT_AT ?? null });
     }

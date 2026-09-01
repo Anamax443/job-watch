@@ -11,6 +11,46 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 — evaly měřily špatnou příčku žebříku; teď měří tu, která rozhoduje
+
+**Externí recenze našla to nejostřejší:** sada v `scripts/evals.ts` volala Anthropic napřímo,
+zatímco produkce standardně skóruje přes free Workers AI. Měřil se tedy model, který dnes
+nerozhoduje. To není chybějící měření, ale **měřicí přístroj namířený vedle** — vyrábí falešnou
+jistotu, a to je horší než žádná.
+
+**Upřesnění od majitele, které diagnózu zpřesnilo:** není jeden produkční model, je **žebřík**
+(placený Claude → free Workers AI). To je záměr a platí pravidlo „AI vrstva nikdy bez zálohy".
+Chybí ale druhá půlka toho pravidla — **„a je to vidět"**:
+
+- nikde se nezapisovalo, **která příčka dala které skóre**; osmdesátka od Claude a od Llamy 8B
+  vypadaly v databázi identicky,
+- **úspěšné přepnutí na zálohu se nelogovalo** — jen selhání, a to zastropované na tři hlášky
+  za běh. „Došel kredit, celý měsíc skóruje free model" tak bylo prakticky neviditelné.
+
+**Co přibylo:**
+
+- `onProvider` v `scoreJob` — háček volaný při ÚSPĚCHU, hlásí, kdo odpověděl.
+- `runs.stats.providers` + řádek 🧠 v logu běhu: „Ohodnotil: … 27×", a při dvou příčkách
+  v jednom běhu se výslovně řekne, že došlo k přepnutí na zálohu.
+- `src/evals.ts` + `POST /api/evals` — sada běží **uvnitř nasazené verze** přes tentýž
+  `scoreJob`, prompt i žebřík jako ostrý běh. Jinak to nejde: free příčka je binding `env.AI`,
+  který z Node ani z CI neexistuje.
+- **Precision a recall**, ne jen podíl uhádnutých. Sada má 16 z 23 případů záporných, takže
+  „uhádl 70 %" by vypadalo dobře i u modelu, který neposílá vůbec nic. Nezodpovězený případ
+  se do přesnosti nepočítá — výpadek backendu není špatné hodnocení.
+- Tlačítko **„Změřit kvalitu modelu"** na `/tests`, zvlášť od sebekontroly: ta hlídá invarianty
+  kódu (rychlá, zadarmo, sama), tohle měří model (pomalé, stojí volání, ručně).
+- `scripts/evals.ts` už model neměří vůbec a **říká proč** — nezměřeno se nesmí tvářit jako prošlo.
+- Sada převedena z JSON na TS modul (`evals/skorovani.ts`): čte ji Node i Worker, a dvě kopie
+  by se rozešly.
+
+5 testů na precision/recall (celkem **154**).
+
+**Co to nezavírá:** měření je pořád ruční a v CI neběží. Ale poprvé měří to, co doopravdy
+rozhoduje — a řekne, která příčka to byla.
+
+---
+
 ## 2026-09-01 — invarianty z dvoudenního ladění doplněny na /tests
 
 Většina toho, co dnešek odhalil, žila jen v `tests/` a v CI. Na nasazené verzi to nebylo
