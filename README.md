@@ -11,7 +11,13 @@ dohledá **původce**, ověří **živost inzerátu** (aktivní/zrušené), zach
 - **AI backend „dle úhrady" (`src/ai.ts`):** default **zdarma Cloudflare Workers AI** (`@cf/meta/llama-3.1-8b-instruct-fp8`) pro skórování; volitelně placený **Claude** `claude-haiku-4-5`. Deanonymizace/screening (`claude-sonnet-4-6` + web_search/web_fetch) umí jen Claude → při zdarma/off se přeskočí. Přepíná se v Nastavení / var `AI_PROVIDER`.
 - **Live:** https://jobwatch.maxferit.cz (Access) · **Licence:** MIT · **Autor:** Milan Trnka (maxferit)
 - **Stav projektu:** [`STATUS.html`](STATUS.html) (snapshot k předložení) · [`HANDOFF.md`](HANDOFF.md) (deník stavu) · [`BEH-AGENTA.html`](BEH-AGENTA.html) (vývojový diagram běhu — dnes a po opravě)
-- **Audit 30. 8. 2026:** projito proti [build předpisu](https://github.com/Anamax443/ai-agenti) — tři **neopravené** nálezy (vypínač nezastavuje běh · pád běhu nikoho neupozorní · text inzerátu jde do modelu bez obalu). Podrobně v `HANDOFF.md`.
+- **Audit 30. 8. 2026** proti [build předpisu](https://github.com/Anamax443/ai-agenti), stav k 1. 9. 2026:
+  - ✅ **vypínač zastavuje běh** — příznak v `meta`, běh ho čte před každou dávkou (opraveno 31. 8.)
+  - ✅ **pád běhu upozorní** — z `catch` do Telegramu; zabití zvenčí chytá hlídač nedoběhlých běhů (31. 8. a 1. 9.)
+  - ❌ **text inzerátu jde do modelu bez obalu** — obrana proti prompt injection pořád chybí
+  - ❌ **kvalita AI skórování NENÍ změřená** — evaluační sada volá Claude, jenže produkce
+    standardně skóruje přes Workers AI (Llama 8B). Měří se tedy jiný model, než který rozhoduje.
+  Podrobně v `HANDOFF.md`.
 
 ---
 
