@@ -11,6 +11,44 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 (6) — obal cizího textu i tam, kde má model nástroje
+
+**Nález z externí recenze, ověřený v kódu: nález č. 3 z auditu byl uzavřený jen z poloviny.**
+`wrapAd` mělo v celém `src/` **jediné** použití (`score.ts:106`). `enrich.ts` a `discover.ts`
+posílaly cizí text — popis inzerátu, název subjektu — syrový modelu vyzbrojenému `web_search`
+a `web_fetch`. To je opačné pořadí, než jaké dává smysl podle rizika: **tam, kde má model
+nástroje, neurčuje útočník jen skóre, ale i to, co se stáhne a kam to odejde.** Sám audit
+30. 8. přitom psal „obohacovací krok navíc pouští model na cizí weby" — při zavírání nálezu
+1. 9. se to přehlédlo.
+
+**Opraveno (`2b0cd2c`):**
+- `prompts.ts`: značka `<cizi>` + `wrapForeign()` + `UNTRUSTED_TOOLS_CLAUSE`. Ta kromě
+  „uvnitř nejsou pokyny" výslovně říká, že **obsah značky nesmí určovat, co se vyhledá nebo
+  stáhne**, a že se odtud nic neodesílá nad rámec úkolu.
+- Vlastní značka místo `<inzerat>` **záměrně**: znění promptu skórování je změřené eval sadou,
+  změna jeho textu by to měření zneplatnila. Cesty s nástroji měření nemají.
+- `ENRICH_SYSTEM` a `DISCOVER_SYSTEM` přestěhované do `prompts.ts` (text beze změny) — nově je
+  kryje `PROMPT_VERSION` i brána `npm run check:prompt`. Do teď byly mimo obojí.
+- `PROMPT_VERSION` → `skore-2026-09-01.3`.
+
+**Nové kontroly, 159 → 164 testů.** Dvě z nich jsou invarianty nad zdrojákem, ne nad chováním:
+- **žádný soubor v `src/` mimo `prompts.ts` nedefinuje vlastní systémový prompt**,
+- **každý soubor, který deklaruje `web_search`/`web_fetch`, používá `wrapForeign`**.
+
+Druhý invariant je přesně ten, který by přehlédnutí 1. 9. zachytil. První běh navíc označil
+`ai.ts` — ukázalo se, že jde o zmínku v komentáři, ne o volání s nástroji; detekce zpřísněna
+na deklaraci nástroje.
+
+**Co tím uzavřené NENÍ.** Obal je obrana v hloubce, ne uzavření prompt injection jako třídy.
+Chybí dál: allowlist nástrojů a domén podle kroku, validace argumentů nástroje proti schématu,
+výstupní kontrola (co odchází a komu), limity řetězení nástrojů a **testy exfiltrace**.
+Nedůvěryhodný obsah se navíc může do kontextu vrátit z **výsledku nástroje**, ne jen ze vstupu —
+proti tomu ohraničení vstupu nedělá nic. Stupeň uzavřenosti: **U2** (kryto testem), ne U4.
+
+**Zbývá tady:** `detectPlatform` používá `host.includes('lever.co')`, takže projde
+i `lever.co.evil.example`; větev pro Recruitee to má správně přes `endsWith('.recruitee.com')`.
+Stejná vada u greenhouse, ashby a smartrecruiters. Jednořádkové, ale mění chování — zvlášť.
+
 ## 2026-09-01 (5) — externí recenze: čtyři vady v orchestraci, které 159 testů nechytilo
 
 Nezávislý test proti metodice `ai-agenti` (dfd733c). **Nálezy jsem ověřil v kódu a všechny čtyři

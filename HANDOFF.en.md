@@ -15,6 +15,47 @@ listed here as an index at the end; their full text is in the Czech original.*
 
 ---
 
+## 2026-09-01 (6) — foreign text wrapped on the tool-armed paths too
+
+**A finding from an external review, verified in the code: audit finding 3 was only half closed.**
+`wrapAd` had exactly **one** use in the whole of `src/` (`score.ts:106`). `enrich.ts` and
+`discover.ts` were sending foreign text — the ad description, the subject name — raw to a model
+armed with `web_search` and `web_fetch`. That is the inverse of the sensible risk order: **where
+the model holds tools, an attacker does not merely steer the score, but what gets fetched and
+where it goes.** The 30 Aug audit itself said "the enrichment step additionally lets the model out
+onto third-party sites" — it was overlooked when the finding was closed on 1 Sep.
+
+**Fixed (`2b0cd2c`):**
+- `prompts.ts`: a `<cizi>` tag, `wrapForeign()` and `UNTRUSTED_TOOLS_CLAUSE`. Beyond "no
+  instructions inside", it states explicitly that **the content of the tag must not decide what
+  gets searched or fetched**, and that nothing from inside it leaves beyond the task.
+- A separate tag rather than `<inzerat>` **deliberately**: the scoring prompt's wording is measured
+  by the eval set, and changing it would invalidate that measurement. The tool paths have no
+  measurement.
+- `ENRICH_SYSTEM` and `DISCOVER_SYSTEM` moved into `prompts.ts` (text unchanged) — they are now
+  covered by `PROMPT_VERSION` and by the `npm run check:prompt` gate. Until now they were outside
+  both.
+- `PROMPT_VERSION` → `skore-2026-09-01.3`.
+
+**New checks, 159 → 164 tests.** Two of them are invariants over the source, not over behaviour:
+- **no file in `src/` other than `prompts.ts` defines its own system prompt**,
+- **every file declaring `web_search`/`web_fetch` uses `wrapForeign`**.
+
+The second invariant is exactly the one that would have caught the 1 Sep oversight. The first run
+also flagged `ai.ts` — that turned out to be a mention in a comment, not a tool-armed call;
+detection was tightened to an actual tool declaration.
+
+**What this does NOT close.** The wrapper is defence in depth, not closure of prompt injection as
+a class. Still missing: an allowlist of tools and domains per step, validation of tool arguments
+against a schema, output control (what leaves and to whom), limits on tool chaining, and
+**exfiltration tests**. Untrusted content can also re-enter the context from a **tool result**, not
+just from the input — input delimiting does nothing about that. Closure level: **U2** (covered by
+a test), not U4.
+
+**Remaining here:** `detectPlatform` uses `host.includes('lever.co')`, so `lever.co.evil.example`
+passes too; the Recruitee branch does it correctly via `endsWith('.recruitee.com')`. Same flaw for
+greenhouse, ashby and smartrecruiters. A one-liner, but it changes behaviour — separately.
+
 ## 2026-09-01 (5) — external review: four orchestration defects that 159 tests did not catch
 
 An independent test against the `ai-agenti` methodology (dfd733c). **I verified the findings in the
