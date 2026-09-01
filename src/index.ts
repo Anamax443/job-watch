@@ -251,7 +251,9 @@ export default {
           const renv = await resolveEnv(env); // token může být z D1 (UI), ne jen Worker secret
           const settings = await loadSettings(renv);
           const r = await pollTelegram(renv, settings, {
-            startRun: () => ctx.waitUntil(runPipeline(renv, 'manual')),
+            // 'telegram' (ne 'manual'): příkaz /beh nikdo nesmyčkuje jako stránka
+            // v prohlížeči, takže potřebuje plný rozpočet času jako cron.
+            startRun: () => ctx.waitUntil(runPipeline(renv, 'telegram')),
           });
           // Logovat jen když se něco dělo — jinak by 288 běhů denně zaplavilo log.
           if (r.prislo) console.log(`Telegram: přišlo ${r.prislo}, vyřízeno ${r.vyrizeno}, cizích ${r.cizich}, starých ${r.stare}`);

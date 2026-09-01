@@ -105,7 +105,10 @@ function timed<T>(label: string, p: Promise<T>, ms: number, fallback: T, run: Ru
   return Promise.race([p, to]).finally(() => clearTimeout(timer));
 }
 
-export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual'): Promise<RunStats> {
+export async function runPipeline(
+  env: Env,
+  trigger: 'cron' | 'manual' | 'telegram' = 'manual',
+): Promise<RunStats> {
   const runStart = Date.now(); // pro absolutní strop celého běhu (viz deadline níže)
   env = await resolveEnv(env); // klíče přednostně z D1 (UI), jinak Worker secrets
   const settings = await loadSettings(env);
@@ -171,8 +174,12 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
     //    ve smyčce → drží se krátce, ať se vždy stihne zapsat finished_at.
     const CRON_BUDGET_MS = 120000;
     const MANUAL_BUDGET_MS = 26000;
+    // Telegram má rozpočet jako cron, ne jako ruční běh. Krátký rozpočet ručního běhu
+    // dává smysl JEN proto, že ho stránka v prohlížeči volá znovu ve smyčce. Příkaz /beh
+    // nikdo nesmyčkuje, takže by udělal jednu 26sekundovou porci a skončil — změřeno
+    // 1. 9. 2026 během 131: z fronty 145 jich odbavil 16 a doběhl za 23 s.
     const deadline =
-      trigger === 'cron'
+      trigger === 'cron' || trigger === 'telegram'
         ? runStart + CRON_BUDGET_MS
         : Math.min(Date.now() + 18000, runStart + MANUAL_BUDGET_MS);
 
@@ -456,7 +463,8 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
       // podřízených požadavků nespotřebuje na režii.
       const batch = await loadUnscored(env, 8, queueOffset);
       if (!batch.length) break;
-      let progressed = 0;
+      let progressed = 0; // řádky, které opustily frontu (pro řízení smyčky)
+      let ohodnoceno = 0; // z toho těch, které opravdu ohodnotil model
 
       // Deterministické vyřazení PŘED AI. Ve frontě leží i to, co tam napadalo, dokud byl
       // prefiltr děravý (klíčové slovo „CIO" chytalo „stacionář", jobs.cz mělo propustku
@@ -482,6 +490,8 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
             },
           })),
         );
+        // Do `progressed` ano (řádky frontu opustily, takže to je postup a nesmí to
+        // spustit „tři dávky bez výsledku"), do `ohodnoceno` NE — model se jich nedotkl.
         progressed += rejected.length;
         stats.prefiltered = (stats.prefiltered ?? 0) + rejected.length;
       }
@@ -507,6 +517,7 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
             // Zápis se odloží a udělá se jednou za dávku (viz bulkUpdateScores níže).
             zapsat.push({ id: job.id, score: sc });
             progressed++;
+            ohodnoceno++;
             if (sc.relevance < settings.notifyThreshold || job.notifiedAt) return;
             const head = `${sc.relevance} | ${job.title} — ${job.employer}`;
             // Ve frontě můžou ležet tytéž inzeráty z jobs.cz i prace.cz — bez téhle kontroly
@@ -543,7 +554,10 @@ export async function runPipeline(env: Env, trigger: 'cron' | 'manual' = 'manual
           }
         }),
       );
-      backlog += progressed;
+      // Do součtu „doskórováno" patří jen práce modelu. Běh 131 hlásil „Doskórováno 8",
+      // ale model se dotkl JEDNOHO inzerátu — zbylých 7 vyřadil kód. Takový součet mate
+      // přesně tam, kde má být vidět, co stálo peníze a čas.
+      backlog += ohodnoceno;
       // Co se ohodnotit nepodařilo, zůstává ve frontě na stejném místě → posuň se za to,
       // jinak by pár vadných řádků v čele blokovalo frontu napořád (pořadí je deterministické,
       // příští běh by narazil na tytéž). Tři dávky po sobě bez výsledku = backend nefunguje,

@@ -11,6 +11,42 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 — měřák vyvrátil moji diagnózu; skutečná brzda byla jinde
+
+První běh na plné frontě (131, spuštěný z Telegramu, 145 čekajících):
+
+```
+fetched 100 · candidates 14 · scored 8 · prefiltered 15 · queueDepth 129
+📶 D1 67 · model 1 · živost 5 = 73 · na ohodnocený inzerát 9,13
+běh trval 23 s
+```
+
+**Tvrzení „free plán = 50 podřízených požadavků a to je ta brzda" NEPLATÍ.** Běh utratil 73
+a v pohodě doběhl. Že mi vyšlo „35 ÷ 2,7 = 13" a sedělo to na pozorovaných 10–15, byla
+shoda okolností. `Too many subrequests` z 31. 8. je skutečná chyba, ale strop je jinde
+a jeho hodnotu zatím neznáme. Diagnóza postavená na statické analýze kódu selhala **potřetí
+za den** — proto ten měřák.
+
+**Skutečná brzda: ruční běh má rozpočet 26 sekund.** A dává to smysl — stránka v prohlížeči
+ho volá znovu ve smyčce až 25×. Jenže **příkaz `/beh` z Telegramu nikdo nesmyčkuje**, takže
+udělal jednu porci a skončil: z fronty 145 odbavil 16 a doběhl za 23 s. Opraveno zavedením
+třetího spouštěče `'telegram'`, který dostává rozpočet jako cron (120 s).
+
+**Druhá chyba: „Doskórováno z fronty: 8" lhalo.** Model se dotkl **jednoho** inzerátu;
+zbylých 7 vyřadil kód. `backlog` totiž počítal i deterministická vyřazení. Rozdělené na
+`progressed` (řádky opustily frontu — řídí smyčku a hlídání „tři dávky bez výsledku")
+a `ohodnoceno` (práce modelu — jde do souhrnu). Součet, který míchá práci modelu s prací
+kódu, mate přesně tam, kde má být vidět, co stálo peníze.
+
+**Co měřák naopak potvrdil:** D1 je 67 ze 73 požadavků. Databáze je zdaleka největší
+položka, takže dávkový zápis smysl má — jen nebyl tím, co ten konkrétní běh brzdilo.
+
+**Co se z běhu ještě dozvědělo:** prefiltr odřízl 86 ze 100 stažených (jobs.cz 47,
+prace.cz **všech 39**) — to dělá tvrdý filtr kraje a je to zamýšlené. MPSV vrátilo na
+1. 9. HTTP 404, kurzor zůstal na 31. 8. (očekávané chování, přírůstek ještě není).
+
+---
+
 ## 2026-08-31 — měřák rozpočtu: běh si podřízené požadavky počítá sám
 
 Dosud se spotřeba rozpočtu **odhadovala ze statické analýzy kódu**. To je počítání na papíře
