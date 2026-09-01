@@ -28,6 +28,19 @@ interface Resolved {
 
 const PLATFORMS = ['recruitee', 'greenhouse', 'lever', 'ashby', 'smartrecruiters'];
 
+/**
+ * Je `host` danou doménou, nebo její subdoménou?
+ *
+ * Proč ne `includes`: URL sem chodí z modelu, který ji vzal z cizího webu — je to
+ * NEDŮVĚRYHODNÝ vstup. `host.includes('lever.co')` projde i na `lever.co.evil.example`
+ * a `nelever.co`, takže by si útočník mohl nechat svou doménu označit za ATS platformu
+ * a dostat ji do tabulky `sources` jako důvěryhodný zdroj nabídek.
+ * Větev pro Recruitee to měla správně od začátku, ostatní čtyři ne.
+ */
+function isHost(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 /** Detekuje platformu + slug z URL (zdroj pravdy nad tím, co řekne model). */
 export function detectPlatform(url?: string | null): { platform: string; slug: string } | null {
   if (!url) return null;
@@ -36,14 +49,14 @@ export function detectPlatform(url?: string | null): { platform: string; slug: s
     const host = u.hostname.toLowerCase();
     const parts = u.pathname.split('/').filter(Boolean);
     if (host.endsWith('.recruitee.com')) return { platform: 'recruitee', slug: host.split('.')[0] };
-    if (host.includes('greenhouse.io')) {
+    if (isHost(host, 'greenhouse.io')) {
       const forParam = u.searchParams.get('for');
       if (forParam) return { platform: 'greenhouse', slug: forParam };
       if (parts[0] && parts[0] !== 'embed') return { platform: 'greenhouse', slug: parts[0] };
     }
-    if (host.includes('lever.co') && parts[0]) return { platform: 'lever', slug: parts[0] };
-    if (host.includes('ashbyhq.com') && parts[0]) return { platform: 'ashby', slug: parts[0] };
-    if (host.includes('smartrecruiters.com') && parts[0])
+    if (isHost(host, 'lever.co') && parts[0]) return { platform: 'lever', slug: parts[0] };
+    if (isHost(host, 'ashbyhq.com') && parts[0]) return { platform: 'ashby', slug: parts[0] };
+    if (isHost(host, 'smartrecruiters.com') && parts[0])
       return { platform: 'smartrecruiters', slug: parts[0] };
   } catch {
     /* ignore */
