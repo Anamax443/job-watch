@@ -506,6 +506,47 @@ export const BULK_MAX = 500;
  */
 export const STOP_KEY = 'run_stop';
 
+// --- Hlídač nedoběhlých běhů ------------------------------------------------
+
+/** Po kolika minutách se otevřený záznam běhu považuje za mrtvý. */
+export const ZOMBIE_PO_MINUTACH = 6;
+
+export interface Zombie {
+  id: number;
+  started_at: string;
+}
+
+/**
+ * Najde a uzavře běhy, které nikdy nedoběhly.
+ *
+ * Proč to musí existovat: `catch` v pipeline chytá vyhozené výjimky, ale ne zabití zvenčí.
+ * Když platforma vyvolání ukončí (běh 132, 1. 9. 2026, při dojíždění fronty 129 inzerátů),
+ * neproběhne nic — žádná chyba, žádné `finished_at`, v tabulce visí otevřený záznam
+ * a agent se tváří, jako by pořád pracoval. Ticho po zabití a ticho po „nebylo co dělat"
+ * musí jít rozeznat, jinak může být agent mrtvý týdny.
+ *
+ * Vrací zavřené záznamy, aby o nich šlo dát vědět člověku.
+ */
+export async function uzavriZombie(env: Env, poMinutach = ZOMBIE_PO_MINUTACH): Promise<Zombie[]> {
+  const rows = await env.DB.prepare(
+    `SELECT id, started_at FROM runs
+     WHERE finished_at IS NULL AND started_at < datetime('now', ?)`,
+  )
+    .bind(`-${Math.max(1, Math.floor(poMinutach))} minutes`)
+    .all<Zombie>();
+  const list = rows.results ?? [];
+  if (!list.length) return [];
+  await env.DB.prepare(
+    `UPDATE runs SET finished_at = datetime('now'), ok = 0,
+       log = COALESCE(log,'') || char(10) ||
+         '💀 Běh nedoběhl a nevyhodil chybu — vyvolání ukončila platforma. Uzavřel to hlídač; co bylo hotové, zůstává, zbytek dožene další běh.'
+     WHERE finished_at IS NULL AND started_at < datetime('now', ?)`,
+  )
+    .bind(`-${Math.max(1, Math.floor(poMinutach))} minutes`)
+    .run();
+  return list;
+}
+
 /** Požádá běh o zastavení. Hodnota je čas, ať je v databázi vidět kdy. */
 export async function requestStop(env: Env): Promise<void> {
   await env.DB.prepare(

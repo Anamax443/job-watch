@@ -11,6 +11,36 @@ Append-only deník stavu. Nejnovější záznam nahoru. Slouží k pokračován�
 
 ---
 
+## 2026-09-01 — běh 132 platforma ZABILA; přibyl hlídač nedoběhlých běhů
+
+Po zvětšení rozpočtu na 120 s běh z Telegramu (132) **nedoběhl**: start 05:20:44,
+o šest minut později pořád `finished_at = NULL`, `ok = 0`, ve `stats` chybí `budget`.
+Log končí přesně na řádku živosti, tedy **na začátku dojíždění fronty** (129 čekajících).
+
+**Podstatné je, jak to selhalo.** Nevyhodilo to výjimku — vyvolání ukončila platforma.
+Takže neproběhl `catch`, nespustilo se včerejší hlášení pádu, nezapsalo se `finished_at`
+a v tabulce zůstal viset otevřený záznam. Zvenčí to vypadá, že agent pořád pracuje.
+Přesně ta třída selhání, kterou má chytat brána F6 — jen o patro výš, než kam jsem včera
+sáhl: `catch` chytá vyhozené chyby, ne zabití zvenčí.
+
+**Oprava 1 — hlídač.** `uzavriZombie()` běží v pětiminutovém rozvrhu (jediné místo, které
+se pravidelně dívá). Otevřený záznam starší než 6 minut uzavře, zapíše do jeho logu
+💀 vysvětlení a **dá vědět do Telegramu**. Hranice je záměrně delší než rozpočet běhu,
+ať hlídač neuzavře běh, který ještě žije.
+
+**Oprava 2 — rozpočet zpátky dolů, na 60 s.** Zabitý běh nezapíše **nic**; krátký zapíše,
+co stihl, a zbytek dožene další. Víc krátkých běhů je proto lepší než jeden dlouhý, který
+nepřežije. Platí pro cron i pro Telegram.
+
+**Poznámka k mé včerejší diagnóze:** už podruhé se ukázalo, že brzdou není rozpočet
+podřízených požadavků. Nejdřív to byl 26sekundový rozpočet ručního běhu, teď strop
+vyvolání. Skutečná hranice je pořád nezměřená — měřák ji ukáže, až běh doběhne.
+
+6 testů nad atrapou D1 (celkem **148**), mimo jiné že se hlídač bez zombie ani nedotkne
+dat a že nesmyslná hranice se srovná na minutu, aby neuzavřel právě běžící běh.
+
+---
+
 ## 2026-09-01 — měřák vyvrátil moji diagnózu; skutečná brzda byla jinde
 
 První běh na plné frontě (131, spuštěný z Telegramu, 145 čekajících):

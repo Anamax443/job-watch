@@ -1,6 +1,6 @@
 import type { Env, Settings } from './types.ts';
 import { runPipeline } from './pipeline.ts';
-import { notify, checkTelegram, checkEmail, type NotifyJob } from './notify.ts';
+import { notify, checkTelegram, checkEmail, sendTelegram, type NotifyJob } from './notify.ts';
 import { checkAnthropic, messagesCreate, allText } from './anthropic.ts';
 import {
   WORKERS_AI_MODEL,
@@ -13,7 +13,7 @@ import { resolveEnv, setSecret, secretStatus, SECRET_KEYS } from './secrets.ts';
 import { fetchWeb } from './sources/web.ts';
 import { isCheckableUrl } from './liveness.ts';
 import { pageParams } from './util.ts';
-import { BULK_MAX, buildJobsFilter, bulkSetScore, requestStop, sanitizeIds } from './store.ts';
+import { BULK_MAX, buildJobsFilter, bulkSetScore, requestStop, sanitizeIds, uzavriZombie } from './store.ts';
 import { HEARTBEAT_KEY, pollTelegram } from './telegram.ts';
 
 /** Výraz cronu vyhrazený pro vybírání zpráv z Telegramu (viz wrangler.toml). */
@@ -250,6 +250,20 @@ export default {
         (async () => {
           const renv = await resolveEnv(env); // token může být z D1 (UI), ne jen Worker secret
           const settings = await loadSettings(renv);
+          // Hlídač: zabitý běh nevyhodí výjimku, takže ho `catch` v pipeline nezachytí.
+          // Pětiminutový rozvrh je jediné místo, které se pravidelně dívá — ať to dělá.
+          const zombie = await uzavriZombie(renv);
+          if (zombie.length && settings.telegramChatId && renv.TELEGRAM_BOT_TOKEN) {
+            await sendTelegram(
+              renv,
+              settings.telegramChatId,
+              `💀 JobWatch: ${zombie.length === 1 ? 'běh' : `${zombie.length} běhů`} nedoběhl` +
+                ` (start ${zombie.map((z) => z.started_at).join(', ')}).
+` +
+                'Vyvolání ukončila platforma — bez chyby, bez záznamu. Uzavřel to hlídač,' +
+                ' co bylo hotové zůstává a zbytek dožene další běh.',
+            );
+          }
           const r = await pollTelegram(renv, settings, {
             // 'telegram' (ne 'manual'): příkaz /beh nikdo nesmyčkuje jako stránka
             // v prohlížeči, takže potřebuje plný rozpočet času jako cron.

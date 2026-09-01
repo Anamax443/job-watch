@@ -172,7 +172,12 @@ export async function runPipeline(
     //    kandidátů a zbytek zahodil. Proto cron dostává vlastní, mnohem větší rozpočet.
     //  • RUČNÍ běh jede přes fetch + ctx.waitUntil (kratší životnost) a UI ho stejně dávkuje
     //    ve smyčce → drží se krátce, ať se vždy stihne zapsat finished_at.
-    const CRON_BUDGET_MS = 120000;
+    // 120 s bylo příliš. Běh 132 (1. 9. 2026, 129 ve frontě) platforma při dojíždění
+    // fronty ZABILA — bez výjimky, bez `catch`, bez `finished_at`: v tabulce zůstal viset
+    // otevřený záznam a nikdo se nic nedozvěděl. Zabitý běh nezapíše nic, kdežto krátký
+    // běh zapíše, co stihl, a zbytek dožene další. Víc krátkých je proto lepší než jeden
+    // dlouhý, který nepřežije. Hlídač nedoběhlých běhů je v src/index.ts.
+    const CRON_BUDGET_MS = 60000;
     const MANUAL_BUDGET_MS = 26000;
     // Telegram má rozpočet jako cron, ne jako ruční běh. Krátký rozpočet ručního běhu
     // dává smysl JEN proto, že ho stránka v prohlížeči volá znovu ve smyčce. Příkaz /beh
